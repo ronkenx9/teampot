@@ -1,0 +1,26 @@
+{
+  "name": "teampot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch server/local.ts",
+    "build": "cd web && npm install && npm run build",
+    "start": "tsx server/local.ts",
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:passkey": "tsx scripts/e2e-passkey.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.4",
+    "@vercel/blob": "^2.8.1",
+    "dotenv": "^18.0.1",
+    "hono": "^4.13.13",
+    "viem": "^2.56.8"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "tsx": "^4.23.15"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
