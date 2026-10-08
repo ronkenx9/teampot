@@ -3,3 +3,5 @@ data/
 salt.json
 mine.log
 node_modules/
+.vercel
+.env*

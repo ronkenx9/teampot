@@ -1,5 +1,5 @@
 // End-to-end API check against the live testnet-backed server.
-const B = 'http://localhost:8787/api'
+const B = (process.env.BASE || 'http://localhost:8787') + '/api'
 const post = (p, b) => fetch(B + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }).then((r) => r.json())
 const st = await fetch(B + '/state').then((r) => r.json())
 const v = (n) => st.vendors.find((x) => x.name === n).id

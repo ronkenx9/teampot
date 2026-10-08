@@ -7,7 +7,8 @@
 | Access key sub-delegation (key authorizes another key) | NOT ALLOWED — root/company account must issue every key | `scripts/probe.ts` |
 | Access key recipient allowlist (scopes.recipients on transfer / transferWithMemo) | WORKS — approved vendor paid, unapproved vendor reverted | `scripts/probe3.ts` |
 | Fee sponsorship (feePayer = company) with P256 account | WORKS — employee $20 → $15 exactly for a $5 payment | `scripts/probe2.ts` |
-| WebAuthn passkey accounts | SDK has `Account.fromWebAuthnP256`; not yet tested in browser | — |
+| Passkey (webAuthn) spending key authorized from public key only | WORKS — authorized by public key, WebAuthn-signed spend succeeded, off-list vendor rejected | `scripts/probe5.ts`, `scripts/e2e-passkey.ts` (headless WebAuthn); real Face ID needs a person at the device |
+| Device-reported payments | Server re-checks the receipt: success, from the company account, exact recipient and amount; replays refused | `scripts/e2e-passkey.ts` |
 | Virtual addresses (TIP-1022) | Needs proof-of-work salt for master registration (~2^32 hashes, ~3 min at 27M/s, 8 workers) | `scripts/mine-salt.ts` |
 | Tempo Earn | No public testnet vault; requires deploying an experimental ERC-4626 Earn stack | viem.sh/tempo/guides/earn |
 | Zones | Testnet-only, early, breaking changes expected | viem.sh/tempo/guides/earn/zones |

@@ -3,11 +3,11 @@ import { api, ago, money, resetDate, type Held, type Person, type State } from '
 import { enrollPasskey, passkeysSupported, payWithPasskey } from './passkey'
 
 type Viewer = 'jordan' | 'ava' | 'sam' | 'mateo'
-const VIEWERS: { id: Viewer; label: string; sub: string }[] = [
-  { id: 'jordan', label: 'Jordan', sub: 'Finance' },
-  { id: 'ava', label: 'Ava', sub: 'Design lead' },
-  { id: 'sam', label: 'Sam', sub: 'Designer' },
-  { id: 'mateo', label: 'Mateo', sub: 'Contractor' },
+const VIEWERS: { id: Viewer; label: string; full: string; sub: string }[] = [
+  { id: 'jordan', label: 'Jordan', full: 'Jordan Lee', sub: 'Finance' },
+  { id: 'ava', label: 'Ava', full: 'Ava Chen', sub: 'Design lead' },
+  { id: 'sam', label: 'Sam', full: 'Sam Okafor', sub: 'Designer' },
+  { id: 'mateo', label: 'Mateo', full: 'Mateo Ruiz', sub: 'Contractor' },
 ]
 
 type Toast = { id: number; text: string; tone: 'good' | 'warn' | 'bad'; receipt?: string }
@@ -52,7 +52,7 @@ export default function App() {
           <span className="viewas-label">View as</span>
           {VIEWERS.map((v) => (
             <button key={v.id} role="tab" aria-selected={viewer === v.id} className={viewer === v.id ? 'on' : ''} onClick={() => setViewer(v.id)}>
-              <Avatar name={v.label} /> <span><b>{v.label}</b><small>{v.sub}</small></span>
+              <Avatar name={v.full} small /> <span><b>{v.label}</b><small>{v.sub}</small></span>
             </button>
           ))}
         </div>
