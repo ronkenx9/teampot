@@ -21,8 +21,8 @@ export const memo = (s: string) => pad(stringToHex(s.slice(0, 31)), { size: 32, 
 
 export const newKeyPk = () => generatePrivateKey()
 /** Demo spending key for a person, derived from the server secret so stored state never contains key material. */
-export const derivedKeyPk = (epoch: string, personId: string) =>
-  keccak256(concat([process.env.OPERATOR_PK as `0x${string}`, toHex(`teampot:${epoch}:${personId}`)]))
+export const derivedKeyPk = (epoch: string, personId: string, purpose = 'pot') =>
+  keccak256(concat([process.env.OPERATOR_PK as `0x${string}`, toHex(`teampot:${epoch}:${personId}:${purpose}`)]))
 export const newAddress = () => Account.fromSecp256k1(generatePrivateKey()).address
 const keyAccount = (pk: `0x${string}`) => Account.fromP256(pk, { access: companyAccount } as any)
 /** A spending key is either a demo P256 key held by the server or a device passkey (public key only). */
@@ -56,8 +56,9 @@ export async function remaining(k: KeyRef) {
 }
 
 /** Spend from a pot with a person's key. The key acts as the company account, so the company pays the fee. Throws on chain rejection. */
-export async function spendWithKey(pk: `0x${string}`, to: string, amountUsd: number, note: string) {
-  const client = mk(keyAccount(pk))
+export async function spendWithKey(k: KeyRef | `0x${string}`, to: string, amountUsd: number, note: string) {
+  const ref = typeof k === 'string' ? { pk: k } : k
+  const client = mk(keyParam(ref))
   const { receipt } = await client.token.transferSync({ token: TOKEN, to, amount: usd(amountUsd), memo: memo(note) } as any)
   return receipt.transactionHash as string
 }
@@ -77,13 +78,17 @@ export async function payday(lines: { to: string; amount: number; note: string }
 }
 
 
-/** Confirm a payment the device sent: it succeeded, left the company account, and paid `to` exactly `amountUsd`. */
-export async function verifySpend(tx: `0x${string}`, to: string, amountUsd: number) {
-  const r: any = await company.getTransactionReceipt({ hash: tx }).catch(() => null)
+export function receiptHasSpend(r: any, to: string, amountUsd: number) {
   if (!r || r.status !== 'success') return false
   const transfers = parseEventLogs({ abi: erc20Abi, eventName: 'Transfer', logs: r.logs }) as any[]
   return transfers.some((l) => l.address.toLowerCase() === TOKEN && l.args.from.toLowerCase() === companyAccount.address.toLowerCase()
     && l.args.to.toLowerCase() === to.toLowerCase() && l.args.value === usd(amountUsd))
+}
+
+/** Confirm a payment the device sent: it succeeded, left the company account, and paid `to` exactly `amountUsd`. */
+export async function verifySpend(tx: `0x${string}`, to: string, amountUsd: number) {
+  const r: any = await company.getTransactionReceipt({ hash: tx }).catch(() => null)
+  return receiptHasSpend(r, to, amountUsd)
 }
 
 /** Revoke a spending key (e.g. the demo key once a device passkey replaces it). */

@@ -1,28 +1,45 @@
 # Teampot
 
-**Live demo: https://teampot.vercel.app** (Tempo testnet, test money)
+**Live demo: https://teampot.vercel.app** (Tempo Moderato testnet, test money)
 
-Work money, finally fun. Payday, team pots and contractor pay for everyone a company works with, on Tempo.
+Work money, finally fun. Teampot runs payday, team pots, perks, kudos from savings, and contractor pay for everyone a company works with.
 
-## Run (Tempo testnet)
-1. `cp .env.example .env` and set `OPERATOR_PK` to a funded Moderato testnet key (fund with `cast rpc tempo_fundAddress <addr> --rpc-url https://rpc.moderato.tempo.xyz`).
+## Features
+- Finance dashboard: payday preview/confirm, next payday date, history, team pot management, people management, vendor management, CSV export, receipt detail sheet.
+- Team pots: per-person monthly limits and approved vendor lists enforced by Tempo access keys. Off-list or over-limit payments are held for a lead.
+- Approve and add: a lead can pay a held vendor now and add it to the team list; demo keys rotate and team cards are re-issued.
+- Perks: per-person allowances such as Lunch and Learning, each issued as its own access key with its own limit and vendor list.
+- Quarter close: computes real remaining limits, pays a kudos pool from savings, records a leaderboard, and lets teammates award kudos.
+- Contractor portal: invoice list, paid-in-seconds badge, and decline-with-reason.
+- Face ID: browser passkeys become a person's spending key; the server records only verified receipts.
+- Earned while unspent: shown only as a clearly labelled simulated card.
+
+## Run Locally
+1. `cp .env.example .env` and set `OPERATOR_PK` to a funded Moderato testnet key.
 2. `npm install && (cd web && npm install)`
-3. `npm run build` then `npm start` → http://localhost:8787 (API + web on one origin).
-   For UI work: `npm run dev` (API) and `cd web && npm run dev` (http://localhost:5280, proxies /api).
-5. Click **Set up team pots** once (issues each person's spending key on-chain).
+3. `npm run build`
+4. `PORT=8790 npx tsx server/local.ts`
+5. Open `http://localhost:8790`.
 
-Use **View as** to switch between Finance (Jordan), a team lead (Ava), an employee (Sam) and a contractor (Mateo).
+Use **View as** to switch between Finance (Jordan), a team lead (Ava), an employee (Sam), and a contractor (Mateo). Click **Set up team pots** once after a reset.
 
-## What is real on-chain
-See [VERIFIED.md](VERIFIED.md). Payday is one atomic batch; each person's team-pot limit and approved-vendor list are enforced by a Tempo access key; off-list or over-limit payments are rejected by the chain and wait for the lead; approvals and contractor invoices are paid by the company with memos. Every receipt links to the public explorer.
+## Test
+From `app/`:
 
-## Demo-mode notes
-- **Face ID:** tap "Turn on" in an employee wallet to create a device passkey. The company authorizes its public key as that person's spending key (same monthly cap + vendor list) and revokes the demo key; every payment is then signed on the device. Until someone turns it on, payments use a demo key derived from the server secret.
-- Anyone can switch roles with **View as** — it's a demo of four people's screens, not an auth system.
-- State lives in Vercel Blob (versioned files) when deployed, a local JSON file otherwise. Requests are serialized per instance; heavy concurrent use across instances could lose an update.
-- Not built yet: earning on idle balances (no public testnet Earn vault), private payroll (Zones are early testnet).
+```bash
+npm run typecheck
+npm test
+npm run build
+BASE=http://localhost:8790 npm run e2e
+BASE=http://localhost:8790 npm run e2e:passkey
+npm run check:banned
+BASE=http://localhost:8790 npm run responsive
+```
 
-`npm run e2e` style check: `node scripts/e2e.mjs` (needs the API running and setup done).
+`npm run responsive` uses Playwright when it is installed. Without Playwright, it loads the local app and records the manual fallback in `GATES.md`.
 
-## Deploy (Vercel)
-`vercel link`, `vercel blob create-store teampot-state --access public --yes`, set `OPERATOR_PK` (funded testnet key) and `RESET_TOKEN`, then `vercel deploy --prod`. Reset the demo: `BASE=https://… RESET_TOKEN=… sh scripts/demo-reset.sh`.
+## Deploy
+Deployment is handled separately by the owner. Do not deploy from this workspace. Required production env vars remain `OPERATOR_PK`, `RESET_TOKEN`, and optionally `BLOB_READ_WRITE_TOKEN` for Vercel Blob state.
+
+## What Is Real
+See [VERIFIED.md](VERIFIED.md). Payday, contractor payments, pot spends, perks, approve-and-add re-issues, quarter close pool payments, kudos awards, and Face ID receipt verification have Moderato evidence. Earned while unspent is simulated.

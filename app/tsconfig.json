@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node", "vitest/globals"],
+    "resolveJsonModule": true,
+    "noEmit": true
+  },
+  "include": ["server/**/*.ts", "api/**/*.ts", "scripts/e2e-passkey.ts", "**/*.test.ts"]
+}

@@ -4,10 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch server/local.ts",
+    "typecheck": "tsc --noEmit && cd web && npx tsc --noEmit",
+    "test": "vitest run",
     "build": "cd web && npm install && npm run build",
     "start": "tsx server/local.ts",
     "e2e": "node scripts/e2e.mjs",
-    "e2e:passkey": "tsx scripts/e2e-passkey.ts"
+    "e2e:passkey": "tsx scripts/e2e-passkey.ts",
+    "check:banned": "node scripts/check-banned-ui.mjs",
+    "responsive": "node scripts/responsive-check.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.4",
@@ -18,7 +22,9 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
   },
   "engines": {
     "node": ">=20"

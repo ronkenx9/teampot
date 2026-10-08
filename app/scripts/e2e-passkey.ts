@@ -3,7 +3,7 @@ import { Account, createClient } from 'viem/tempo'
 import { tempoModerato } from 'viem/tempo/chains'
 import { http, parseUnits, pad, stringToHex } from 'viem'
 import { P256, PublicKey } from 'ox'
-const B = (process.env.BASE || 'http://localhost:8787') + '/api'
+const B = (process.env.BASE || 'http://localhost:8790') + '/api'
 const post = (p: string, b: any) => fetch(B + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then((r) => r.json())
 const pk = P256.randomPrivateKey()
 const pub = PublicKey.toHex(P256.getPublicKey({ privateKey: pk }))
