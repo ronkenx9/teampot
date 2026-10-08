@@ -16,5 +16,5 @@
 ## Design consequences
 - Team pot = one access key per person, issued by the company account, with a periodic cap **and** a vendor allowlist. Both chain-enforced.
 - "Held for approval" = chain rejects an off-list vendor → app records the request → lead approves → company account pays directly (with memo).
-- Every payment from employees is fee-sponsored by the company.
+- Team-pot spends run as the company account, so the company pays every network fee; employees never see one.
 - "Earned while unspent" and "Private payroll" are labelled simulated / roadmap unless an Earn stack or Zone is stood up later.
