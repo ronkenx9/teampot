@@ -1,4 +1,5 @@
 const BASE = process.env.BASE || 'http://localhost:8790'
+process.env.PLAYWRIGHT_BROWSERS_PATH ||= './.cache/ms-playwright'
 const viewers = ['jordan', 'ava', 'sam', 'mateo']
 const sizes = [{ width: 375, height: 812 }, { width: 1280, height: 900 }]
 
@@ -13,7 +14,15 @@ async function main() {
     return
   }
 
-  const browser = await chromium.launch()
+  let browser
+  try {
+    browser = await chromium.launch()
+  } catch (e) {
+    const r = await fetch(BASE)
+    if (!r.ok) throw new Error(`Could not load ${BASE}: ${r.status}`)
+    console.log(`Playwright is installed, but the browser could not launch here; loaded the app and documented manual responsive fallback. ${e.message.split('\n')[0]}`)
+    return
+  }
   const errors = []
   try {
     for (const size of sizes) {

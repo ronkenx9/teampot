@@ -20,7 +20,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<any | null>(null)
 
-  const refresh = useCallback(() => api.state().then((x) => { setS(x); setError(null) }).catch((e) => setError(e.message)), [])
+  const refresh = useCallback(() => api.state(viewer).then((x) => { setS(x); setError(null) }).catch((e) => setError(e.message)), [viewer])
   useEffect(() => { refresh(); const t = setInterval(refresh, 4000); return () => clearInterval(t) }, [refresh])
   useEffect(() => { try { localStorage.setItem('tp-viewer', viewer) } catch { /* private mode */ } }, [viewer])
 
@@ -33,7 +33,7 @@ export default function App() {
     setBusy(key)
     try { done(await fn()) } catch (e: any) { toast({ text: e.message, tone: 'bad' }) } finally { setBusy(null); refresh() }
   }
-  const openReceipt = (id: string) => run('receipt', () => api.receipt(id), setReceipt)
+  const openReceipt = (id: string) => run('receipt', () => api.receipt(id, viewer), setReceipt)
 
   if (!s && error) return <Shell><ErrorState text={error} retry={refresh} /></Shell>
   if (!s) return <Shell><Skeleton /></Shell>
@@ -58,21 +58,21 @@ export default function App() {
         <div className="viewas" role="tablist" aria-label="View as">
           <span className="viewas-label">View as</span>
           {VIEWERS.map((v) => (
-            <button key={v.id} role="tab" aria-selected={viewer === v.id} className={viewer === v.id ? 'on' : ''} onClick={() => setViewer(v.id)}>
+            <button key={v.id} role="tab" aria-selected={viewer === v.id} className={viewer === v.id ? 'on' : ''} onClick={() => { setS(null); setViewer(v.id) }}>
               <Avatar name={v.full} small /> <span><b>{v.label}</b><small>{v.sub}</small></span>
             </button>
           ))}
         </div>
       </header>
       <main>
-        {viewer === 'jordan' && <Finance {...ctx} />}
-        {viewer === 'ava' && <Lead {...ctx} me={s.people.find((p) => p.id === 'ava')!} />}
-        {viewer === 'sam' && <Employee {...ctx} me={s.people.find((p) => p.id === 'sam')!} />}
-        {viewer === 'mateo' && <Contractor {...ctx} me={s.people.find((p) => p.id === 'mateo')!} />}
+        {viewer === 'jordan' && <Finance {...ctx} viewer={viewer} />}
+        {viewer === 'ava' && (s.people.find((p) => p.id === 'ava') ? <Lead {...ctx} me={s.people.find((p) => p.id === 'ava')!} /> : <Skeleton />)}
+        {viewer === 'sam' && (s.people.find((p) => p.id === 'sam') ? <Employee {...ctx} me={s.people.find((p) => p.id === 'sam')!} /> : <Skeleton />)}
+        {viewer === 'mateo' && (s.people.find((p) => p.id === 'mateo') ? <Contractor {...ctx} me={s.people.find((p) => p.id === 'mateo')!} /> : <Skeleton />)}
       </main>
       <footer className="foot">Demo company · test money · receipts open a public record</footer>
       <div className="toasts" aria-live="polite">
-        {toasts.map((t) => <div key={t.id} className={`toast ${t.tone}`}><span>{t.text}</span>{t.receipt && <a href={t.receipt} target="_blank" rel="noreferrer">Receipt</a>}</div>)}
+        {toasts.map((t) => <div key={t.id} className={`toast ${t.tone}`}>{t.tone === 'warn' && <Mascot state="guarding" small />}<span>{t.text}</span>{t.receipt && <a href={t.receipt} target="_blank" rel="noreferrer">Receipt</a>}</div>)}
       </div>
       {receipt && <ReceiptSheet data={receipt} close={() => setReceipt(null)} />}
     </Shell>
@@ -86,78 +86,85 @@ type Ctx = {
   openReceipt: (id: string) => void
 }
 
-function Finance({ s, busy, run, toast, openReceipt }: Ctx) {
+type FinanceSection = 'overview' | 'payday' | 'pots' | 'people' | 'contractors' | 'quarter' | 'activity'
+const FINANCE_TABS: { id: FinanceSection; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'payday', label: 'Payday' },
+  { id: 'pots', label: 'Pots & perks' },
+  { id: 'people', label: 'People' },
+  { id: 'contractors', label: 'Contractors' },
+  { id: 'quarter', label: 'Quarter close' },
+  { id: 'activity', label: 'Activity' },
+]
+
+function Finance({ s, busy, run, toast, openReceipt, viewer }: Ctx & { viewer: Viewer }) {
   const staff = s.people.filter((p) => p.salary)
   const payroll = staff.reduce((a, p) => a + (p.salary || 0), 0)
   const waiting = s.held.filter((h) => h.status === 'held')
   const openInv = s.invoices.filter((i) => i.status === 'submitted')
   const lastPayday = s.paydayRuns[0]
+  const [section, setSection] = useState<FinanceSection>('overview')
   const [confirmPayday, setConfirmPayday] = useState(false)
+  const [paydayParty, setPaydayParty] = useState<{ total: number; count: number; receipt?: string } | null>(null)
   const [nextDate, setNextDate] = useState(s.nextPayday)
   useEffect(() => setNextDate(s.nextPayday), [s.nextPayday])
 
-  return (
-    <div className="grid">
+  const paydayPanel = (
+    <section className="card payday color-butter">
+      <div className="card-h"><h2>Payday</h2>{lastPayday && <span className="muted">Last run {ago(lastPayday.at)}</span>}</div>
+      <div className="date-row">
+        <label>Next payday<input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} /></label>
+        <button className="btn ghost" disabled={!!busy || nextDate === s.nextPayday} onClick={() => run('paydate', () => api.setPayday(nextDate), () => toast({ text: 'Next payday saved', tone: 'good' }))}>Save date</button>
+      </div>
+      <ul className="rows">
+        {staff.map((p) => <li key={p.id}><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title}</small></span><span className="num">{money(p.salary!)}</span></li>)}
+      </ul>
+      <div className="card-f">
+        <span className="muted">Preview first, then payday's in the pot.</span>
+        <button className="btn primary" disabled={!!busy} onClick={() => setConfirmPayday(true)}>Preview payday</button>
+      </div>
+      {confirmPayday && <ConfirmSheet title="Run payday?" amount={money(payroll)} detail={`${staff.length} people · ${s.nextPayday}`} busy={busy === 'payday'} actionText="Run payday" onCancel={() => setConfirmPayday(false)} onConfirm={() => run('payday', api.payday, (r: any) => { setConfirmPayday(false); setPaydayParty({ total: r.total, count: r.count, receipt: `https://explore.testnet.tempo.xyz/tx/${r.tx}` }); toast({ text: `Payday's in the pot · ${r.count} people`, tone: 'good', receipt: `https://explore.testnet.tempo.xyz/tx/${r.tx}` }) })} />}
+    </section>
+  )
+
+  const content: Record<FinanceSection, ReactNode> = {
+    overview: <div className="grid finance-grid">
       <section className="kpis span12">
         <Kpi label="Company balance" value={money(s.company.balance)} />
         <Kpi label="Monthly payroll" value={money(payroll)} sub={`${staff.length} people`} />
         <Kpi label="Waiting for approval" value={String(waiting.length)} tone={waiting.length ? 'warn' : undefined} />
         <Kpi label="Contractor invoices" value={String(openInv.length)} sub="to review" />
       </section>
+      <section className="card span5 color-clay mascot-panel"><Mascot state={waiting.length ? 'guarding' : 'napping'} /><div><h2>{waiting.length ? 'Guarding the pot' : 'Nothing waiting'}</h2><p>{waiting.length ? 'A lead can approve, return, or add the vendor for next time.' : 'The pot is napping. Good sign.'}</p></div></section>
+      <section className="card span7"><div className="card-h"><h2>Waiting for approval</h2><span className="pill">{waiting.length}</span></div><Approvals s={s} items={waiting} busy={busy} run={run} toast={toast} approverId={s.people.find((p) => p.role === 'admin')?.id ?? 'jordan'} /></section>
+      <section className="card span7"><div className="card-h"><h2>Team pots</h2><span className="muted">Live team cards</span></div><div className="pots">{s.pots.map((pt) => <PotCard key={pt.id} s={s} potId={pt.id} />)}</div></section>
+      <section className="card span5"><div className="card-h"><h2>Recent activity</h2></div><Feed s={s} compact openReceipt={openReceipt} /></section>
+    </div>,
+    payday: <div className="grid finance-grid"><section className="span7">{paydayPanel}</section><section className="card span5"><div className="card-h"><h2>Payday history</h2></div><ul className="rows">{s.paydayRuns.length ? s.paydayRuns.map((p) => <li key={p.id}><Mascot state="holding" small /><span className="grow"><b>{p.date}</b><small>{p.count} people · landed in {(p.ms / 1000).toFixed(1)}s</small></span><span className="num">{money(p.total)}</span></li>) : <li><Empty state="napping" text="No payday run yet." /></li>}</ul></section></div>,
+    pots: <div className="grid finance-grid"><section className="card span7"><div className="card-h"><h2>Pots & perks</h2><span className="muted">Changing limits updates team cards</span></div><AdminTools mode="pots" s={s} busy={busy} run={run} toast={toast} /></section><section className="card span5 color-sage"><div className="card-h"><h2>Team pots</h2></div><div className="pots single">{s.pots.map((pt) => <PotCard key={pt.id} s={s} potId={pt.id} />)}</div></section></div>,
+    people: <div className="grid finance-grid"><section className="card span5 color-butter"><div className="card-h"><h2>People</h2></div><AdminTools mode="people" s={s} busy={busy} run={run} toast={toast} /></section><section className="card span7"><div className="card-h"><h2>Directory</h2></div><ul className="rows">{s.people.filter((p) => p.role !== 'contractor').map((p) => <li key={p.id}><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title} · {p.team || 'Finance'}</small></span>{p.salary && <span className="num">{money(p.salary)}</span>}</li>)}</ul></section></div>,
+    contractors: <div className="grid finance-grid"><section className="card span12"><div className="card-h"><h2>Contractors</h2><span className="pill">{openInv.length} to review</span></div><Invoices s={s} busy={busy} run={run} toast={toast} canPay /></section></div>,
+    quarter: <div className="grid finance-grid"><section className="card span7 color-sage"><div className="card-h"><h2>Quarter close</h2><span className="muted">Savings become kudos</span></div><QuarterClose s={s} busy={busy} run={run} toast={toast} /></section><section className="card span5"><div className="card-h"><h2>Earned while unspent</h2><span className="pill">{s.simulatedEarnings.label}</span></div><b className="big-money">{money(s.simulatedEarnings.amount)}</b><p className="muted">{s.simulatedEarnings.note}</p></section></div>,
+    activity: <div className="grid finance-grid"><section className="card span12"><div className="card-h"><h2>Activity</h2><a className="btn small ghost" href={api.activityCsv(viewer)}>Export CSV</a></div><Feed s={s} openReceipt={openReceipt} /></section></div>,
+  }
 
-      <section className="card span7 payday">
-        <div className="card-h"><h2>Payday</h2>{lastPayday && <span className="muted">Last run {ago(lastPayday.at)}</span>}</div>
-        <div className="date-row">
-          <label>Next payday<input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} /></label>
-          <button className="btn ghost" disabled={!!busy || nextDate === s.nextPayday} onClick={() => run('paydate', () => api.setPayday(nextDate), () => toast({ text: 'Next payday saved', tone: 'good' }))}>Save date</button>
-        </div>
-        <ul className="rows">
-          {staff.map((p) => <li key={p.id}><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title}</small></span><span className="num">{money(p.salary!)}</span></li>)}
-        </ul>
-        <div className="card-f">
-          <span className="muted">Preview first, then payday's in the pot.</span>
-          <button className="btn primary" disabled={!!busy} onClick={() => setConfirmPayday(true)}>Preview payday</button>
-        </div>
-        {confirmPayday && <ConfirmSheet title="Run payday?" amount={money(payroll)} detail={`${staff.length} people · ${s.nextPayday}`} busy={busy === 'payday'} actionText="Run payday" onCancel={() => setConfirmPayday(false)} onConfirm={() => run('payday', api.payday, (r: any) => { setConfirmPayday(false); toast({ text: `Payday done · ${r.count} people · ${money(r.total)}`, tone: 'good', receipt: `https://explore.testnet.tempo.xyz/tx/${r.tx}` }) })} />}
-      </section>
-
-      <section className="card span5 mascot-panel">
-        <Mascot state={waiting.length ? 'guarding' : 'napping'} />
-        <div><h2>{waiting.length ? 'Guarding the pot' : 'Nothing waiting'}</h2><p className="muted">{waiting.length ? 'A lead can approve, return, or approve and add the vendor for next time.' : 'The little pot is napping. Good sign.'}</p></div>
-      </section>
-
-      <section className="card span5">
-        <div className="card-h"><h2>Waiting for approval</h2><span className="pill">{waiting.length}</span></div>
-        <Approvals s={s} items={waiting} busy={busy} run={run} toast={toast} />
-      </section>
-      <section className="card span7">
-        <div className="card-h"><h2>Team pots</h2><span className="muted">Cards update when limits or vendor lists change</span></div>
-        <div className="pots">{s.pots.map((pt) => <PotCard key={pt.id} s={s} potId={pt.id} />)}</div>
-      </section>
-
-      <section className="card span7">
-        <div className="card-h"><h2>Quarter close</h2><span className="muted">Savings become kudos</span></div>
-        <QuarterClose s={s} busy={busy} run={run} toast={toast} />
-      </section>
-      <section className="card span5">
-        <div className="card-h"><h2>Earned while unspent</h2><span className="pill">{s.simulatedEarnings.label}</span></div>
-        <b className="big-money">{money(s.simulatedEarnings.amount)}</b>
-        <p className="muted">{s.simulatedEarnings.note}</p>
-      </section>
-
-      <section className="card span6"><div className="card-h"><h2>Manage</h2></div><AdminTools s={s} busy={busy} run={run} toast={toast} /></section>
-      <section className="card span6"><div className="card-h"><h2>Contractor invoices</h2></div><Invoices s={s} busy={busy} run={run} toast={toast} canPay /></section>
-      <section className="card span12"><div className="card-h"><h2>Activity</h2><a className="btn small ghost" href="/api/activity.csv">Export CSV</a></div><Feed s={s} openReceipt={openReceipt} /></section>
+  return (
+    <div className="finance-shell">
+      <nav className="finance-nav" aria-label="Finance sections">{FINANCE_TABS.map((t) => <button key={t.id} className={section === t.id ? 'on' : ''} onClick={() => setSection(t.id)}>{t.label}</button>)}</nav>
+      <div className="finance-content">{content[section]}</div>
+      <nav className="finance-tabs" aria-label="Finance sections">{FINANCE_TABS.map((t) => <button key={t.id} className={section === t.id ? 'on' : ''} onClick={() => setSection(t.id)}>{t.label}</button>)}</nav>
+      {paydayParty && <PaydaySuccessSheet total={paydayParty.total} count={paydayParty.count} receipt={paydayParty.receipt} close={() => setPaydayParty(null)} />}
     </div>
   )
 }
 
 function Lead({ s, busy, run, toast, openReceipt, me }: Ctx & { me: Person }) {
-  const waiting = s.held.filter((h) => h.status === 'held' && h.potId === me.team)
+  // A lead never approves their own request; those go to Finance.
+  const waiting = s.held.filter((h) => h.status === 'held' && h.potId === me.team && h.personId !== me.id)
   return (
     <div className="grid">
       <section className="card span7"><div className="card-h"><h2>Your team's pot</h2></div><PotCard s={s} potId={me.team!} big /></section>
-      <section className="card span5"><div className="card-h"><h2>Needs your OK</h2><span className="pill">{waiting.length}</span></div><Approvals s={s} items={waiting} busy={busy} run={run} toast={toast} /></section>
+      <section className="card span5"><div className="card-h"><h2>Needs your OK</h2><span className="pill">{waiting.length}</span></div><Approvals s={s} items={waiting} busy={busy} run={run} toast={toast} approverId={me.id} /></section>
       <section className="span5"><Wallet s={s} me={me} busy={busy} run={run} toast={toast} /></section>
       <section className="card span7"><div className="card-h"><h2>Team activity</h2></div><Feed s={s} filter={(a) => a.potId === me.team} openReceipt={openReceipt} /></section>
       <section className="card span12"><div className="card-h"><h2>Kudos</h2></div><Kudos s={s} me={me} busy={busy} run={run} toast={toast} /></section>
@@ -170,7 +177,7 @@ function Employee({ s, busy, run, toast, openReceipt, me }: Ctx & { me: Person }
   return (
     <div className="phone-wrap">
       <div className="phone">
-        <div className="hello"><Avatar name={me.name} /><div><small>Good to see you</small><b>{me.name.split(' ')[0]}</b></div></div>
+        <div className="hello hero-hello"><div><small>Good to see you</small><b>Hey, {me.name.split(' ')[0]}.</b><span>Your work money is ready to play nice.</span></div><Mascot state="idle" small /></div>
         <div className="payslip">
           <small>{pay ? `Payday landed · ${ago(pay.at)}` : `Next payday · ${s.nextPayday}`}</small>
           <b>{money(me.salary || 0)}</b>
@@ -192,7 +199,7 @@ function Contractor({ s, busy, run, toast, me }: Ctx & { me: Person }) {
   return (
     <div className="phone-wrap">
       <div className="phone">
-        <div className="hello"><Avatar name={me.name} /><div><small>{me.title} · {me.country}</small><b>{me.name.split(' ')[0]}</b></div></div>
+        <div className="hello hero-hello contractor-hello"><div><small>{me.title} · {me.country}</small><b>Hi, {me.name.split(' ')[0]}.</b><span>Send the invoice. Get paid fast.</span></div><Mascot state="holding" small /></div>
         <div className="payslip"><small>Paid to you</small><b>{money(me.balance)}</b><span>Get paid the moment {s.company.name} approves</span></div>
         <form className="card flat form" onSubmit={(e) => { e.preventDefault(); run('inv', () => api.invoice({ contractorId: me.id, amount: Number(amount), description: desc }), () => toast({ text: 'Invoice sent', tone: 'good' })) }}>
           <h3>Send an invoice</h3>
@@ -271,21 +278,21 @@ function PerkCard({ s, perk, me, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'r
   )
 }
 
-function Approvals({ s, items, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { items: Held[] }) {
+function Approvals({ s, items, busy, run, toast, approverId }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { items: Held[]; approverId: string }) {
   if (!items.length) return <Empty state="napping" text="Nothing waiting. Nice." />
-  return <ul className="rows">{items.map((h) => {
+  return <div className="approval-stack"><div className="approval-guard"><Mascot state="guarding" small /><span>Held for approval</span></div><ul className="rows">{items.map((h) => {
     const p = s.people.find((x) => x.id === h.personId)!
     const v = s.vendors.find((x) => x.id === h.vendorId)!
     return (
       <li key={h.id} className="held">
         <Avatar name={p.name} />
         <span className="grow"><b>{p.name.split(' ')[0]} → {v.name} · {money(h.amount)}</b><small>{h.reason === 'new-vendor' ? `New vendor for ${s.pots.find((x) => x.id === h.potId)?.team}` : 'Over monthly limit'} · {h.note} · {ago(h.at)}</small></span>
-        <button className="btn small ghost" disabled={!!busy} onClick={() => run('d' + h.id, () => api.decide(h.id, 'return'), () => toast({ text: 'Returned. Nothing was paid.', tone: 'good' }))}>Return</button>
-        {h.reason === 'new-vendor' && <button className="btn small ghost" disabled={!!busy} onClick={() => run('a' + h.id, () => api.decide(h.id, 'approve-add'), (r: any) => toast({ text: `Approved and added · ${v.name}`, tone: 'good', receipt: r.tx ? `https://explore.testnet.tempo.xyz/tx/${r.tx}` : undefined }))}>Approve + add</button>}
-        <button className="btn small primary" disabled={!!busy} onClick={() => run('d' + h.id, () => api.decide(h.id, 'approve'), (r: any) => toast({ text: `Approved · ${v.name} paid ${money(h.amount)}`, tone: 'good', receipt: r.tx ? `https://explore.testnet.tempo.xyz/tx/${r.tx}` : undefined }))}>{busy === 'd' + h.id ? '…' : 'Approve'}</button>
+        <button className="btn small ghost" disabled={!!busy} onClick={() => run('d' + h.id, () => api.decide(h.id, 'return', approverId), () => toast({ text: 'Returned. Nothing was paid.', tone: 'good' }))}>Return</button>
+        {h.reason === 'new-vendor' && <button className="btn small ghost" disabled={!!busy} onClick={() => run('a' + h.id, () => api.decide(h.id, 'approve-add', approverId), (r: any) => toast({ text: `Approved and added · ${v.name}`, tone: 'good', receipt: r.tx ? `https://explore.testnet.tempo.xyz/tx/${r.tx}` : undefined }))}>Approve + add</button>}
+        <button className="btn small primary" disabled={!!busy} onClick={() => run('d' + h.id, () => api.decide(h.id, 'approve', approverId), (r: any) => toast({ text: `Approved · ${v.name} paid ${money(h.amount)}`, tone: 'good', receipt: r.tx ? `https://explore.testnet.tempo.xyz/tx/${r.tx}` : undefined }))}>{busy === 'd' + h.id ? '…' : 'Approve'}</button>
       </li>
     )
-  })}</ul>
+  })}</ul></div>
 }
 
 function Invoices({ s, busy, run, toast, items, canPay }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { items?: Invoice[]; canPay?: boolean }) {
@@ -345,6 +352,7 @@ function QuarterClose({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 
         <button className="btn primary" disabled={!!busy}>Close quarter</button>
       </form>
       <div className="leaderboard">
+        {leaders[0] && <div className="quarter-moment"><span className="burst" /><Mascot state="celebrating" small /><div><b>{money(leaders[0].pool)} kudos split</b><small>{money(leaders[0].perPerson, true)} each from {s.pots.find((p) => p.id === leaders[0].potId)?.team}</small></div></div>}
         {leaders.length ? leaders.map((c, i) => <div key={c.id} className="rank"><b>#{i + 1} {s.pots.find((p) => p.id === c.potId)?.team}</b><span>{money(c.savings)} saved</span></div>) : <Empty state="celebrating" text="Close a quarter to start the leaderboard." />}
       </div>
     </div>
@@ -361,7 +369,7 @@ function Kudos({ s, me, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'to
   return <form className="form compact-form" onSubmit={(e) => { e.preventDefault(); run('kudos', () => api.kudos({ fromPersonId: me.id, toPersonId: to, amount: Number(amount), note }), () => toast({ text: 'Kudos sent', tone: 'good' })) }}><span className="muted">{money(left, true)} left to award</span><div className="three"><label>Teammate<select value={to} onChange={(e) => setTo(e.target.value)}>{mates.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label>Amount<div className="money-in"><span>$</span><input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div></label><label>Note<input value={note} onChange={(e) => setNote(e.target.value)} /></label></div><button className="btn primary" disabled={!!busy || !to}>Send kudos</button></form>
 }
 
-function AdminTools({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'>) {
+function AdminTools({ s, busy, run, toast, mode = 'all' }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { mode?: 'all' | 'pots' | 'people' }) {
   const [vendorName, setVendorName] = useState('Canva')
   const [vendorCat, setVendorCat] = useState('Design')
   const [potId, setPotId] = useState(s.pots[0]?.id ?? '')
@@ -376,18 +384,18 @@ function AdminTools({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 't
   const toggleVendor = (id: string) => setVendorIds((xs) => xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id])
   return (
     <div className="admin-stack">
-      <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('vendor', () => api.vendor({ name: vendorName, category: vendorCat }), () => toast({ text: 'Vendor added', tone: 'good' })) }}>
+      {mode !== 'people' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('vendor', () => api.vendor({ name: vendorName, category: vendorCat }), () => toast({ text: 'Vendor added', tone: 'good' })) }}>
         <h3>Add vendor</h3><div className="two"><label>Name<input value={vendorName} onChange={(e) => setVendorName(e.target.value)} /></label><label>Category<input value={vendorCat} onChange={(e) => setVendorCat(e.target.value)} /></label></div><button className="btn ghost" disabled={!!busy}>Add vendor</button>
-      </form>
-      <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('pot', () => api.updatePot(potId, { perPersonCap: Number(cap), vendorIds }), (r: any) => toast({ text: `Updating team cards · ${r.reissued} refreshed`, tone: 'good' })) }}>
+      </form>}
+      {mode !== 'people' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('pot', () => api.updatePot(potId, { perPersonCap: Number(cap), vendorIds }), (r: any) => toast({ text: `Updating team cards · ${r.reissued} refreshed`, tone: 'good' })) }}>
         <h3>Edit pot</h3><div className="two"><label>Pot<select value={potId} onChange={(e) => setPotId(e.target.value)}>{s.pots.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label><label>Monthly limit<div className="money-in"><span>$</span><input value={cap} onChange={(e) => setCap(e.target.value.replace(/[^\d.]/g, ''))} /></div></label></div><div className="check-grid">{s.vendors.map((v) => <label key={v.id} className="check"><input type="checkbox" checked={vendorIds.includes(v.id)} onChange={() => toggleVendor(v.id)} />{v.name}</label>)}</div><button className="btn primary" disabled={!!busy}>Save pot</button>
-      </form>
-      <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('person', () => api.person({ name: personName, role: 'employee', title: personTitle, team: personTeam, salary: 3600 }), () => toast({ text: 'Person added', tone: 'good' })) }}>
+      </form>}
+      {mode !== 'pots' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('person', () => api.person({ name: personName, role: 'employee', title: personTitle, team: personTeam, salary: 3600 }), () => toast({ text: 'Person added', tone: 'good' })) }}>
         <h3>Add person</h3><div className="two"><label>Name<input value={personName} onChange={(e) => setPersonName(e.target.value)} /></label><label>Team<select value={personTeam} onChange={(e) => setPersonTeam(e.target.value)}>{s.pots.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label></div><label>Title<input value={personTitle} onChange={(e) => setPersonTitle(e.target.value)} /></label><button className="btn ghost" disabled={!!busy}>Add person</button>
-      </form>
-      <form className="form mini" onSubmit={(e) => { e.preventDefault(); const ue = s.vendors.find((v) => v.name === 'Uber Eats')?.id ?? s.vendors[0].id; run('perk-new', () => api.perk({ personId: perkPerson, name: 'Snack dash', cap: 25, periodLabel: 'day', vendorIds: [ue] }), () => toast({ text: 'Perk added', tone: 'good' })) }}>
+      </form>}
+      {mode !== 'people' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); const ue = s.vendors.find((v) => v.name === 'Uber Eats')?.id ?? s.vendors[0].id; run('perk-new', () => api.perk({ personId: perkPerson, name: 'Snack dash', cap: 25, periodLabel: 'day', vendorIds: [ue] }), () => toast({ text: 'Perk added', tone: 'good' })) }}>
         <h3>Add perk</h3><label>Person<select value={perkPerson} onChange={(e) => setPerkPerson(e.target.value)}>{s.people.filter((p) => p.role !== 'contractor' && p.role !== 'admin').map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><button className="btn ghost" disabled={!!busy}>Add daily snack perk</button>
-      </form>
+      </form>}
     </div>
   )
 }
@@ -395,11 +403,39 @@ function AdminTools({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 't
 function Feed({ s, filter, compact, openReceipt }: { s: State; filter?: (a: Activity) => boolean; compact?: boolean; openReceipt: (id: string) => void }) {
   const items = useMemo(() => (filter ? s.activity.filter(filter) : s.activity).slice(0, compact ? 6 : 14), [s.activity, filter, compact])
   if (!items.length) return <Empty state="holding" text="Nothing yet." />
-  return <ul className="feed">{items.map((a) => <li key={a.id} className={`k-${a.kind}`}><span className="dot" /><span className="grow"><b>{a.title}</b><small>{a.detail} · {a.memoLabel || 'Teampot memo'} · {ago(a.at)}</small></span>{a.amount !== undefined && <span className="num">{money(a.amount)}</span>}{a.receipt && <button className="rcpt" onClick={() => openReceipt(a.id)}>Receipt</button>}</li>)}</ul>
+  return <ul className="feed">{items.map((a) => <li key={a.id} className={`k-${a.kind}`}><span className="dot" /><span className="grow"><b>{a.title}</b><small>{feedDetail(a)} · {ago(a.at)}</small></span>{a.amount !== undefined && <span className="num">{money(a.amount)}</span>}{a.receipt && <button className="rcpt" onClick={() => openReceipt(a.id)}>Receipt</button>}</li>)}</ul>
+}
+
+function feedDetail(a: Activity) {
+  const memo = a.memoLabel || 'Teampot memo'
+  if (a.detail.includes(memo) || memo.startsWith(a.detail)) return a.detail
+  const memoLead = memo.split(' · ')[0]
+  return a.detail.includes(memoLead) ? a.detail : `${a.detail} · ${memo}`
 }
 
 function ReceiptSheet({ data, close }: { data: any; close: () => void }) {
-  return <div className="sheet" role="dialog" aria-modal="true" aria-label="Receipt detail"><div className="sheet-card receipt"><Mascot state="holding" /><small>{new Date(data.at).toLocaleString()}</small><b className="sheet-amt">{data.amount !== undefined ? money(data.amount) : 'Receipt'}</b><span>{data.title}</span><dl><dt>Who</dt><dd>{data.whoName || 'Northwind Studio'}</dd><dt>Pot</dt><dd>{data.potName || 'Company'}</dd><dt>Memo</dt><dd>{data.memoLabel}</dd></dl>{data.publicRecord && <a className="btn primary" href={data.publicRecord} target="_blank" rel="noreferrer">View public record</a>}<button className="btn ghost" onClick={close}>Close</button></div></div>
+  return <div className="sheet" role="dialog" aria-modal="true" aria-label="Receipt detail"><div className="sheet-card receipt"><Mascot state="holding" /><small>{new Date(data.at).toLocaleString()}</small><b className="sheet-amt">{data.amount !== undefined ? money(data.amount) : 'Receipt'}</b><span>{data.title}</span><dl><dt>Who</dt><dd>{data.whoName || 'Northwind Studio'}</dd><dt>Pot</dt><dd>{data.potName || 'Company'}</dd><dt>Detail</dt><dd>{data.detail}</dd><dt>Memo</dt><dd>{data.memoLabel}</dd></dl>{data.publicRecord && <a className="btn primary" href={data.publicRecord} target="_blank" rel="noreferrer">View public record</a>}<button className="btn ghost" onClick={close}>Close</button></div></div>
+}
+
+function PaydaySuccessSheet({ total, count, receipt, close }: { total: number; count: number; receipt?: string; close: () => void }) {
+  return <div className="sheet payday-party" role="dialog" aria-modal="true" aria-label="Payday success"><div className="sheet-card success-card"><Mascot state="cheering" /><small>{count} people paid</small><b className="sheet-amt"><CountMoney value={total} /></b><h2>Payday's in the pot.</h2>{receipt && <a className="btn primary" href={receipt} target="_blank" rel="noreferrer">Receipt</a>}<button className="btn ghost" onClick={close}>Done</button></div></div>
+}
+
+function CountMoney({ value }: { value: number }) {
+  const [shown, setShown] = useState(0)
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setShown(value); return }
+    let raf = 0
+    const start = performance.now()
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / 900)
+      setShown(value * (1 - Math.pow(1 - t, 3)))
+      if (t < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [value])
+  return <>{money(shown)}</>
 }
 
 function ConfirmSheet({ title, amount, detail, actionText, busy, onCancel, onConfirm, face }: { title: string; amount: string; detail: ReactNode; actionText: string; busy: boolean; onCancel: () => void; onConfirm: () => void; face?: boolean }) {

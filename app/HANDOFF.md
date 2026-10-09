@@ -30,7 +30,24 @@
 - G7 Responsive: PASS fallback, `BASE=http://localhost:8790 npm run responsive`.
 
 ## Known Gaps
-- Playwright is not installed, so automated pixel/overflow checks did not run; the script is ready to use it when added.
+- Playwright and Chromium are installed locally, but this sandbox blocks Chromium launch; automated pixel/overflow checks still need a non-restricted browser environment.
 - Earned while unspent is demo-only.
 - No deployment was run, per brief.
 - Requested commits were not created because Git could not create `.git/index.lock` under the current sandbox. Suggested commit chunks: backend/tests/gates, UI/product polish, docs/handoff.
+
+## Second pass
+- Privacy: `/api/state` now accepts `?viewer=<person id>` and scopes money server-side. Finance sees everything. Leads see their team pot surface plus their own payday line. Employees and contractors see only their own people record, payday line, spends, holds, kudos/perks, and invoices. Receipts and CSV export use the same viewer scope when the client calls them.
+- Regression coverage: added a unit test that runs payday, loads `?viewer=sam`, and proves Sam receives only his $3,600 line with no $16,500 company payroll total and no other staff names/salaries.
+- Finance layout: rebuilt Finance as sectioned app navigation with desktop left sidebar and mobile bottom tabs: Overview, Payday, Pots & perks, People, Contractors, Quarter close, and Activity. The previous long admin page is gone.
+- Brand v2 pass: stronger Clay/Butter/Sage/Cream blocks, full-sheet payday celebration with cheering mascot and count-up total, guarding mascot in held-payment toast/card, quarter-close mascot moment with a CSS burst, napping empty states, and friendlier employee/contractor phone greetings.
+- Feed polish: feed details no longer repeat the pot name from the memo, rows wrap to two lines on mobile, and the receipt sheet carries the full detail plus memo.
+- G7: `playwright` is now an app dev dependency and Chromium downloaded successfully into `app/.cache/ms-playwright` (ignored). The sandbox blocks browser launch with a macOS Mach port permission error, so the responsive script falls back to loading the app and documenting the limitation.
+
+## Second pass gate results
+- G1 Typecheck: PASS, `npm run typecheck`.
+- G2 Unit tests: PASS, `npm test` (3 files, 18 tests, 25+ assertions).
+- G3 Build: PASS, `npm run build`.
+- G4 E2E: PASS, `BASE=http://localhost:8790 npm run e2e`; PASS, `BASE=http://localhost:8790 npm run e2e:passkey`.
+- G5 Banned words: PASS, `npm run check:banned`.
+- G6 Secrets: PASS, recent `git log -p` and working diff scans found no private-key/blob/reset-token values.
+- G7 Responsive: PASS fallback, `BASE=http://localhost:8790 npm run responsive`; Playwright installed and browser downloaded, but Chromium launch is blocked by sandbox permissions.

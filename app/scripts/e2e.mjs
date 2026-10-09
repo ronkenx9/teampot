@@ -33,7 +33,7 @@ assert(out.perk.ok && out.perk.tx, 'perk spend failed')
 
 out.newVendor = await post('/spend', { personId: 'sam', vendorId: v('PixelVault Stock'), amount: 120, note: 'Stock photos', requestId: 'e2e-held-new' })
 assert(out.newVendor.held?.status === 'held', 'new vendor was not held')
-out.approveAdd = await post(`/held/${out.newVendor.held.id}/approve-add`, { requestId: 'e2e-approve-add' })
+out.approveAdd = await post(`/held/${out.newVendor.held.id}/approve-add`, { requestId: 'e2e-approve-add', approverId: 'ava' })
 assert(out.approveAdd.status === 'approved', 'approve-and-add failed')
 st = await get('/state')
 assert(st.pots.find((p) => p.id === 'design').vendorIds.includes(v('PixelVault Stock')), 'vendor was not added to pot')
@@ -42,8 +42,16 @@ assert(out.nextTime.ok, 'added vendor did not work next time')
 
 out.overLimit = await post('/spend', { personId: 'sam', vendorId: v('Figma'), amount: 700, note: 'Team plan', requestId: 'e2e-held-limit' })
 assert(out.overLimit.held?.reason === 'over-limit', 'over-limit payment was not held')
-out.returned = await post(`/held/${out.overLimit.held.id}/return`, { requestId: 'e2e-return' })
+out.returned = await post(`/held/${out.overLimit.held.id}/return`, { requestId: 'e2e-return', approverId: 'ava' })
 assert(out.returned.status === 'returned', 'return failed')
+
+// A lead can't approve their own request; Finance can.
+out.leadOwn = await post('/spend', { personId: 'ava', vendorId: v('Delta'), amount: 40, note: 'Train', requestId: 'e2e-lead-own' })
+assert(out.leadOwn.held?.status === 'held', 'lead off-list spend was not held')
+out.selfApprove = await post(`/held/${out.leadOwn.held.id}/approve`, { requestId: 'e2e-self-approve', approverId: 'ava' }).then(() => 'ALLOWED', (e) => e.message)
+assert(/403: You can't approve your own request/.test(out.selfApprove), 'lead was allowed to approve their own request')
+out.financeReturn = await post(`/held/${out.leadOwn.held.id}/return`, { requestId: 'e2e-finance-return', approverId: 'jordan' })
+assert(out.financeReturn.status === 'returned', 'finance could not decide the lead request')
 
 out.payday = await post('/payday', { requestId: 'e2e-payday' })
 out.paydayAgain = await post('/payday', { requestId: 'e2e-payday' })

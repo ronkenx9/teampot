@@ -20,6 +20,7 @@ export type State = {
   simulatedEarnings: { label: string; amount: number; note: string }; seeded: boolean
 }
 
+const q = (viewer?: string) => viewer ? `?viewer=${encodeURIComponent(viewer)}` : ''
 const requestId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 const j = async (r: Response) => {
   const body = await r.json()
@@ -30,14 +31,14 @@ const post = (url: string, body?: Record<string, unknown>) =>
   fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) }).then(j)
 
 export const api = {
-  state: (): Promise<State> => fetch('/api/state').then(j),
+  state: (viewer?: string): Promise<State> => fetch(`/api/state${q(viewer)}`).then(j),
   setup: () => fetch('/api/setup', { method: 'POST' }).then(j),
   paydayPreview: () => fetch('/api/payday/preview').then(j),
   setPayday: (date: string) => post('/api/settings/payday', { date }),
   payday: () => post('/api/payday', { requestId: requestId('payday') }),
   spend: (b: { personId: string; vendorId: string; amount: number; note: string; source?: 'pot' | 'perk'; perkId?: string }) =>
     post('/api/spend', { ...b, requestId: requestId('spend') }),
-  decide: (id: string, action: 'approve' | 'approve-add' | 'return') => post(`/api/held/${id}/${action}`, { requestId: requestId(`held-${id}`) }),
+  decide: (id: string, action: 'approve' | 'approve-add' | 'return', approverId: string) => post(`/api/held/${id}/${action}`, { requestId: requestId(`held-${id}`), approverId }),
   vendor: (b: { name: string; category: string }) => post('/api/vendors', b),
   person: (b: { name: string; role: Person['role']; title: string; team?: string; salary?: number; country?: string }) => post('/api/people', b),
   updatePerson: (id: string, b: Partial<{ name: string; role: Person['role']; title: string; team: string; salary: number; country: string }>) => post(`/api/people/${id}/update`, b),
@@ -51,7 +52,8 @@ export const api = {
   recordPasskey: (b: { personId: string; vendorId: string; amount: number; note: string; tx?: string; rejected?: boolean }) =>
     post('/api/passkey/record', { ...b, requestId: requestId('passkey') }),
   payInvoice: (id: string) => post(`/api/invoices/${id}/pay`, { requestId: requestId(`invoice-${id}`) }),
-  receipt: (id: string) => fetch(`/api/receipts/${id}`).then(j),
+  receipt: (id: string, viewer?: string) => fetch(`/api/receipts/${id}${q(viewer)}`).then(j),
+  activityCsv: (viewer?: string) => `/api/activity.csv${q(viewer)}`,
 }
 
 export const money = (n: number, cents = false) =>

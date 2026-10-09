@@ -132,36 +132,111 @@ async function parseBody<T>(c: any, schema: z.ZodType<T>) {
   return schema.parse(body)
 }
 
-async function view() {
-  const people = await Promise.all(S.people.map(async (x) => {
+type ViewerScope = { viewer?: Person; isAdmin: boolean }
+
+function scopeFor(viewerId?: string | null): ViewerScope {
+  if (!viewerId) return { isAdmin: true }
+  const viewer = person(viewerId)
+  return { viewer, isAdmin: viewer.role === 'admin' }
+}
+
+function canSeePerson(scope: ViewerScope, x: Person) {
+  if (scope.isAdmin) return true
+  const v = scope.viewer!
+  if (x.id === v.id) return true
+  return v.role === 'lead' && !!v.team && x.team === v.team
+}
+
+function canSeePot(scope: ViewerScope, potId?: string) {
+  if (scope.isAdmin) return true
+  if (!potId) return false
+  return scope.viewer?.team === potId
+}
+
+function canSeeActivity(scope: ViewerScope, a: Activity) {
+  if (scope.isAdmin) return true
+  const v = scope.viewer!
+  if (a.kind === 'payday') return a.who === v.id
+  if (a.who === v.id) return true
+  if (a.perkId && S.perks.some((p) => p.id === a.perkId && p.personId === v.id)) return true
+  if (v.role === 'lead' && canSeePot(scope, a.potId)) return true
+  return false
+}
+
+function scopedPaydayRuns(scope: ViewerScope) {
+  if (scope.isAdmin) return S.paydayRuns
+  const v = scope.viewer!
+  return S.paydayRuns.flatMap((run) => {
+    const line = run.lines.find((l) => l.personId === v.id)
+    if (!line) return []
+    return [{ ...run, total: line.gross, count: 1, lines: [line] }]
+  })
+}
+
+function scopedActivity(scope: ViewerScope) {
+  const base = S.activity.filter((a) => canSeeActivity(scope, a))
+  if (scope.isAdmin) return base
+  const v = scope.viewer!
+  const payday = scopedPaydayRuns(scope).map((run): Activity => ({
+    id: `payday-${run.id}-${v.id}`,
+    at: run.at,
+    kind: 'payday',
+    title: `Payday's in the pot`,
+    detail: `Your pay landed in ${(run.ms / 1000).toFixed(1)}s`,
+    amount: run.total,
+    tx: run.tx,
+    who: v.id,
+    memo: `payday:${run.date}`,
+  }))
+  return [...base, ...payday].sort((a, b) => b.at - a.at)
+}
+
+async function view(viewerId?: string | null) {
+  const scope = scopeFor(viewerId)
+  const visiblePeople = S.people.filter((x) => canSeePerson(scope, x))
+  const people = await Promise.all(visiblePeople.map(async (x) => {
     const pt = x.team ? pot(x.team) : undefined
     const ref = keyRef(x)
     const [limit, balance] = await Promise.all([cachedRemaining(`pot:${x.id}:${x.team}:${x.keyTx ?? ''}`, ref), cachedBalance(x.address)])
+    const canSeePrivateMoney = scope.isAdmin || scope.viewer?.id === x.id
     return {
       id: x.id, name: x.name, role: x.role, hasPasskey: !!x.passkey, passkeyId: x.passkey?.id, passkeyNeedsRefresh: !!x.passkey?.needsRefresh,
-      title: x.title, team: x.team, salary: x.salary, country: x.country, balance,
+      title: x.title, team: x.team, salary: canSeePrivateMoney ? x.salary : undefined, country: x.country, balance: canSeePrivateMoney ? balance : 0,
       pot: pt ? { cap: pt.perPersonCap, left: limit?.remaining ?? null, resetsAt: limit?.periodEnd ?? null } : null,
     }
   }))
-  const perks = await Promise.all(S.perks.map(async (p) => {
+  const visiblePerks = scope.isAdmin ? S.perks : S.perks.filter((p) => p.personId === scope.viewer!.id)
+  const perks = await Promise.all(visiblePerks.map(async (p) => {
     const limit = await cachedRemaining(`perk:${p.id}:${p.keyTx ?? ''}`, { pk: perkKeyPk(p.id) })
     return { ...p, left: limit?.remaining ?? null, resetsAt: limit?.periodEnd ?? null, vendors: p.vendorIds.map((v) => vendor(v).name) }
   }))
   const [companyBalance] = await Promise.all([cachedBalance(S.company.address)])
+  const activity = scopedActivity(scope).slice(0, 100).map((a) => ({ ...a, memoLabel: decodeMemoLabel(a.memo), receipt: a.tx ? T.EXPLORER + a.tx : undefined }))
+  const pots = S.pots.filter((p) => scope.isAdmin || p.id === scope.viewer?.team)
+  const approvedForPot = (potId: string) => {
+    if (scope.isAdmin || scope.viewer?.role === 'lead') return potApprovedTotal(S, potId)
+    return S.held.filter((h) => h.potId === potId && h.personId === scope.viewer?.id && h.status === 'approved').reduce((a, h) => a + h.amount, 0)
+  }
+  const personIds = new Set(visiblePeople.map((p) => p.id))
+  const visibleHeld = S.held.filter((h) => scope.isAdmin || (scope.viewer!.role === 'lead' ? h.potId === scope.viewer!.team : h.personId === scope.viewer!.id))
+  const visibleInvoices = S.invoices.filter((i) => scope.isAdmin || i.contractorId === scope.viewer?.id)
+  const visibleCloses = S.quarterCloses.filter((q) => scope.isAdmin || q.memberIds.includes(scope.viewer!.id) || q.potId === scope.viewer!.team)
+  const visibleCredits = S.kudosCredits.filter((k) => scope.isAdmin || k.personId === scope.viewer!.id)
+  const visibleAwards = S.kudosAwards.filter((k) => scope.isAdmin || k.fromPersonId === scope.viewer!.id || k.toPersonId === scope.viewer!.id || (scope.viewer!.role === 'lead' && (personIds.has(k.fromPersonId) || personIds.has(k.toPersonId))))
   return {
-    company: { name: S.company.name, balance: companyBalance },
+    company: { name: S.company.name, balance: scope.isAdmin ? companyBalance : 0 },
     nextPayday: S.nextPayday,
     people,
-    pots: S.pots.map((p) => ({ ...p, approved: potApprovedTotal(S, p.id), vendors: p.vendorIds.map((v) => vendor(v).name), members: S.people.filter((x) => x.team === p.id).map((x) => x.id) })),
+    pots: pots.map((p) => ({ ...p, approved: approvedForPot(p.id), vendors: p.vendorIds.map((v) => vendor(v).name), members: visiblePeople.filter((x) => x.team === p.id).map((x) => x.id) })),
     vendors: S.vendors.map(({ id, name, category }) => ({ id, name, category })),
     perks,
-    activity: S.activity.slice(0, 100).map((a) => ({ ...a, memoLabel: decodeMemoLabel(a.memo), receipt: a.tx ? T.EXPLORER + a.tx : undefined })),
-    held: S.held,
-    invoices: S.invoices,
-    paydayRuns: S.paydayRuns,
-    quarterCloses: S.quarterCloses,
-    kudosCredits: S.kudosCredits,
-    kudosAwards: S.kudosAwards,
+    activity,
+    held: visibleHeld,
+    invoices: visibleInvoices,
+    paydayRuns: scopedPaydayRuns(scope),
+    quarterCloses: visibleCloses,
+    kudosCredits: visibleCredits,
+    kudosAwards: visibleAwards,
     simulatedEarnings: { label: 'Simulated', amount: 1284, note: 'No public test vault is available, so this card is illustrative.' },
     seeded: S.seeded,
   }
@@ -184,7 +259,7 @@ app.use('/api/*', (c, next) => {
   return run
 })
 
-app.get('/api/state', async (c) => c.json(await view()))
+app.get('/api/state', async (c) => c.json(await view(c.req.query('viewer'))))
 app.get('/api/payday/preview', (c) => {
   const staff = S.people.filter((x) => x.salary)
   return c.json({ date: S.nextPayday, total: staff.reduce((s, x) => s + (x.salary ?? 0), 0), lines: staff.map((x) => ({ personId: x.id, name: x.name, title: x.title, gross: x.salary })) })
@@ -301,10 +376,15 @@ app.post('/api/held/:id/:action', async (c) => {
   const h = requireOne(S.held.find((x) => x.id === c.req.param('id')), 'Held payment')
   const action = c.req.param('action')
   if (!['approve', 'approve-add', 'return'].includes(action)) return c.json({ error: 'Unknown decision' }, 400)
-  const body = await parseBody(c, z.object({ requestId }).optional().default({}))
+  const body = await parseBody(c, z.object({ requestId, approverId: z.string().optional() }).optional().default({}))
   const idem = body.requestId
   if (idem && S.processed[idem]) return c.json(S.processed[idem])
   if (h.status !== 'held') return c.json(h)
+  // Finance can decide anything; a lead can decide their own team's requests, but never their own.
+  const approver = body.approverId ? S.people.find((x) => x.id === body.approverId) : undefined
+  if (!approver) return c.json({ error: 'Who is deciding? Pick Finance or the team lead.' }, 400)
+  const canDecide = approver.role === 'admin' || (approver.role === 'lead' && approver.team === h.potId && approver.id !== h.personId)
+  if (!canDecide) return c.json({ error: approver.id === h.personId ? "You can't approve your own request. Finance will take it from here." : "Only Finance or this team's lead can decide this." }, 403)
   if (action === 'approve' || action === 'approve-add') {
     const v = vendor(h.vendorId)
     h.tx = await T.companyPay(v.address, h.amount, moneyMemo(`${h.potId}:approved`))
@@ -399,7 +479,7 @@ app.post('/api/pots/:id/close', async (c) => {
   const close = { id: uid(), at: Date.now(), potId: pt.id, savings, sharePct: body.sharePct, pool: split.pool, perPerson: split.perPerson, tx: r.tx, memberIds: members.map((m) => m.id) }
   S.quarterCloses.unshift(close)
   for (const line of split.lines) S.kudosCredits.push({ personId: line.personId, closeId: close.id, left: line.amount })
-  log({ kind: 'quarter', title: `${pt.team} saved ${roundMoney(savings)}`, detail: `${body.sharePct}% became a kudos pool`, amount: split.pool, tx: r.tx, potId: pt.id, memo: `kudos:${pt.id}` })
+  log({ kind: 'quarter', title: `${pt.team} saved $${roundMoney(savings).toLocaleString('en-US')}`, detail: `${body.sharePct}% became a kudos pool`, amount: split.pool, tx: r.tx, potId: pt.id, memo: `kudos:${pt.id}` })
   if (body.requestId) S.processed[body.requestId] = close
   return c.json(close)
 })
@@ -456,15 +536,18 @@ app.post('/api/invoices/:id/decline', async (c) => {
 })
 
 app.get('/api/receipts/:id', (c) => {
-  const a = requireOne(S.activity.find((x) => x.id === c.req.param('id')), 'Receipt')
+  const scope = scopeFor(c.req.query('viewer'))
+  const a = requireOne(S.activity.find((x) => x.id === c.req.param('id')) ?? scopedActivity(scope).find((x) => x.id === c.req.param('id')), 'Receipt')
+  if (!canSeeActivity(scope, a)) return c.json({ error: 'Receipt not found' }, 404)
   const who = a.who ? S.people.find((p) => p.id === a.who) : undefined
   const pt = a.potId ? S.pots.find((p) => p.id === a.potId) : undefined
   return c.json({ ...a, whoName: who?.name, potName: pt?.team, memoLabel: decodeMemoLabel(a.memo), publicRecord: a.tx ? T.EXPLORER + a.tx : undefined })
 })
 
 app.get('/api/activity.csv', (c) => {
+  const scope = scopeFor(c.req.query('viewer'))
   const rows = [['date', 'kind', 'title', 'detail', 'amount', 'person', 'pot', 'receipt']]
-  for (const a of S.activity) rows.push([new Date(a.at).toISOString(), a.kind, a.title, a.detail, a.amount?.toString() ?? '', a.who ? person(a.who).name : '', a.potId ? pot(a.potId).team : '', a.tx ? T.EXPLORER + a.tx : ''])
+  for (const a of scopedActivity(scope)) rows.push([new Date(a.at).toISOString(), a.kind, a.title, a.detail, a.amount?.toString() ?? '', a.who ? person(a.who).name : '', a.potId ? pot(a.potId).team : '', a.tx ? T.EXPLORER + a.tx : ''])
   const esc = (s: string) => `"${String(s).replace(/"/g, '""')}"`
   return c.text(rows.map((r) => r.map(esc).join(',')).join('\n'), 200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="teampot-activity.csv"' })
 })

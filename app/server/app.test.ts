@@ -55,6 +55,29 @@ describe('API validation and guards', () => {
     expect(tempoCalls.payday).toBe(1)
   })
 
+  it("scopes an employee state view to that person's money only", async () => {
+    const { app } = await import('./app.js')
+    await app.request('/api/payday', { method: 'POST', body: JSON.stringify({ requestId: 'privacy-payday' }), headers: { 'content-type': 'application/json' } })
+
+    const r = await app.request('/api/state?viewer=sam')
+    expect(r.status).toBe(200)
+    const body = await r.json()
+    const dump = JSON.stringify(body)
+
+    expect(body.people.map((p: any) => p.id)).toEqual(['sam'])
+    expect(body.paydayRuns).toHaveLength(1)
+    expect(body.paydayRuns[0].total).toBe(3600)
+    expect(body.paydayRuns[0].count).toBe(1)
+    expect(body.paydayRuns[0].lines).toEqual([{ personId: 'sam', gross: 3600, memo: body.paydayRuns[0].lines[0].memo }])
+    expect(body.activity.find((a: any) => a.kind === 'payday')?.amount).toBe(3600)
+    expect(dump).not.toContain('16500')
+    expect(dump).not.toContain('Ava Chen')
+    expect(dump).not.toContain('Priya Nair')
+    expect(dump).not.toContain('Leo Martin')
+    expect(dump).not.toContain('4800')
+    expect(dump).not.toContain('3900')
+  })
+
   it('declines invoices with a reason', async () => {
     const { app } = await import('./app.js')
     const created = await app.request('/api/invoices', { method: 'POST', body: JSON.stringify({ contractorId: 'mateo', amount: 50, description: 'Sketches' }), headers: { 'content-type': 'application/json' } })
