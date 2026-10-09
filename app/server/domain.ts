@@ -14,7 +14,19 @@ export type Person = {
   country?: string
 }
 export type Vendor = { id: string; name: string; category: string; address: string }
-export type Pot = { id: string; team: string; perPersonCap: number; periodLabel: string; periodSec: number; vendorIds: string[]; color: string }
+export type Pot = {
+  id: string
+  team: string
+  perPersonCap: number
+  budget: number
+  periodLabel: string
+  periodSec: number
+  vendorIds: string[]
+  color: string
+  fundTx?: string
+  returnTx?: string
+  rootMode?: 'demo-server-p256' | 'head-passkey-pending'
+}
 export type Perk = { id: string; personId: string; name: string; cap: number; periodLabel: string; periodSec: number; vendorIds: string[]; color: string; keyTx?: string }
 export type ActivityKind = 'payday' | 'spend' | 'held' | 'approved' | 'returned' | 'invoice' | 'paid' | 'setup' | 'perk' | 'quarter' | 'kudos' | 'declined' | 'admin'
 export type Activity = { id: string; at: number; kind: ActivityKind; title: string; detail: string; amount?: number; who?: string; tx?: string; potId?: string; perkId?: string; memo?: string }
@@ -62,8 +74,15 @@ export function nextMonthlyDate(now = new Date()) {
 
 export function normalizeState(s: Partial<State> | null, seed: () => State): State {
   const base = s ?? seed()
+  const people = base.people ?? []
+  const pots = (base.pots ?? []).map((p) => ({
+    ...p,
+    budget: (p as Pot).budget ?? ((p as Pot).perPersonCap ?? 0) * Math.max(1, people.filter((x) => x.team === (p as Pot).id).length),
+    rootMode: (p as Pot).rootMode ?? 'demo-server-p256',
+  }))
   return {
     ...base,
+    pots,
     perks: base.perks ?? [],
     paydayRuns: base.paydayRuns ?? [],
     quarterCloses: base.quarterCloses ?? [],

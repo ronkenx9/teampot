@@ -26,7 +26,7 @@ const state = (): State => ({
 
 describe('pot math and held reasons', () => {
   it('classifies new-vendor and over-limit holds', () => {
-    const pot = { id: 'design', team: 'Design', perPersonCap: 100, periodLabel: 'month', periodSec: 1, vendorIds: ['figma'], color: '#000' }
+    const pot = { id: 'design', team: 'Design', perPersonCap: 100, budget: 100, periodLabel: 'month', periodSec: 1, vendorIds: ['figma'], color: '#000' }
     expect(holdReason(pot, 'figma')).toBe('over-limit')
     expect(holdReason(pot, 'delta')).toBe('new-vendor')
   })

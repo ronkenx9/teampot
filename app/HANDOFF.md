@@ -51,3 +51,26 @@
 - G5 Banned words: PASS, `npm run check:banned`.
 - G6 Secrets: PASS, recent `git log -p` and working diff scans found no private-key/blob/reset-token values.
 - G7 Responsive: PASS fallback, `BASE=http://localhost:8790 npm run responsive`; Playwright installed and browser downloaded, but Chromium launch is blocked by sandbox permissions.
+
+## V3: Every Team Runs Its Own Money
+- Architecture: each department is now a funded Tempo account with a server-held demo P256 root derived from `OPERATOR_PK` + state epoch. Finance funds the department with a real transfer; the department root issues member cards and perk cards.
+- Probe first: added `scripts/probe-dept.ts` and proved Finance funding, department-root key issuance, approved member spend, off-list rejection, and department return on Moderato.
+- Product: Finance and department heads now see an org map with the Fill block mark. Finance can fund or return department budget. Employees and contractors stay on phone-first views.
+- Design: mascot components and mascot copy were removed. Palette is Clay, Ink, Paper, and neutrals; Butter/Sage blocks are no longer used as product colors.
+- Preserved flows: payday remains company-paid; member/perk spends, approve-and-add, quarter-close pool, teammate kudos, passkey spending, and held approvals now use the department account where applicable. Contractor pay remains company-paid unless a later hiring-department field is added.
+
+## V3 Real vs App-Enforced
+- Real on Moderato: department funding, department-issued P256/member keys, department-issued passkey keys, vendor allowlists, per-period limits, member spends, perk spends, department approval payments, department returns, quarter-close/kudos payments from the department account, payday, contractor pay, receipt verification.
+- App-enforced: eligible approver rules, "no self approval", viewer-scoped privacy, and any future company-wide policy such as "payments over $X need Finance".
+- Honest gap: true department-root takeover with a head's Face ID is not implemented on Moderato t5. The current honest version is a demo server-held department root plus the head's Face ID as a department-issued spending key. Admin/root-key takeover should be revisited when Tempo exposes the needed supported path.
+- Simulated: earned while unspent remains visibly labelled simulated.
+
+## V3 Gate Results
+- G1 Typecheck: PASS, `npm run typecheck`.
+- G2 Unit tests: PASS, `npm test` (3 files, 18 tests).
+- G3 Build: PASS, `npm run build`.
+- G4 E2E: PASS, `BASE=http://localhost:8790 npm run e2e`; PASS, `BASE=http://localhost:8790 npm run e2e:passkey`.
+- G5 Banned words: PASS, `npm run check:banned`.
+- G6 Secrets: PASS by inspection/scan: no private-key, blob-token, or reset-token values added; tx hashes and placeholder env names appear in docs/tests only.
+- G7 Responsive: PASS fallback, `BASE=http://localhost:8790 npm run responsive`; Chromium launch remains blocked by sandbox permissions.
+- G8 Department delegation: PASS inside `npm run e2e`: Finance funds Design; Design root issues Sam's key; Sam spends; off-list spend is held; Ava approves from Design; Ava cannot approve her own request; Design returns unspent money.

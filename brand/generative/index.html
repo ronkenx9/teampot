@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teampot — code-drawn marks</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,500;0,600;1,800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#141414;--paper:#F6F4F0;--clay:#E8552D;--line:#E4DED6;--muted:#6F6A63}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:"Inter Tight",system-ui,sans-serif;padding:48px;width:1440px}
+h1{font-size:28px;letter-spacing:-.03em;font-weight:600}
+.sub{color:var(--muted);margin:6px 0 32px}
+.row{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:22px}
+.card h2{font-size:18px;letter-spacing:-.02em}.card p{color:var(--muted);font-size:14px;line-height:1.45}
+.stage{display:flex;align-items:center;gap:18px;height:120px}
+.word{font-weight:800;font-style:italic;font-size:44px;letter-spacing:-.05em}
+.states{display:flex;gap:18px;align-items:flex-end}
+.states figure{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.dark{background:var(--ink);border-radius:14px;padding:18px;display:flex;gap:14px;align-items:center;color:#fff}
+.dark .word{font-size:28px}
+canvas{display:block}
+</style></head><body>
+<h1>Code-drawn marks</h1>
+<p class="sub">Each mark is drawn by a function of one number: how much of the pot is left. Static as a logo, live as a budget gauge in the app.</p>
+<div class="row" id="row"></div>
+<script>
+const C = { ink: '#141414', clay: '#E8552D', empty: '#E9E3DA', white: '#fff', dim: '#3a3a3a' }
+const dpr = 2
+function canvas(w, h) { const c = document.createElement('canvas'); c.width = w * dpr; c.height = h * dpr; c.style.width = w + 'px'; c.style.height = h + 'px'; const x = c.getContext('2d'); x.scale(dpr, dpr); return [c, x] }
+const rr = (x, px, py, w, h, r) => { x.beginPath(); x.roundRect(px, py, w, h, r); x.fill() }
+
+// A — FILL: a 4x4 grid of blocks; filled blocks = share of the pot left, filled from the bottom like liquid.
+function fill(x, s, left, dark) {
+  const n = 4, g = s * 0.08, b = (s - g * (n - 1)) / n, filled = Math.round(left * n * n)
+  for (let i = 0; i < n * n; i++) {
+    const r = n - 1 - Math.floor(i / n), c = i % n
+    x.fillStyle = i < filled ? C.clay : dark ? C.dim : C.empty
+    rr(x, c * (b + g), r * (b + g), b, b, b * 0.28)
+  }
+}
+// B — POT: blocks stacked into a bowl silhouette (3,4,5 wide rows over a rim); left = how many bowl blocks are lit.
+function pot(x, s, left, dark) {
+  const rows = [5, 4, 3], u = s / 5.4, g = u * 0.14, bw = u - g
+  x.fillStyle = dark ? C.white : C.ink; rr(x, 0, 0, s, u * 0.62, u * 0.31) // rim
+  const cells = []; rows.forEach((w, ri) => { const off = (5 - w) / 2; for (let k = 0; k < w; k++) cells.push([(off + k) * u + g / 2 + (s - 5 * u) / 2, u * 0.86 + ri * u]) })
+  const lit = Math.round(left * cells.length)
+  cells.slice().reverse().forEach(([cx, cy], i) => { x.fillStyle = i < lit ? C.clay : dark ? C.dim : C.empty; rr(x, cx, cy, bw, bw, bw * 0.26) })
+}
+// C — FLOW: one row of blocks in motion; a payment is a block crossing from left to right. Static frame = the mark.
+function flow(x, s, t, dark) {
+  const n = 5, g = s * 0.06, b = (s - g * (n - 1)) / n, y = (s - b) / 2
+  for (let i = 0; i < n; i++) { x.fillStyle = dark ? C.dim : C.empty; rr(x, i * (b + g), y, b, b, b * 0.3) }
+  const p = (t % 1), px = p * (s - b)
+  x.fillStyle = C.clay; rr(x, px, y - b * 0.18 * Math.sin(p * Math.PI), b, b, b * 0.3)
+  x.fillStyle = dark ? C.white : C.ink; rr(x, s - b, y, b, b, b * 0.3)
+}
+
+const defs = [
+  { key: 'fill', name: 'A · Fill', note: 'A 4×4 grid of blocks. Lit blocks are the money left, filling from the bottom. Reads at 16px; doubles as every pot\'s gauge.', draw: (x, s, v, d) => fill(x, s, v, d), states: [1, 0.62, 0.25] },
+  { key: 'pot', name: 'B · Block pot', note: 'Blocks stacked into a bowl under a rim, keeping the T-Pot idea without a character. Lit blocks drain as the pot is spent.', draw: (x, s, v, d) => pot(x, s, v, d), states: [1, 0.58, 0.17] },
+  { key: 'flow', name: 'C · Flow', note: 'A row of blocks; one clay block travels into the ink block: money landing in seconds. Static frame is the logo; it animates on payday.', draw: (x, s, v, d) => flow(x, s, v, d), states: [0.15, 0.5, 0.85] },
+]
+const row = document.getElementById('row')
+for (const d of defs) {
+  const card = document.createElement('div'); card.className = 'card'
+  card.innerHTML = `<h2>${d.name}</h2>`
+  const stage = document.createElement('div'); stage.className = 'stage'
+  const [c, x] = canvas(96, 96); d.draw(x, 96, d.states[1], false); stage.append(c)
+  const w = document.createElement('span'); w.className = 'word'; w.textContent = 'teampot'; stage.append(w); card.append(stage)
+  const st = document.createElement('div'); st.className = 'states'
+  ;[[d.states[0], 'full'], [d.states[1], 'mid-month'], [d.states[2], 'nearly spent']].forEach(([v, l]) => { const f = document.createElement('figure'); const [cc, xx] = canvas(56, 56); d.draw(xx, 56, v, false); f.append(cc); const fc = document.createElement('figcaption'); fc.textContent = l; f.append(fc); st.append(f) })
+  ;[32, 16].forEach((sz) => { const f = document.createElement('figure'); const [cc, xx] = canvas(sz, sz); d.draw(xx, sz, d.states[1], false); f.append(cc); const fc = document.createElement('figcaption'); fc.textContent = sz + 'px'; f.append(fc); st.append(f) })
+  card.append(st)
+  const dk = document.createElement('div'); dk.className = 'dark'; const [c2, x2] = canvas(44, 44); d.draw(x2, 44, d.states[1], true); dk.append(c2); const w2 = document.createElement('span'); w2.className = 'word'; w2.textContent = 'teampot'; dk.append(w2); card.append(dk)
+  const p = document.createElement('p'); p.textContent = d.note; card.append(p)
+  row.append(card)
+}
+</script></body></html>

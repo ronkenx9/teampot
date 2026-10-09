@@ -3,7 +3,7 @@ export type Person = {
   team?: string; salary?: number; country?: string; balance: number; hasPasskey?: boolean; passkeyNeedsRefresh?: boolean
   pot: { cap: number; left: number | null; resetsAt: number | null } | null
 }
-export type Pot = { id: string; approved: number; team: string; perPersonCap: number; periodLabel: string; vendors: string[]; vendorIds: string[]; members: string[]; color: string }
+export type Pot = { id: string; approved: number; team: string; perPersonCap: number; budget: number; balance: number; periodLabel: string; vendors: string[]; vendorIds: string[]; members: string[]; color: string; accountMode: string }
 export type Vendor = { id: string; name: string; category: string }
 export type Perk = { id: string; personId: string; name: string; cap: number; periodLabel: 'day' | 'month' | 'year'; vendorIds: string[]; vendors: string[]; color: string; left: number | null; resetsAt: number | null }
 export type Activity = { id: string; at: number; kind: string; title: string; detail: string; amount?: number; who?: string; potId?: string; perkId?: string; receipt?: string; memoLabel?: string }
@@ -42,8 +42,10 @@ export const api = {
   vendor: (b: { name: string; category: string }) => post('/api/vendors', b),
   person: (b: { name: string; role: Person['role']; title: string; team?: string; salary?: number; country?: string }) => post('/api/people', b),
   updatePerson: (id: string, b: Partial<{ name: string; role: Person['role']; title: string; team: string; salary: number; country: string }>) => post(`/api/people/${id}/update`, b),
-  pot: (b: { team: string; perPersonCap: number; vendorIds: string[]; color?: string }) => post('/api/pots', b),
-  updatePot: (id: string, b: Partial<{ team: string; perPersonCap: number; vendorIds: string[]; color: string }>) => post(`/api/pots/${id}/update`, b),
+  pot: (b: { team: string; perPersonCap: number; budget?: number; vendorIds: string[]; color?: string }) => post('/api/pots', b),
+  updatePot: (id: string, b: Partial<{ team: string; perPersonCap: number; budget: number; vendorIds: string[]; color: string }>) => post(`/api/pots/${id}/update`, b),
+  fundPot: (id: string, amount: number) => post(`/api/pots/${id}/fund`, { amount, requestId: requestId(`fund-${id}`) }),
+  returnPot: (id: string, amount: number) => post(`/api/pots/${id}/return`, { amount, requestId: requestId(`return-${id}`) }),
   perk: (b: { personId: string; name: string; cap: number; periodLabel: 'day' | 'month' | 'year'; vendorIds: string[]; color?: string }) => post('/api/perks', b),
   closeQuarter: (potId: string, sharePct: number) => post(`/api/pots/${potId}/close`, { sharePct, requestId: requestId(`close-${potId}`) }),
   kudos: (b: { fromPersonId: string; toPersonId: string; amount: number; note: string }) => post('/api/kudos', { ...b, requestId: requestId('kudos') }),

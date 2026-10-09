@@ -23,10 +23,14 @@ if (!st.seeded) await post('/setup')
 st = await get('/state')
 const v = (n) => st.vendors.find((x) => x.name === n).id
 const samPerk = st.perks.find((p) => p.personId === 'sam' && p.name === 'Lunch')
+const designStart = st.pots.find((p) => p.id === 'design').balance
+assert(designStart > 0, 'Design department was not funded')
 const out = {}
 
 out.spendOk = await post('/spend', { personId: 'sam', vendorId: v('Figma'), amount: 45, note: 'Figma seat', requestId: 'e2e-spend-ok' })
 assert(out.spendOk.ok && out.spendOk.tx, 'approved pot spend failed')
+st = await get('/state')
+assert(st.pots.find((p) => p.id === 'design').balance < designStart, 'department balance did not move after Sam spend')
 
 out.perk = await post('/spend', { personId: 'sam', vendorId: v('Uber Eats'), amount: 12, note: 'Lunch', source: 'perk', perkId: samPerk.id, requestId: 'e2e-perk' })
 assert(out.perk.ok && out.perk.tx, 'perk spend failed')
@@ -37,6 +41,7 @@ out.approveAdd = await post(`/held/${out.newVendor.held.id}/approve-add`, { requ
 assert(out.approveAdd.status === 'approved', 'approve-and-add failed')
 st = await get('/state')
 assert(st.pots.find((p) => p.id === 'design').vendorIds.includes(v('PixelVault Stock')), 'vendor was not added to pot')
+assert(st.pots.find((p) => p.id === 'design').balance < designStart - 45, 'approval did not come from the department account')
 out.nextTime = await post('/spend', { personId: 'sam', vendorId: v('PixelVault Stock'), amount: 15, note: 'Tiny asset', requestId: 'e2e-after-add' })
 assert(out.nextTime.ok, 'added vendor did not work next time')
 
@@ -52,6 +57,12 @@ out.selfApprove = await post(`/held/${out.leadOwn.held.id}/approve`, { requestId
 assert(/403: You can't approve your own request/.test(out.selfApprove), 'lead was allowed to approve their own request')
 out.financeReturn = await post(`/held/${out.leadOwn.held.id}/return`, { requestId: 'e2e-finance-return', approverId: 'jordan' })
 assert(out.financeReturn.status === 'returned', 'finance could not decide the lead request')
+
+const beforeReturn = (await get('/state')).pots.find((p) => p.id === 'design').balance
+out.returnBudget = await post('/pots/design/return', { amount: 10, requestId: 'e2e-dept-return' })
+assert(out.returnBudget.tx, 'department did not return unspent money')
+st = await get('/state')
+assert(st.pots.find((p) => p.id === 'design').balance < beforeReturn, 'department balance did not decrease after return')
 
 out.payday = await post('/payday', { requestId: 'e2e-payday' })
 out.paydayAgain = await post('/payday', { requestId: 'e2e-payday' })

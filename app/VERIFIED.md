@@ -33,9 +33,23 @@ Tempo Moderato chain 42431. Evidence below is from local server `PORT=8790` unle
 | Teammate kudos award | WORKS | Sam sent Ava $1 kudos, tx `0x586cbdc32c800d5f4649d0f777c20055bdb831b6f28eec2bd59a8fd5b2ede389` |
 | Face ID spend and forged receipt refusal | WORKS | Ava enrolled, tx `0x0fe1d8ca3a9b9b5b8f0bb38d4e4a88134188997802c441b713257f714ce3e632`; Ava paid Adobe Fonts, tx `0x66d1a8836f5bad68354b4bb7925c18222dfa6b70e2d6d57a5e8f2499e921210a`; forged receipt returned error |
 
+## V3 Department Delegation Proofs
+| Feature | Result | Evidence |
+|---|---|---|
+| Department account primitive | WORKS | `scripts/probe-dept.ts`: Finance funded a P256 department root, tx `0x9bef106c1e6204d87d65b671db841bb7e3c867cdec0abf12a0b30207c6fd0a99`; department root authorized member key, tx `0x1ac2168da980a8d858c095cdaf1b70764c563527e2ca5899237f3f03cddc4edc`; member spent to approved vendor, tx `0x057fedb658cfea82809f82339e767a0d4d4546ca38fb50af19ac2469f12389c0`; off-list spend rejected; department returned funds, tx `0x342c544a6e601304449c2f778a36a4551513da97b3194fb51acc6447910beaf1` |
+| Finance funds Design in app setup | WORKS | `npm run e2e` asserts Design has a positive funded balance after `/api/setup`; Design funding tx `0x254e8207816773c4a11a7e30af87756f9e02fffaa78ccc3f3e60d395e6c6906a` |
+| Sam spends through a Design-issued key | WORKS | `npm run e2e`, Sam paid Figma from Design, tx `0x73ac369cb1955fed2aba0b9d008810d873a300eb8a1bcec5b46b07ba6747e76a`; Design balance decreased |
+| Off-list hold and department approval | WORKS | PixelVault spend held, Ava approved from Design, tx `0x06a4189d166461c8d383d6263076420839ae98657e562d2265ee7f10a27e2c7f`; e2e asserts Design balance decreased after approval |
+| Lead self-approval block | WORKS | `npm run e2e` returns 403 for Ava approving Ava's own held request; Finance can return it |
+| Department returns unspent budget | WORKS | Design returned $10 to Finance, tx `0xedfaafc4d0504e6a67b226e814f14278e8d7342239233f6bb9bd72a48320feb3`; Design balance decreased |
+| Department-scoped passkey spend | WORKS | `npm run e2e:passkey`; Ava enrolled against Design, paid Adobe Fonts from Design, tx `0x2a15a3db7d382029304450b5b4fb4473ff2950ceeff50545a821dbd6f040dd53`; forged receipt refused |
+
 ## Design Consequences
-- Team pot = one access key per person, issued by the company account, with periodic cap and vendor allowlist.
-- Perk = one separate access key per perk, with its own period, cap, and vendor list.
-- Held for approval = Tempo rejects the spend, Teampot records it, then the company account pays directly if a lead approves.
+- Department = one funded P256 account. Finance funds it with a real transfer; the department root issues member and perk access keys.
+- For the seeded demo, each department root is a server-held P256 key derived from `OPERATOR_PK` and the state epoch. State stores no key material.
+- Head takeover with Face ID is not real on Moderato t5 in this build. The honest closest version is Face ID as a department-issued spending key; true root/admin-key takeover needs a supported root/admin-key rotation path.
+- Finance's frame is chain-enforced by the department account balance and access-key limits/scopes. "Single payments over $X need Finance" remains app-enforced if enabled later.
+- Perk = one separate access key per perk, issued by the person's department account, with its own period, cap, and vendor list.
+- Held for approval = Tempo rejects the spend, Teampot records it, then the department account pays directly if an eligible lead or Finance approves.
 - Re-issued demo cards rotate to a new derived key version because revoked keys cannot be reused.
 - Earned while unspent remains simulated until a public testnet vault is available.
