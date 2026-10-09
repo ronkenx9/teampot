@@ -66,6 +66,7 @@ export type State = {
   nextPayday: string
   processed: Processed
   sessions: Session[]
+  revokedSessions?: string[]
   authChallenges: AuthChallenge[]
   invites: Invite[]
   seeded: boolean

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { z, ZodError } from 'zod'
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { PublicKey, Signature, WebAuthnP256 } from 'ox'
 import * as T from './tempo.js'
 import * as Store from './store.js'
@@ -134,15 +134,31 @@ const setSessionCookie = (c: any, id: string, maxAge = 7 * DAY_MS / 1000) => {
   c.header('set-cookie', `${SESSION_COOKIE}=${id}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Math.floor(maxAge)}${secure}`)
 }
 const clearSessionCookie = (c: any) => c.header('set-cookie', `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`)
+// Sessions are self-contained signed tokens (HMAC-SHA256 with a key derived from the server secret), so any
+// server instance can verify them without shared storage. Logout adds the token's id to a revocation list.
+const sessionKey = () => createHash('sha256').update(`teampot-session:${process.env.SESSION_SECRET || process.env.OPERATOR_PK || 'dev'}`).digest()
+const b64 = (x: string | Buffer) => Buffer.from(x).toString('base64url')
 function createSession(personId: string, demo: boolean) {
-  const raw = randomHex(24)
-  const session: Session = { id: hashSecret(raw), personId, demo, createdAt: now(), expiresAt: now() + (demo ? 2 : 7) * DAY_MS }
-  S.sessions.push(session)
-  return { ...session, id: raw } // cookie carries the raw id; state keeps only its hash
+  const session: Session = { id: randomHex(12), personId, demo, createdAt: now(), expiresAt: now() + (demo ? 2 : 7) * DAY_MS }
+  const body = b64(JSON.stringify(session))
+  const sig = b64(createHmac('sha256', sessionKey()).update(body).digest())
+  return { ...session, id: `${body}.${sig}` } // cookie value; nothing secret is stored server-side
+}
+function readSession(token: string | undefined): Session | undefined {
+  if (!token || !token.includes('.')) return undefined
+  const [body, sig] = token.split('.')
+  const want = createHmac('sha256', sessionKey()).update(body).digest()
+  const got = Buffer.from(sig, 'base64url')
+  if (got.length !== want.length || !timingSafeEqual(got, want)) return undefined
+  try {
+    const sess = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as Session
+    if (sess.expiresAt <= now() || S.revokedSessions?.includes(sess.id)) return undefined
+    return sess
+  } catch { return undefined }
 }
 function actorFrom(c: any): Actor {
   const sid = cookieValue(c.req.header('cookie'), SESSION_COOKIE)
-  const session = sid ? S.sessions.find((x) => x.id === hashSecret(sid) && x.expiresAt > now()) : undefined
+  const session = readSession(sid)
   if (!session) throw authError()
   const p = person(session.personId)
   if (p.removed) throw authError('This access has been removed')
@@ -388,7 +404,7 @@ app.post('/api/auth/demo', async (c) => {
 
 app.post('/api/auth/logout', (c) => {
   const sid = cookieValue(c.req.header('cookie'), SESSION_COOKIE)
-  if (sid) S.sessions = S.sessions.filter((x) => x.id !== hashSecret(sid))
+  if (sid) { const sess = readSession(sid); if (sess) S.revokedSessions = [...(S.revokedSessions ?? []), sess.id].slice(-500) }
   clearSessionCookie(c)
   return c.json({ ok: true })
 })
