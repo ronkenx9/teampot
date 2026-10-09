@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { api, ago, money, resetDate, type Activity, type Held, type Invoice, type Person, type State } from './api'
+import { api, ago, money, resetDate, type Activity, type Held, type Invoice, type Person, type State, type StockId } from './api'
 import { createInvitePasskey, enrollPasskey, passkeysSupported, payWithPasskey, signInPasskey } from './passkey'
 
 type Viewer = 'jordan' | 'ava' | 'sam' | 'mateo'
@@ -212,20 +212,12 @@ function Lead({ s, busy, run, toast, openReceipt, me }: Ctx & { me: Person }) {
 }
 
 function Employee({ s, busy, run, toast, openReceipt, me }: Ctx & { me: Person }) {
-  const pay = s.paydayRuns[0]
   return (
     <div className="phone-wrap">
       <div className="phone">
-        <div className="hello hero-hello"><div><small>Good to see you</small><b>Hey, {me.name.split(' ')[0]}.</b><span>Your department card is ready.</span></div><FillMark ratio={0.7} small /></div>
-        <div className="payslip">
-          <small>{pay ? `Payday landed · ${ago(pay.at)}` : `Next payday · ${s.nextPayday}`}</small>
-          <b>{money(me.salary || 0)}</b>
-          <span>Gross pay · current total {money(me.balance)}</span>
-          {pay && <a href={`https://explore.testnet.tempo.xyz/tx/${pay.tx}`} target="_blank" rel="noreferrer">View payslip</a>}
-        </div>
-        <Wallet s={s} me={me} busy={busy} run={run} toast={toast} />
+        <div className="hello hero-hello"><div><small>Money home</small><b>Hey, {me.name.split(' ')[0]}.</b><span>Your pay can stay, earn, or become shares.</span></div><FillMark ratio={0.7} small /></div>
+        <MoneyHome s={s} me={me} busy={busy} run={run} toast={toast} openReceipt={openReceipt} showSpend />
         <PerkCards s={s} me={me} busy={busy} run={run} toast={toast} />
-        <div className="card flat"><div className="card-h"><h3>Recent</h3></div><Feed s={s} filter={(a) => a.who === me.id || a.kind === 'payday'} compact openReceipt={openReceipt} /></div>
       </div>
     </div>
   )
@@ -239,7 +231,7 @@ function Contractor({ s, busy, run, toast, me }: Ctx & { me: Person }) {
     <div className="phone-wrap">
       <div className="phone">
         <div className="hello hero-hello contractor-hello"><div><small>{me.title} · {me.country}</small><b>Hi, {me.name.split(' ')[0]}.</b><span>Send the invoice. Get paid fast.</span></div><FillMark ratio={0.45} small /></div>
-        <div className="payslip"><small>Paid to you</small><b>{money(me.balance)}</b><span>Get paid the moment {s.company.name} approves</span></div>
+        <MoneyHome s={s} me={me} busy={busy} run={run} toast={toast} openReceipt={() => undefined} />
         <form className="card flat form" onSubmit={(e) => { e.preventDefault(); run('inv', () => api.invoice({ contractorId: me.id, amount: Number(amount), description: desc }), () => toast({ text: 'Invoice sent', tone: 'good' })) }}>
           <h3>Send an invoice</h3>
           <label>What for<input value={desc} onChange={(e) => setDesc(e.target.value)} required /></label>
@@ -249,6 +241,93 @@ function Contractor({ s, busy, run, toast, me }: Ctx & { me: Person }) {
         <div className="card flat"><div className="card-h"><h3>Your invoices</h3></div><Invoices s={s} busy={busy} run={run} toast={toast} items={mine} /></div>
       </div>
     </div>
+  )
+}
+
+function MoneyHome({ s, me, busy, run, toast, openReceipt, showSpend }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast' | 'openReceipt'> & { me: Person; showSpend?: boolean }) {
+  const pay = s.paydayRuns[0]
+  const inv = s.investments.find((x) => x.personId === me.id)
+  const earned = s.earnEntries.find((x) => x.personId === me.id)
+  const invested = inv?.positions.reduce((a, p) => a + p.value, 0) ?? 0
+  const earning = earned?.balance ?? 0
+  const total = me.balance + invested + earning
+  return (
+    <div className="money-home">
+      <section className="money-total">
+        <small>Total balance</small>
+        <b>{money(total)}</b>
+        <span>{pay ? `Last payday · ${ago(pay.at)}` : `Next payday · ${s.nextPayday}`}</span>
+      </section>
+      <section className="money-split">
+        <div><small>Keep</small><b>{money(me.balance)}</b></div>
+        <div><small>Earning</small><b>{money(earning)}</b></div>
+        <div><small>Invest</small><b>{money(invested)}</b></div>
+      </section>
+      {showSpend && <Wallet s={s} me={me} busy={busy} run={run} toast={toast} />}
+      <KeepCard s={s} me={me} pay={pay} />
+      <EarnCard s={s} me={me} entry={earned} busy={busy} run={run} toast={toast} />
+      <InvestCard s={s} me={me} inv={inv} busy={busy} run={run} toast={toast} />
+      <div className="card flat"><div className="card-h"><h3>Recent activity</h3></div><Feed s={s} filter={(a) => a.who === me.id || a.kind === 'payday'} compact openReceipt={openReceipt} /></div>
+    </div>
+  )
+}
+
+function KeepCard({ s, me, pay }: { s: State; me: Person; pay?: State['paydayRuns'][number] }) {
+  return (
+    <section className="card flat keep-card">
+      <div className="card-h"><h3>Keep</h3><span className="pill">Cash</span></div>
+      <b className="big-money">{money(me.balance)}</b>
+      <p className="muted">{pay ? `${money(me.salary || 0)} gross landed in ${(pay.ms / 1000).toFixed(1)}s.` : `Next payday is ${s.nextPayday}.`}</p>
+      {pay && <a href={`https://explore.testnet.tempo.xyz/tx/${pay.tx}`} target="_blank" rel="noreferrer">View payslip</a>}
+    </section>
+  )
+}
+
+function EarnCard({ me, entry, busy, run, toast }: Pick<Ctx, 'busy' | 'run' | 'toast'> & { s: State; me: Person; entry?: State['earnEntries'][number] }) {
+  const [amount, setAmount] = useState('100')
+  return (
+    <section className="card flat earn-card">
+      <div className="card-h"><h3>Earning</h3><span className="pill">{entry?.mode === 'real' ? 'Live' : 'Simulated'}</span></div>
+      <b className="big-money">{money(entry?.balance ?? 0)}</b>
+      <p className="muted">{entry?.reason || 'No public earning pool is available yet, so this is labelled simulated.'}</p>
+      <form className="form compact-form" onSubmit={(e) => { e.preventDefault(); run('earn', () => api.earnDeposit({ personId: me.id, amount: Number(amount) }), (r: any) => toast({ text: r.mode === 'real' ? 'Earning deposit confirmed' : 'Earning is simulated for now', tone: r.mode === 'real' ? 'good' : 'warn' })) }}>
+        <label>Move idle cash<div className="money-in"><span>$</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div></label>
+        <button className="btn ghost" disabled={!!busy || !Number(amount)}>Move to Earning</button>
+      </form>
+    </section>
+  )
+}
+
+function InvestCard({ s, me, inv, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { me: Person; inv?: State['investments'][number] }) {
+  const [stockId, setStockId] = useState<StockId>(inv?.election?.stockId ?? 'aapl')
+  const [percent, setPercent] = useState(String(inv?.election?.percent ?? 20))
+  const [cash, setCash] = useState('100')
+  const [sellStock, setSellStock] = useState<StockId>((inv?.positions[0]?.stockId as StockId | undefined) ?? 'aapl')
+  const [sellShares, setSellShares] = useState('0.25')
+  const selected = s.stocks.find((x) => x.id === stockId) ?? s.stocks[0]
+  const delayed = selected?.delayed ? 'delayed' : 'current'
+  return (
+    <section className="card flat invest-card">
+      <div className="card-h"><h3>Invest</h3><span className="pill">{delayed} prices</span></div>
+      <form className="form compact-form" onSubmit={(e) => { e.preventDefault(); run('election', () => api.election({ personId: me.id, stockId, percent: Number(percent) }), () => toast({ text: 'Payday investing saved', tone: 'good' })) }}>
+        <div className="two"><label>Each payday<input inputMode="numeric" value={percent} onChange={(e) => setPercent(e.target.value.replace(/[^\d.]/g, ''))} /></label><label>Stock<select value={stockId} onChange={(e) => setStockId(e.target.value as StockId)}>{s.stocks.map((st) => <option key={st.id} value={st.id}>{st.display}</option>)}</select></label></div>
+        <button className="btn ghost" disabled={!!busy}>Save payday split</button>
+      </form>
+      <div className="stock-list">
+        {inv?.positions.length ? inv.positions.map((p) => {
+          const st = s.stocks.find((x) => x.id === p.stockId)!
+          return <div key={p.stockId} className="stock-row"><span><b>{st.display}</b><small>{p.shares} shares · avg {money(p.avgCost, true)}</small></span><span className="num">{money(p.value, true)}<small className={p.gain >= 0 ? 'gain' : 'loss'}>{p.gain >= 0 ? '+' : ''}{money(p.gain, true)}</small></span></div>
+        }) : <Empty text="No shares yet." />}
+      </div>
+      <form className="form compact-form trade-form" onSubmit={(e) => { e.preventDefault(); run('trade-buy', () => api.trade({ personId: me.id, stockId, side: 'buy', cashAmount: Number(cash) }), (r: any) => toast({ text: `Bought ${r.shares} shares`, tone: 'good', receipt: r.receipt })) }}>
+        <div className="two"><label>Buy<select value={stockId} onChange={(e) => setStockId(e.target.value as StockId)}>{s.stocks.map((st) => <option key={st.id} value={st.id}>{st.display} · {money(st.lastPrice, true)}</option>)}</select></label><label>Amount<div className="money-in"><span>$</span><input inputMode="decimal" value={cash} onChange={(e) => setCash(e.target.value.replace(/[^\d.]/g, ''))} /></div></label></div>
+        <button className="btn primary" disabled={!!busy || !Number(cash)}>Buy</button>
+      </form>
+      <form className="form compact-form trade-form" onSubmit={(e) => { e.preventDefault(); run('trade-sell', () => api.trade({ personId: me.id, stockId: sellStock, side: 'sell', shares: Number(sellShares) }), (r: any) => toast({ text: `Sold ${r.shares} shares`, tone: 'good', receipt: r.receipt })) }}>
+        <div className="two"><label>Sell<select value={sellStock} onChange={(e) => setSellStock(e.target.value as StockId)}>{(inv?.positions.length ? inv.positions : s.stocks.map((st) => ({ stockId: st.id }))).map((p: any) => { const st = s.stocks.find((x) => x.id === p.stockId)!; return <option key={st.id} value={st.id}>{st.display}</option> })}</select></label><label>Shares<input inputMode="decimal" value={sellShares} onChange={(e) => setSellShares(e.target.value.replace(/[^\d.]/g, ''))} /></label></div>
+        <button className="btn ghost" disabled={!!busy || !Number(sellShares)}>Sell</button>
+      </form>
+    </section>
   )
 }
 

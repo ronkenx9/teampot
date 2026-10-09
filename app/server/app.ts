@@ -5,9 +5,9 @@ import { PublicKey, Signature, WebAuthnP256 } from 'ox'
 import * as T from './tempo.js'
 import * as Store from './store.js'
 import {
-  DAY, MONTH, YEAR, applyKudosDebit, canAwardKudos, decodeMemoLabel, holdReason, idempotent, invoiceNumber,
-  moneyMemo, nextMonthlyDate, normalizeState, potApprovedTotal, potSavings, roundMoney, slug, splitKudos, uid,
-  type Activity, type AuthChallenge, type Held, type Invite, type Invoice, type Perk, type Person, type Pot, type Session, type State, type Vendor,
+  DAY, MONTH, YEAR, applyKudosDebit, applyStockTrade, canAwardKudos, decodeMemoLabel, defaultStocks, holdReason, idempotent, invoiceNumber,
+  moneyMemo, nextMonthlyDate, normalizeState, potApprovedTotal, potSavings, roundMoney, slug, splitKudos, stockPosition, uid,
+  type Activity, type AuthChallenge, type Held, type Invite, type Invoice, type Perk, type Person, type Pot, type Session, type State, type StockId, type TestStock, type Vendor,
 } from './domain.js'
 
 const colors = ['#E8552D', '#141414', '#6F6A63', '#B8401C']
@@ -73,7 +73,7 @@ function seedState(): State {
     { id: 'mkt', team: 'Marketing', perPersonCap: 900, budget: 3600, periodLabel: 'month', periodSec: MONTH, vendorIds: [id('Delta'), id('Notion'), id('Uber Eats')], color: '#6F6A63', rootMode: 'demo-server-p256' },
   ]
   const p = (name: string, role: Person['role'], title: string, team?: string, salary?: number, country?: string): Person =>
-    ({ id: name.toLowerCase().split(' ')[0], name, role, title, team, salary, country, address: T.newAddress(), demoKey: role === 'lead' || role === 'employee' })
+    ({ id: name.toLowerCase().split(' ')[0], name, role, title, team, salary, country, address: T.derivedPersonalAddress('seed-preview', name.toLowerCase().split(' ')[0]), demoKey: role === 'lead' || role === 'employee' })
   const people = [
     p('Jordan Lee', 'admin', 'Head of Finance'),
     p('Ava Chen', 'lead', 'Design Lead', 'design', 4200),
@@ -88,12 +88,15 @@ function seedState(): State {
     { id: 'sam-learning', personId: 'sam', name: 'Learning', cap: 1500, periodLabel: 'year', periodSec: YEAR, vendorIds: [id('Udemy')], color: '#141414' },
     { id: 'ava-lunch', personId: 'ava', name: 'Lunch', cap: 15, periodLabel: 'day', periodSec: DAY, vendorIds: [id('Uber Eats')], color: '#E8552D' },
   ]
+  const epoch = uid()
+  for (const x of people) x.address = T.derivedPersonalAddress(epoch, x.id)
   return {
     version: 0,
-    epoch: uid(),
+    epoch,
     company: { name: 'Northwind Studio', address: T.companyAccount.address, financeApprovalThreshold: 1000 },
     people, vendors, pots, perks,
     activity: [], held: [], invoices: [], paydayRuns: [], quarterCloses: [], kudosCredits: [], kudosAwards: [],
+    stocks: defaultStocks(), payElections: [{ personId: 'sam', stockId: 'aapl', percent: 20 }], stockTrades: [], earnEntries: [],
     nextPayday: nextMonthlyDate(), processed: {}, sessions: [], authChallenges: [], invites: [], seeded: false,
   }
 }
@@ -105,6 +108,8 @@ const perkKeyPk = (perkId: string) => T.derivedKeyPk(S.epoch, perkId, 'perk')
 const deptRootPk = (potId: string) => T.derivedDepartmentRootPk(S.epoch, potId)
 const deptRoot = (potId: string) => T.rootFromPk(deptRootPk(potId))
 const deptAddress = (potId: string) => T.p256RootAddress(deptRootPk(potId))
+const personalRootPk = (personId: string) => T.derivedPersonalRootPk(S.epoch, personId)
+const personalRoot = (personId: string) => T.rootFromPk(personalRootPk(personId))
 const keyRef = (x: Person): T.KeyRef | null => (x.passkey && !x.passkey.needsRefresh ? { passkey: x.passkey.publicKey } : x.demoKey ? { pk: keyPk(x) } : null)
 const requireOne = <T,>(item: T | undefined, label: string) => {
   if (!item) {
@@ -118,6 +123,7 @@ const person = (id: string) => requireOne(S.people.find((x) => x.id === id), 'Pe
 const vendor = (id: string) => requireOne(S.vendors.find((x) => x.id === id), 'Vendor')
 const pot = (id: string) => requireOne(S.pots.find((x) => x.id === id), 'Pot')
 const perk = (id: string) => requireOne(S.perks.find((x) => x.id === id), 'Perk')
+const stock = (id: string) => requireOne(S.stocks.find((x) => x.id === id), 'Stock')
 
 type Actor = { person: Person; session: Session; demo: boolean }
 const now = () => Date.now()
@@ -250,6 +256,99 @@ async function fundDepartment(pt: Pot, amount = pt.budget) {
   return tx
 }
 
+// Delayed market prices: Yahoo Finance chart API first, Nasdaq quote API second (both keyless), then the last known price.
+const UA = { 'user-agent': 'Mozilla/5.0 (compatible; Teampot/1.0)' }
+async function quote(symbol: string): Promise<{ price: number; previous: number; source: 'yahoo' | 'nasdaq' }> {
+  try {
+    const j: any = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1d&interval=1d`, { headers: UA, signal: AbortSignal.timeout(3000) }).then((r) => r.json())
+    const m = j?.chart?.result?.[0]?.meta
+    const price = Number(m?.regularMarketPrice)
+    if (Number.isFinite(price) && price > 0) return { price, previous: Number(m?.chartPreviousClose ?? m?.previousClose ?? price), source: 'yahoo' as const }
+  } catch { /* try the next source */ }
+  const j: any = await fetch(`https://api.nasdaq.com/api/quote/${symbol}/info?assetclass=${symbol === 'SPY' ? 'etf' : 'stocks'}`, { headers: UA, signal: AbortSignal.timeout(3000) }).then((r) => r.json())
+  const price = Number(String(j?.data?.primaryData?.lastSalePrice ?? '').replace(/[$,]/g, ''))
+  const change = Number(String(j?.data?.primaryData?.netChange ?? '0').replace(/[$,+]/g, ''))
+  if (!Number.isFinite(price) || price <= 0) throw new Error('no price')
+  return { price, previous: price - (Number.isFinite(change) ? change : 0), source: 'nasdaq' as const }
+}
+async function refreshStockPrices() {
+  await Promise.all(S.stocks.map(async (st) => {
+    const fallback = st.lastPrice || defaultStocks().find((x) => x.id === st.id)!.lastPrice
+    try {
+      if (process.env.VITEST) throw new Error('offline test price fallback')
+      const q = await quote(st.symbol)
+      st.previousPrice = roundMoney(q.previous)
+      st.lastPrice = roundMoney(q.price)
+      st.priceAsOf = Date.now()
+      st.priceSource = q.source
+      st.delayed = true
+    } catch {
+      st.previousPrice = st.previousPrice || fallback
+      st.lastPrice = fallback
+      st.priceAsOf = st.priceAsOf || Date.now()
+      st.priceSource = 'fallback'
+      st.delayed = true
+    }
+  }))
+}
+
+async function setupStocks() {
+  await refreshStockPrices()
+  for (const st of S.stocks) {
+    try {
+      if (!st.tokenAddress) {
+        const created = await T.createTip20(`${st.name} - demo only`, `t${st.symbol}`, T.derivedKeyPk(S.epoch, st.id, 'stock-token-salt'))
+        st.tokenAddress = created.tokenAddress
+        st.createTx = created.tx
+      }
+      if (!st.pairTx) st.pairTx = await T.createDexPair(st.tokenAddress)
+      if (!st.mintTx) st.mintTx = await T.mintToken(st.tokenAddress, S.company.address, 10000, `mint ${st.symbol}`)
+      if (!st.bidTx || !st.askTx) {
+        const orders = await T.placeStockOrders(st.tokenAddress, 1, 5000)
+        st.bidTx = orders.bidTx
+        st.askTx = orders.askTx
+      }
+      st.setupError = undefined
+      log({ kind: 'setup', title: `${st.display} ready`, detail: 'Test shares priced from delayed market data', tx: st.askTx, memo: `invest:${st.symbol}` })
+    } catch (e: any) {
+      st.setupError = String(e.shortMessage || e.message || e).slice(0, 220)
+      log({ kind: 'admin', title: `${st.display} setup needs attention`, detail: st.setupError, memo: `invest:${st.symbol}` })
+    }
+  }
+}
+
+function recordStockTrade(args: { personId: string; stockId: StockId; side: 'buy' | 'sell'; cashAmount: number; shares: number; price: number; tx: string; source: 'payday' | 'manual' }) {
+  applyStockTrade(S.stockTrades, args)
+  const st = stock(args.stockId)
+  log({
+    kind: 'invest',
+    title: `${person(args.personId).name.split(' ')[0]} ${args.side === 'buy' ? 'bought' : 'sold'} ${st.display}`,
+    detail: `${roundMoney(args.shares)} shares at delayed ${args.price.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`,
+    amount: roundMoney(args.cashAmount),
+    tx: args.tx,
+    who: args.personId,
+    memo: `invest:${st.symbol}`,
+  })
+}
+
+async function buyStockForPerson(x: Person, st: TestStock, cashAmount: number, source: 'payday' | 'manual') {
+  if (!st.tokenAddress) throw new Error(`${st.display} is not ready yet`)
+  const price = st.lastPrice
+  const shares = roundMoney(cashAmount / price)
+  const tx = await T.dexBuyWithAccount(personalRoot(x.id), st.tokenAddress, roundMoney(cashAmount), roundMoney(cashAmount * 1.03))
+  recordStockTrade({ personId: x.id, stockId: st.id, side: 'buy', cashAmount: roundMoney(cashAmount), shares, price, tx, source })
+  return { ok: true, tx, receipt: T.EXPLORER + tx, shares, cashAmount: roundMoney(cashAmount), stock: st.display }
+}
+
+async function sellStockForPerson(x: Person, st: TestStock, shares: number) {
+  if (!st.tokenAddress) throw new Error(`${st.display} is not ready yet`)
+  const price = st.lastPrice
+  const cashAmount = roundMoney(shares * price)
+  const tx = await T.dexSellWithAccount(personalRoot(x.id), st.tokenAddress, cashAmount, roundMoney(cashAmount * 0.97))
+  recordStockTrade({ personId: x.id, stockId: st.id, side: 'sell', cashAmount, shares: roundMoney(shares), price, tx, source: 'manual' })
+  return { ok: true, tx, receipt: T.EXPLORER + tx, shares: roundMoney(shares), cashAmount, stock: st.display }
+}
+
 async function parseBody<T>(c: any, schema: z.ZodType<T>) {
   const body = await c.req.json().catch(() => ({}))
   return schema.parse(body)
@@ -315,6 +414,7 @@ function scopedActivity(scope: ViewerScope) {
 
 async function view(_viewerId: string | null | undefined, actor: Actor) {
   const scope = scopeFor(actor)
+  await refreshStockPrices()
   const visiblePeople = S.people.filter((x) => canSeePerson(scope, x))
   const people = await Promise.all(visiblePeople.map(async (x) => {
     const pt = x.team ? pot(x.team) : undefined
@@ -350,6 +450,14 @@ async function view(_viewerId: string | null | undefined, actor: Actor) {
   const visibleCloses = S.quarterCloses.filter((q) => scope.isAdmin || q.memberIds.includes(scope.viewer.id) || q.potId === scope.viewer.team)
   const visibleCredits = S.kudosCredits.filter((k) => scope.isAdmin || k.personId === scope.viewer.id)
   const visibleAwards = S.kudosAwards.filter((k) => scope.isAdmin || k.fromPersonId === scope.viewer.id || k.toPersonId === scope.viewer.id || (scope.viewer.role === 'lead' && (personIds.has(k.fromPersonId) || personIds.has(k.toPersonId))))
+  const visibleInvestmentPeople = scope.isAdmin ? visiblePeople : visiblePeople.filter((p) => p.id === scope.viewer.id)
+  const investments = visibleInvestmentPeople.map((p) => ({
+    personId: p.id,
+    election: S.payElections.find((e) => e.personId === p.id) ?? null,
+    positions: S.stocks.map((st) => ({ stockId: st.id, ...stockPosition(S.stockTrades, p.id, st.id, st.lastPrice) })).filter((pos) => pos.shares > 0),
+    trades: S.stockTrades.filter((t) => t.personId === p.id).slice(0, 12).map((t) => ({ ...t, receipt: T.EXPLORER + t.tx })),
+  }))
+  const earnEntries = scope.isAdmin ? S.earnEntries : S.earnEntries.filter((e) => e.personId === scope.viewer.id)
   return {
     auth: { personId: actor.person.id, role: actor.person.role, demo: actor.demo },
     company: { name: S.company.name, balance: scope.isAdmin ? companyBalance : 0, financeApprovalThreshold: S.company.financeApprovalThreshold },
@@ -365,6 +473,11 @@ async function view(_viewerId: string | null | undefined, actor: Actor) {
     quarterCloses: visibleCloses,
     kudosCredits: visibleCredits,
     kudosAwards: visibleAwards,
+    stocks: S.stocks.map(({ id, symbol, name, display, lastPrice, previousPrice, priceAsOf, priceSource, delayed, setupError }) => ({
+      id, symbol, name, display, lastPrice, previousPrice, priceAsOf, priceSource, delayed, ready: !setupError, setupError,
+    })),
+    investments,
+    earnEntries,
     simulatedEarnings: { label: 'Simulated', amount: 1284, note: 'No public test vault is available, so this card is illustrative.' },
     seeded: S.seeded,
   }
@@ -487,6 +600,7 @@ app.post('/api/setup', async (c) => {
     const teamId = S.pots.find((p) => p.id === inv.team || p.team.toLowerCase() === inv.team.toLowerCase())?.id
     if (!teamId) continue
     const p: Person = { id: slug(inv.name), name: inv.name, role: inv.role, title: inv.title, team: teamId, salary: inv.salary, country: inv.country, address: T.newAddress(), demoKey: false }
+    p.address = T.derivedPersonalAddress(S.epoch, p.id)
     S.people.push(p)
     const raw = randomBytes(18).toString('base64url')
     S.invites.push({ token: hashSecret(raw), personId: p.id, createdBy: 'jordan', createdAt: now(), expiresAt: now() + DAY_MS })
@@ -502,6 +616,7 @@ app.post('/api/setup', async (c) => {
     const tx = await issuePerkKey(p)
     log({ kind: 'perk', title: `${person(p.personId).name.split(' ')[0]} got ${p.name}`, detail: `$${p.cap}/${p.periodLabel} at ${p.vendorIds.map((v) => vendor(v).name).join(', ')}`, tx, who: p.personId, perkId: p.id, memo: `perk:${p.name}` })
   }
+  await setupStocks()
   S.seeded = true
   const session = createSession('jordan', true)
   setSessionCookie(c, session.id, 2 * DAY_MS / 1000)
@@ -568,12 +683,72 @@ app.post('/api/payday', async (c) => {
   const staff = S.people.filter((x) => x.salary)
   const date = S.nextPayday || new Date().toISOString().slice(0, 10)
   const r = await T.payday(staff.map((x) => ({ to: x.address, amount: x.salary!, note: `payday ${date}` })))
+  const investResults = []
+  if (S.payElections.some((e) => e.percent > 0) && S.stocks.some((st) => !st.tokenAddress || st.setupError)) await setupStocks()
+  for (const x of staff) {
+    const election = S.payElections.find((e) => e.personId === x.id && e.percent > 0)
+    if (!election) continue
+    const st = stock(election.stockId)
+    const cashAmount = roundMoney((x.salary ?? 0) * election.percent / 100)
+    if (cashAmount > 0) investResults.push(await buyStockForPerson(x, st, cashAmount, 'payday'))
+  }
   const total = staff.reduce((s, x) => s + x.salary!, 0)
   const run = { id: uid(), at: Date.now(), date, tx: r.tx, total, count: staff.length, ms: r.ms, lines: staff.map((x) => ({ personId: x.id, gross: x.salary!, memo: `payday ${date}` })) }
   S.paydayRuns.unshift(run)
   S.nextPayday = nextMonthlyDate(new Date(`${date}T00:00:00Z`))
   log({ kind: 'payday', title: `Payday's in the pot`, detail: `${staff.length} people paid in ${(r.ms / 1000).toFixed(1)}s`, amount: total, tx: r.tx, memo: `payday:${date}` })
-  const out = { ...r, total, count: staff.length, run }
+  const out = { ...r, total, count: staff.length, run, investResults }
+  if (body.requestId) S.processed[body.requestId] = out
+  return c.json(out)
+})
+
+app.post('/api/invest/election', async (c) => {
+  const a = actorFrom(c)
+  const body = await parseBody(c, z.object({ personId: text(40), stockId: z.enum(['aapl', 'nvda', 'spy']), percent: z.coerce.number().min(0).max(80) }))
+  const x = person(body.personId)
+  requireSelf(a, x.id)
+  stock(body.stockId)
+  S.payElections = S.payElections.filter((e) => e.personId !== x.id)
+  if (body.percent > 0) S.payElections.push({ personId: x.id, stockId: body.stockId, percent: roundMoney(body.percent) })
+  log({ kind: 'admin', title: `${x.name.split(' ')[0]} updated payday investing`, detail: body.percent > 0 ? `${body.percent}% to ${stock(body.stockId).display}` : 'Payday investing off', who: x.id, memo: 'invest:election' })
+  return c.json({ ok: true, election: S.payElections.find((e) => e.personId === x.id) ?? null })
+})
+
+app.post('/api/invest/trade', async (c) => {
+  const a = actorFrom(c)
+  const body = await parseBody(c, z.object({ personId: text(40), stockId: z.enum(['aapl', 'nvda', 'spy']), side: z.enum(['buy', 'sell']), cashAmount: optionalNumber, shares: optionalNumber, requestId }))
+  if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
+  const x = person(body.personId)
+  requireSelf(a, x.id)
+  const st = stock(body.stockId)
+  const out = body.side === 'buy'
+    ? await buyStockForPerson(x, st, roundMoney(body.cashAmount ?? 0), 'manual')
+    : await sellStockForPerson(x, st, roundMoney(body.shares ?? 0))
+  if (body.requestId) S.processed[body.requestId] = out
+  return c.json(out)
+})
+
+app.post('/api/earn/deposit', async (c) => {
+  const a = actorFrom(c)
+  const body = await parseBody(c, z.object({ personId: text(40), amount: number, requestId }))
+  if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
+  const x = person(body.personId)
+  requireSelf(a, x.id)
+  let mode: 'simulated' | 'real' = 'simulated'
+  let depositTx: string | undefined
+  let reason = 'No public pathUSD Earn vault is available on Moderato, so this balance is illustrative.'
+  try {
+    await T.tryDeployEarn()
+    mode = 'real'
+  } catch (e: any) {
+    reason = String(e.shortMessage || e.message || e).slice(0, 180)
+  }
+  const amount = roundMoney(body.amount)
+  const existing = S.earnEntries.find((entry) => entry.personId === x.id)
+  if (existing) Object.assign(existing, { balance: roundMoney(existing.balance + amount), mode, depositTx, reason, updatedAt: Date.now() })
+  else S.earnEntries.push({ personId: x.id, balance: amount, mode, depositTx, reason, updatedAt: Date.now() })
+  log({ kind: 'earn', title: `${x.name.split(' ')[0]} moved cash to Earning`, detail: mode === 'real' ? 'Deposit confirmed' : 'Simulated until a public earning pool is available', amount, tx: depositTx, who: x.id, memo: 'earn:deposit' })
+  const out = { ok: true, mode, depositTx, reason, balance: S.earnEntries.find((entry) => entry.personId === x.id)?.balance ?? amount }
   if (body.requestId) S.processed[body.requestId] = out
   return c.json(out)
 })
@@ -709,6 +884,7 @@ app.post('/api/people', async (c) => {
   if (!canInviteFor(a, body.role, body.team)) throw forbidden('Only Finance or the department head can add this person')
   if (body.team) pot(body.team)
   const p: Person = { id: slug(body.name), name: body.name, role: body.role, title: body.title, team: body.team, salary: body.salary, country: body.country, address: T.newAddress(), demoKey: body.role === 'lead' || body.role === 'employee' }
+  p.address = T.derivedPersonalAddress(S.epoch, p.id)
   S.people.push(p)
   if (S.seeded && p.demoKey) await issuePotKey(p)
   log({ kind: 'admin', title: `${p.name} joined`, detail: p.title, who: p.id, memo: 'admin:person' })

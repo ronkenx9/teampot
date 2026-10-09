@@ -1,4 +1,5 @@
 export type Role = 'admin' | 'lead' | 'employee' | 'contractor'
+export type StockId = 'aapl' | 'nvda' | 'spy'
 export type Person = {
   id: string
   name: string
@@ -15,6 +16,38 @@ export type Person = {
   removed?: boolean
 }
 export type Vendor = { id: string; name: string; category: string; address: string }
+export type TestStock = {
+  id: StockId
+  symbol: string
+  name: string
+  display: string
+  tokenAddress?: string
+  createTx?: string
+  pairTx?: string
+  mintTx?: string
+  bidTx?: string
+  askTx?: string
+  lastPrice: number
+  previousPrice: number
+  priceAsOf: number
+  priceSource: 'yahoo' | 'nasdaq' | 'fallback'
+  delayed: boolean
+  setupError?: string
+}
+export type PayElection = { personId: string; stockId: StockId; percent: number }
+export type StockTrade = {
+  id: string
+  at: number
+  personId: string
+  stockId: StockId
+  side: 'buy' | 'sell'
+  cashAmount: number
+  shares: number
+  price: number
+  tx: string
+  source: 'payday' | 'manual'
+}
+export type EarnEntry = { personId: string; balance: number; mode: 'simulated' | 'real'; depositTx?: string; reason?: string; updatedAt: number }
 export type Pot = {
   id: string
   team: string
@@ -29,7 +62,7 @@ export type Pot = {
   rootMode?: 'demo-server-p256' | 'head-passkey-pending'
 }
 export type Perk = { id: string; personId: string; name: string; cap: number; periodLabel: string; periodSec: number; vendorIds: string[]; color: string; keyTx?: string }
-export type ActivityKind = 'payday' | 'spend' | 'held' | 'approved' | 'returned' | 'invoice' | 'paid' | 'setup' | 'perk' | 'quarter' | 'kudos' | 'declined' | 'admin'
+export type ActivityKind = 'payday' | 'spend' | 'held' | 'approved' | 'returned' | 'invoice' | 'paid' | 'setup' | 'perk' | 'quarter' | 'kudos' | 'declined' | 'admin' | 'invest' | 'earn'
 export type Activity = { id: string; at: number; kind: ActivityKind; title: string; detail: string; amount?: number; who?: string; tx?: string; potId?: string; perkId?: string; memo?: string }
 export type Held = { id: string; at: number; personId: string; potId: string; vendorId: string; amount: number; note: string; reason: 'new-vendor' | 'over-limit' | 'finance-rule'; status: 'held' | 'approved' | 'returned'; tx?: string }
 export type Invoice = { id: string; number: string; at: number; contractorId: string; amount: number; description: string; status: 'submitted' | 'paid' | 'declined'; tx?: string; paidMs?: number; declineReason?: string }
@@ -63,6 +96,10 @@ export type State = {
   quarterCloses: QuarterClose[]
   kudosCredits: KudosCredit[]
   kudosAwards: KudosAward[]
+  stocks: TestStock[]
+  payElections: PayElection[]
+  stockTrades: StockTrade[]
+  earnEntries: EarnEntry[]
   nextPayday: string
   processed: Processed
   sessions: Session[]
@@ -106,12 +143,46 @@ export function normalizeState(s: Partial<State> | null, seed: () => State): Sta
     quarterCloses: base.quarterCloses ?? [],
     kudosCredits: base.kudosCredits ?? [],
     kudosAwards: base.kudosAwards ?? [],
+    stocks: base.stocks ?? defaultStocks(),
+    payElections: base.payElections ?? [],
+    stockTrades: base.stockTrades ?? [],
+    earnEntries: base.earnEntries ?? [],
     nextPayday: base.nextPayday ?? nextMonthlyDate(),
     processed: base.processed ?? {},
     sessions: base.sessions ?? [],
     authChallenges: base.authChallenges ?? [],
     invites: base.invites ?? [],
   } as State
+}
+
+export function defaultStocks(now = Date.now()): TestStock[] {
+  return [
+    { id: 'aapl', symbol: 'AAPL', name: 'Apple test stock', display: 'AAPL (test)', lastPrice: 254, previousPrice: 250, priceAsOf: now, priceSource: 'fallback', delayed: true },
+    { id: 'nvda', symbol: 'NVDA', name: 'NVIDIA test stock', display: 'NVDA (test)', lastPrice: 185, previousPrice: 180, priceAsOf: now, priceSource: 'fallback', delayed: true },
+    { id: 'spy', symbol: 'SPY', name: 'S&P 500 test fund', display: 'SPY (test)', lastPrice: 670, previousPrice: 665, priceAsOf: now, priceSource: 'fallback', delayed: true },
+  ]
+}
+
+export function applyStockTrade(trades: StockTrade[], trade: Omit<StockTrade, 'id' | 'at'> & Partial<Pick<StockTrade, 'id' | 'at'>>) {
+  trades.unshift({ id: trade.id ?? uid(), at: trade.at ?? Date.now(), ...trade })
+}
+
+export function stockPosition(trades: StockTrade[], personId: string, stockId: StockId, currentPrice: number) {
+  let shares = 0
+  let cost = 0
+  for (const t of trades.filter((x) => x.personId === personId && x.stockId === stockId).reverse()) {
+    if (t.side === 'buy') {
+      shares = roundMoney(shares + t.shares)
+      cost = roundMoney(cost + t.cashAmount)
+    } else {
+      const avg = shares > 0 ? cost / shares : 0
+      shares = roundMoney(Math.max(0, shares - t.shares))
+      cost = roundMoney(Math.max(0, cost - avg * t.shares))
+    }
+  }
+  const avgCost = shares > 0 ? roundMoney(cost / shares) : 0
+  const value = roundMoney(shares * currentPrice)
+  return { shares, avgCost, cost: roundMoney(cost), value, gain: roundMoney(value - cost) }
 }
 
 export function idempotent<T>(state: State, key: string | undefined, work: () => T): T {

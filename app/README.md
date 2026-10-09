@@ -15,6 +15,8 @@ Every team runs its own money. Teampot runs payday, funded department accounts, 
 - Quarter close: computes real remaining limits, pays a kudos pool from the department account, records a leaderboard, and lets teammates award kudos.
 - Contractor portal: invoice list, paid-in-seconds badge, and decline-with-reason.
 - Face ID: browser passkeys become a person's spending key; the server records only verified receipts.
+- Money home: every employee and contractor sees total balance, Spend, Keep, Earning, Invest, and recent activity.
+- Pay-to-stocks: each person can send a payday percentage into AAPL/NVDA/SPY test stock exposure; manual Buy/Sell uses Tempo's DEX.
 - Mobile app shell: installable PWA manifest, cached first paint, and an offline page.
 - Earned while unspent: shown only as a clearly labelled simulated card.
 
@@ -41,10 +43,10 @@ BASE=http://localhost:8790 npm run responsive
 BASE=http://localhost:8790 npm run landing
 ```
 
-`npm run responsive` uses Playwright when it is installed. Without Playwright, it loads the local app and records the manual fallback in `GATES.md`.
+`npm run responsive` and `npm run landing` use Playwright when it can launch. In this sandbox Chromium is blocked by macOS Mach-port permissions, so both scripts fall back to HTTP smoke checks and document the manual browser fallback.
 
 ## Deploy
 Deployment is handled separately by the owner. Do not deploy from this workspace. Required production env vars remain `OPERATOR_PK`, `RESET_TOKEN`, and optionally `BLOB_READ_WRITE_TOKEN` for Vercel Blob state.
 
 ## What Is Real
-See [VERIFIED.md](VERIFIED.md). Payday, department funding, department-issued spends/perks, approve-and-add re-issues, quarter close pool payments, kudos awards, department returns, contractor payments, and Face ID receipt verification have Moderato evidence. Earned while unspent is simulated.
+See [VERIFIED.md](VERIFIED.md). Payday, department funding, department-issued spends/perks, approve-and-add re-issues, quarter close pool payments, kudos awards, department returns, contractor payments, Face ID receipt verification, TIP-20 test stock issuance, DEX setup, pay-to-stocks buys, and manual sells have Moderato evidence. Earning is simulated until a public pathUSD earning pool is available.

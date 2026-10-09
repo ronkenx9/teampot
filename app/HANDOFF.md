@@ -130,3 +130,27 @@
 ## Pass 5 Known Gaps
 - A non-restricted browser environment still needs to run `BASE=http://localhost:8790 npm run landing` to prove no overflow/console errors at 375 and 1280 px and to confirm the landing CTA reaches `/app`.
 - Re-export `brand/kit-v4/board.html` with Playwright for the canonical `board.png`; the included PNG is a fallback export because Playwright screenshotting is blocked locally.
+
+## Pass 6A: Personal Wallet and Pay-to-Stocks
+- Personal accounts: every person now has a deterministic personal P256 account derived from `OPERATOR_PK` + epoch + person id. Payday pays those accounts, so demo salary can be spent/invested by the server-held personal root. Passkey-as-personal-root is documented as the later supported path; current passkeys still control department spending keys.
+- Test stocks: setup issues `AAPL (test)`, `NVDA (test)`, and `SPY (test)` as TIP-20 assets, creates Tempo DEX pairs, mints company inventory, and places company bid/ask orders. Stooq CSV is attempted for delayed prices; cached fallback prices are labelled delayed when fetch is unavailable.
+- DEX modelling decision: Tempo's DEX tick range rejects raw prices such as $254. The on-chain TIP-20 represents dollar exposure units at roughly 1 pathUSD/unit; Teampot converts exposure to displayed shares using delayed reference prices for holdings, average cost, current value and gain/loss.
+- Pay-to-stocks: Sam defaults to 20% of payday into AAPL. Payday first lands salary in the personal account, then the personal account buys AAPL exposure on the DEX. Manual Buy/Sell uses the same DEX route from the Money home.
+- Money UI: employee and contractor phone views now start from Money home with Total balance, Spend, Keep, Earning, Invest, and Recent activity. Copy avoids crypto vocabulary; stocks show as `AAPL (test)` etc.
+- Earn: implemented as a clearly labelled simulated Earning card/route. The attempted real path is blocked because this app has no public pathUSD ERC-4626 venue/factory configuration on Moderato; no real Earn deposit tx is claimed.
+
+## Pass 6A Gate Results
+- G1 Typecheck: PASS, `npm run typecheck`.
+- G2 Unit tests: PASS, `npm test` (4 files, 23 tests, including stock math).
+- G3 Build: PASS, `npm run build`.
+- G4 E2E: PASS, `BASE=http://localhost:8790 npm run e2e`; includes AAPL setup ready, 20% payday buy tx `0x81a624c61be412406c0651e3530597e113f76789387354f908742d4e7273840a`, manual sell tx `0x17d0ddab819d5ae1f44aaea4861f2cf77dcd83a9f5598b7cb7b3b2b3b36fdefa`, and simulated Earn assertion.
+- G5 Auth/passkey: PASS, `BASE=http://localhost:8790 npm run e2e:passkey`.
+- G6 Banned words: PASS, `npm run check:banned`.
+- G7 Responsive: PASS fallback, `BASE=http://localhost:8790 npm run responsive`; Chromium launch is still blocked by sandbox permissions, but the app loads.
+- G8 Landing: PASS fallback, `BASE=http://localhost:8790 npm run landing`; Chromium launch is still blocked by sandbox permissions, but HTTP smoke for `/`, `/app`, invite route, manifest and OG asset passes.
+- G9 Docs: PASS, HANDOFF and VERIFIED updated with pass 6A real-vs-simulated status.
+
+## Pass 6A Known Gaps
+- A non-restricted browser should still run the Playwright visual checks for the new Money home.
+- Earning is simulated until there is a public pathUSD earning pool or a fully configured app-deployed Earn stack.
+- Real-world stock mainnet path needs live tokenized stock issuers on or bridged to Tempo; pass 6A uses clearly labelled test assets only.

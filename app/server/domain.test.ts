@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  applyKudosDebit, canAwardKudos, decodeMemoLabel, holdReason, idempotent, invoiceNumber, moneyMemo,
+  applyKudosDebit, applyStockTrade, canAwardKudos, decodeMemoLabel, defaultStocks, holdReason, idempotent, invoiceNumber, moneyMemo,
   nextMonthlyDate, normalizeState, potApprovedTotal, potSavings, roundMoney, slug, splitKudos, uid,
+  stockPosition,
   type State,
 } from './domain.js'
 
@@ -20,6 +21,10 @@ const state = (): State => ({
   quarterCloses: [],
   kudosCredits: [],
   kudosAwards: [],
+  stocks: [],
+  payElections: [],
+  stockTrades: [],
+  earnEntries: [],
   nextPayday: '2026-11-08',
   processed: {},
   sessions: [],
@@ -78,6 +83,26 @@ describe('quarter close and kudos', () => {
     expect(credits.find((c) => c.closeId === 'a')!.left).toBe(0)
     expect(credits.find((c) => c.closeId === 'b')!.left).toBe(1)
     expect(applyKudosDebit(credits, 'sam', 2)).toBe(false)
+  })
+})
+
+describe('personal investing math', () => {
+  it('ships three clearly labelled test stocks by default', () => {
+    const stocks = defaultStocks(123)
+    expect(stocks.map((s) => s.display)).toEqual(['AAPL (test)', 'NVDA (test)', 'SPY (test)'])
+    expect(stocks.every((s) => s.delayed && s.priceAsOf === 123)).toBe(true)
+  })
+
+  it('tracks average cost, current value and gain after buys and sells', () => {
+    const trades: any[] = []
+    applyStockTrade(trades, { personId: 'sam', stockId: 'aapl', side: 'buy', cashAmount: 200, shares: 2, price: 100, tx: '0x1', source: 'manual', at: 1 })
+    applyStockTrade(trades, { personId: 'sam', stockId: 'aapl', side: 'buy', cashAmount: 120, shares: 1, price: 120, tx: '0x2', source: 'payday', at: 2 })
+    applyStockTrade(trades, { personId: 'sam', stockId: 'aapl', side: 'sell', cashAmount: 130, shares: 1, price: 130, tx: '0x3', source: 'manual', at: 3 })
+    const pos = stockPosition(trades, 'sam', 'aapl', 140)
+    expect(pos.shares).toBe(2)
+    expect(pos.avgCost).toBe(106.67)
+    expect(pos.value).toBe(280)
+    expect(pos.gain).toBe(66.67)
   })
 })
 

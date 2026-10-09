@@ -60,3 +60,4 @@ const ninaTx = await nk.token.transferSync({ token: ninaInfo.token, to: ninaInfo
 console.log('invite spend', JSON.stringify(await post('/passkey/record', { personId: 'nina-park', vendorId: vid('Figma'), amount: 11, note: 'Research board', tx: ninaTx })).slice(0, 160))
 const nina = (await get('/state')).people.find((p: any) => p.id === 'nina-park')
 console.log('nina', nina.hasPasskey, nina.pot)
+console.log('passkey e2e ok')

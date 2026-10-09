@@ -3,8 +3,9 @@
 import 'dotenv/config'
 import { http, parseUnits, formatUnits, pad, stringToHex, parseEventLogs, erc20Abi, keccak256, concat, toHex } from 'viem'
 import { Address, PublicKey } from 'ox'
+import { Tick, TokenId } from 'ox/tempo'
 import { generatePrivateKey } from 'viem/accounts'
-import { Account, Actions, createClient } from 'viem/tempo'
+import { Account, Actions, Addresses, createClient } from 'viem/tempo'
 import { tempoModerato } from 'viem/tempo/chains'
 
 export const TOKEN = '0x20c0000000000000000000000000000000000000' as const // pathUSD, 6 dp
@@ -28,6 +29,10 @@ export const p256Root = (pk: `0x${string}`) => Account.fromP256(pk)
 export const p256RootAddress = (pk: `0x${string}`) => p256Root(pk).address
 export const derivedDepartmentRootPk = (epoch: string, departmentId: string) =>
   derivedKeyPk(epoch, departmentId, 'department-root')
+export const derivedPersonalRootPk = (epoch: string, personId: string) =>
+  derivedKeyPk(epoch, personId, 'personal-root')
+export const derivedPersonalAddress = (epoch: string, personId: string) =>
+  p256RootAddress(derivedPersonalRootPk(epoch, personId))
 const keyAccount = (pk: `0x${string}`, source: any = companyAccount) => Account.fromP256(pk, { access: source } as any)
 /** A spending key is either a demo P256 key held by the server or a device passkey (public key only). */
 export type KeyRef = { pk: `0x${string}` } | { passkey: `0x${string}` }
@@ -35,6 +40,68 @@ const keyParam = (k: KeyRef, source: any = companyAccount): any => ('pk' in k ? 
 export const keyAddress = (pk: `0x${string}`, source: any = companyAccount) => keyAccount(pk, source).address
 
 export async function balanceOf(address: string) {
+  return tokenBalance(TOKEN, address)
+}
+
+export async function tokenBalance(token: string, address: string) {
+  const b: any = await Actions.token.getBalance(company, { token: TOKEN, account: address } as any)
+  const b2: any = token === TOKEN ? b : await Actions.token.getBalance(company, { token, account: address } as any)
+  return Number(b2.formatted ?? fmt(BigInt(b2.amount ?? b2)))
+}
+
+export async function createTip20(name: string, symbol: string, salt: `0x${string}`) {
+  const r: any = await Actions.token.createSync(company, { name, symbol, currency: 'USD', quoteToken: TOKEN, admin: companyAccount.address, salt } as any)
+  const tokenAddress = TokenId.toAddress(r.tokenId)
+  await Actions.token.grantRolesSync(company, { token: tokenAddress, to: companyAccount.address, roles: ['issuer'] } as any)
+  return { tokenAddress, tx: r.receipt.transactionHash as string }
+}
+
+export async function mintToken(token: string, to: string, amount: number, note: string) {
+  void note
+  const r: any = await Actions.token.mintSync(company, { token, to, amount: usd(amount) } as any)
+  return r.receipt.transactionHash as string
+}
+
+export async function approveToken(account: any, token: string, amount: number) {
+  const r: any = await Actions.token.approveSync(mk(account), { token, spender: Addresses.stablecoinDex, amount: usd(amount) } as any)
+  return r.receipt.transactionHash as string
+}
+
+export async function createDexPair(token: string) {
+  const r: any = await Actions.dex.createPairSync(company, { base: token } as any)
+  return r.receipt.transactionHash as string
+}
+
+export async function placeStockOrders(token: string, price: number, shares = 25) {
+  await approveToken(companyAccount, TOKEN, price * shares * 1.2)
+  await approveToken(companyAccount, token, shares)
+  const bidTick = Tick.fromPrice(String(Math.max(0.01, price * 0.995)))
+  const askTick = Tick.fromPrice(String(Math.max(0.01, price * 1.005)))
+  const bid: any = await Actions.dex.placeSync(company, { token, type: 'buy', amount: usd(shares), tick: bidTick } as any)
+  const ask: any = await Actions.dex.placeSync(company, { token, type: 'sell', amount: usd(shares), tick: askTick } as any)
+  return { bidTx: bid.receipt.transactionHash as string, askTx: ask.receipt.transactionHash as string }
+}
+
+export async function dexBuyWithAccount(account: any, token: string, shares: number, maxCash: number) {
+  await approveToken(account, TOKEN, maxCash)
+  const r: any = await Actions.dex.buySync(mk(account), { tokenIn: TOKEN, tokenOut: token, amountOut: usd(shares), maxAmountIn: usd(maxCash) } as any)
+  return r.receipt.transactionHash as string
+}
+
+export async function dexSellWithAccount(account: any, token: string, shares: number, minCash: number) {
+  await approveToken(account, token, shares)
+  const r: any = await Actions.dex.sellSync(mk(account), { tokenIn: token, tokenOut: TOKEN, amountIn: usd(shares), minAmountOut: usd(minCash) } as any)
+  return r.receipt.transactionHash as string
+}
+
+export async function tryDeployEarn() {
+  const deployment: any = Actions.earn as any
+  const fn = deployment.deployErc4626StackSync
+  if (typeof fn !== 'function') throw new Error('Installed viem/tempo exposes Earn helpers but no configured public asset vault for pathUSD.')
+  throw new Error('No public pathUSD ERC-4626 venue/factory configuration is available for Moderato in this app.')
+}
+
+export async function balanceOfOld(address: string) {
   const b: any = await Actions.token.getBalance(company, { token: TOKEN, account: address } as any)
   return Number(b.formatted ?? fmt(BigInt(b.amount ?? b)))
 }

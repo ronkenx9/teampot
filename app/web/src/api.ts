@@ -13,11 +13,21 @@ export type PaydayRun = { id: string; at: number; date: string; tx: string; tota
 export type QuarterClose = { id: string; at: number; potId: string; savings: number; sharePct: number; pool: number; perPerson: number; tx: string; memberIds: string[] }
 export type KudosCredit = { personId: string; closeId: string; left: number }
 export type KudosAward = { id: string; at: number; fromPersonId: string; toPersonId: string; amount: number; note: string; tx: string }
+export type StockId = 'aapl' | 'nvda' | 'spy'
+export type Stock = { id: StockId; symbol: string; name: string; display: string; lastPrice: number; previousPrice: number; priceAsOf: number; priceSource: 'yahoo' | 'nasdaq' | 'fallback'; delayed: boolean; ready: boolean; setupError?: string }
+export type Investment = {
+  personId: string
+  election: { personId: string; stockId: StockId; percent: number } | null
+  positions: { stockId: StockId; shares: number; avgCost: number; cost: number; value: number; gain: number }[]
+  trades: { id: string; at: number; personId: string; stockId: StockId; side: 'buy' | 'sell'; cashAmount: number; shares: number; price: number; tx: string; source: 'payday' | 'manual'; receipt: string }[]
+}
+export type EarnEntry = { personId: string; balance: number; mode: 'simulated' | 'real'; depositTx?: string; reason?: string; updatedAt: number }
 export type State = {
   auth?: { personId: string; role: Person['role']; demo: boolean }
   company: { name: string; balance: number; financeApprovalThreshold: number }; nextPayday: string
   people: Person[]; pots: Pot[]; vendors: Vendor[]; perks: Perk[]; activity: Activity[]; held: Held[]; invoices: Invoice[]
   paydayRuns: PaydayRun[]; quarterCloses: QuarterClose[]; kudosCredits: KudosCredit[]; kudosAwards: KudosAward[]
+  stocks: Stock[]; investments: Investment[]; earnEntries: EarnEntry[]
   simulatedEarnings: { label: string; amount: number; note: string }; seeded: boolean
 }
 
@@ -60,6 +70,9 @@ export const api = {
   perk: (b: { personId: string; name: string; cap: number; periodLabel: 'day' | 'month' | 'year'; vendorIds: string[]; color?: string }) => post('/api/perks', b),
   closeQuarter: (potId: string, sharePct: number) => post(`/api/pots/${potId}/close`, { sharePct, requestId: requestId(`close-${potId}`) }),
   kudos: (b: { fromPersonId: string; toPersonId: string; amount: number; note: string }) => post('/api/kudos', { ...b, requestId: requestId('kudos') }),
+  election: (b: { personId: string; stockId: StockId; percent: number }) => post('/api/invest/election', b),
+  trade: (b: { personId: string; stockId: StockId; side: 'buy' | 'sell'; cashAmount?: number; shares?: number }) => post('/api/invest/trade', { ...b, requestId: requestId('trade') }),
+  earnDeposit: (b: { personId: string; amount: number }) => post('/api/earn/deposit', { ...b, requestId: requestId('earn') }),
   invoice: (b: { contractorId: string; amount: number; description: string }) => post('/api/invoices', { ...b, requestId: requestId('invoice') }),
   declineInvoice: (id: string, reason: string) => post(`/api/invoices/${id}/decline`, { reason, requestId: requestId(`decline-${id}`) }),
   recordPasskey: (b: { personId: string; vendorId: string; amount: number; note: string; tx?: string; rejected?: boolean }) =>

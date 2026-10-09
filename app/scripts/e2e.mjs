@@ -28,6 +28,7 @@ const v = (n) => st.vendors.find((x) => x.name === n).id
 const samPerk = st.perks.find((p) => p.personId === 'sam' && p.name === 'Lunch')
 const designStart = st.pots.find((p) => p.id === 'design').balance
 assert(designStart > 0, 'Design department was not funded')
+assert(st.stocks?.find((x) => x.id === 'aapl')?.ready, 'AAPL test stock was not ready')
 const out = {}
 
 await post('/auth/demo', { personId: 'sam' })
@@ -88,6 +89,16 @@ await post('/auth/demo', { personId: 'jordan' })
 out.payday = await post('/payday', { requestId: 'e2e-payday' })
 out.paydayAgain = await post('/payday', { requestId: 'e2e-payday' })
 assert(out.payday.tx === out.paydayAgain.tx, 'payday idempotency failed')
+assert(out.payday.investResults?.some((x) => x.stock === 'AAPL (test)' && x.tx), 'payday did not buy AAPL test shares')
+st = await get('/state')
+const samInvest = st.investments.find((x) => x.personId === 'sam')
+const aaplPosition = samInvest?.positions.find((x) => x.stockId === 'aapl')
+assert(aaplPosition?.shares > 0 && aaplPosition.value > 0, 'AAPL holding and value missing after payday')
+await post('/auth/demo', { personId: 'sam' })
+out.stockSell = await post('/invest/trade', { personId: 'sam', stockId: 'aapl', side: 'sell', shares: Math.min(0.1, aaplPosition.shares), requestId: 'e2e-stock-sell' })
+assert(out.stockSell.tx && out.stockSell.cashAmount > 0, 'manual AAPL sell failed')
+out.earn = await post('/earn/deposit', { personId: 'sam', amount: 50, requestId: 'e2e-earn-sim' })
+assert(out.earn.mode === 'simulated' && out.earn.reason, 'earning simulation was not clearly labelled')
 
 await post('/auth/demo', { personId: 'mateo' })
 const invDecline = await post('/invoices', { contractorId: 'mateo', amount: 220, description: 'Draft sketches', requestId: 'e2e-invoice-decline' })
