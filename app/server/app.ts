@@ -390,7 +390,7 @@ app.use('/api/*', (c, next) => {
   return run
 })
 
-app.get('/api/health', (c) => c.json({ ok: true, service: 'teampot', version: S.version }))
+app.get('/api/health', (c) => c.json({ ok: true, service: 'teampot', version: S.version, store: Store.storeKind(), seeded: S.seeded }))
 
 app.post('/api/auth/demo', async (c) => {
   rateLimit(c, 'demo', 40)

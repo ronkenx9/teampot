@@ -39,7 +39,15 @@ export default function App() {
       load(await api.state())
     } catch (e: any) { setError(e.message) }
   }, [viewer, inviteToken])
-  useEffect(() => { if (!inviteToken) { refresh(); const t = setInterval(refresh, 4000); return () => clearInterval(t) } }, [refresh, inviteToken])
+  // Refresh every 8 s while the tab is visible; hidden tabs don't poll (keeps storage use low).
+  useEffect(() => {
+    if (inviteToken) return
+    refresh()
+    const t = setInterval(() => { if (document.visibilityState === 'visible') refresh() }, 8000)
+    const onShow = () => { if (document.visibilityState === 'visible') refresh() }
+    document.addEventListener('visibilitychange', onShow)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onShow) }
+  }, [refresh, inviteToken])
   useEffect(() => { try { localStorage.setItem('tp-viewer', viewer) } catch { /* private mode */ } }, [viewer])
 
   const toast = (t: Omit<Toast, 'id'>) => {
