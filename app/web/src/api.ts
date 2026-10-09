@@ -14,13 +14,13 @@ export type QuarterClose = { id: string; at: number; potId: string; savings: num
 export type KudosCredit = { personId: string; closeId: string; left: number }
 export type KudosAward = { id: string; at: number; fromPersonId: string; toPersonId: string; amount: number; note: string; tx: string }
 export type State = {
-  company: { name: string; balance: number }; nextPayday: string
+  auth?: { personId: string; role: Person['role']; demo: boolean }
+  company: { name: string; balance: number; financeApprovalThreshold: number }; nextPayday: string
   people: Person[]; pots: Pot[]; vendors: Vendor[]; perks: Perk[]; activity: Activity[]; held: Held[]; invoices: Invoice[]
   paydayRuns: PaydayRun[]; quarterCloses: QuarterClose[]; kudosCredits: KudosCredit[]; kudosAwards: KudosAward[]
   simulatedEarnings: { label: string; amount: number; note: string }; seeded: boolean
 }
 
-const q = (viewer?: string) => viewer ? `?viewer=${encodeURIComponent(viewer)}` : ''
 const requestId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 const j = async (r: Response) => {
   const body = await r.json()
@@ -31,8 +31,13 @@ const post = (url: string, body?: Record<string, unknown>) =>
   fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) }).then(j)
 
 export const api = {
-  state: (viewer?: string): Promise<State> => fetch(`/api/state${q(viewer)}`).then(j),
-  setup: () => fetch('/api/setup', { method: 'POST' }).then(j),
+  me: (): Promise<{ signedIn: boolean; demo?: boolean; personId?: string; role?: Person['role'] }> => fetch('/api/me').then(j),
+  demo: (personId: string) => post('/api/auth/demo', { personId }),
+  logout: () => post('/api/auth/logout'),
+  challenge: (personId: string): Promise<{ id: string; challenge: `0x${string}`; credentialId: string }> => post('/api/auth/challenge', { personId }),
+  verify: (b: { personId: string; challengeId: string; metadata: any; signature: `0x${string}` }) => post('/api/auth/verify', b),
+  state: (): Promise<State> => fetch('/api/state').then(j),
+  setup: (body?: { companyName?: string; departments?: { team: string; budget: number; perPersonCap: number; color?: string; headName?: string; headTitle?: string }[]; invites?: { name: string; role?: 'employee' | 'contractor'; title: string; team: string; salary?: number; country?: string }[] }) => post('/api/setup', body ?? {}),
   paydayPreview: () => fetch('/api/payday/preview').then(j),
   setPayday: (date: string) => post('/api/settings/payday', { date }),
   payday: () => post('/api/payday', { requestId: requestId('payday') }),
@@ -42,9 +47,15 @@ export const api = {
   vendor: (b: { name: string; category: string }) => post('/api/vendors', b),
   person: (b: { name: string; role: Person['role']; title: string; team?: string; salary?: number; country?: string }) => post('/api/people', b),
   updatePerson: (id: string, b: Partial<{ name: string; role: Person['role']; title: string; team: string; salary: number; country: string }>) => post(`/api/people/${id}/update`, b),
+  removePerson: (id: string) => post(`/api/people/${id}/remove`),
+  invite: (b: { name: string; role: Exclude<Person['role'], 'admin'>; title: string; team: string; salary?: number; country?: string }) => post('/api/invites', b),
+  inviteInfo: (token: string) => fetch(`/api/invites/${encodeURIComponent(token)}`).then(j),
+  acceptInvite: (token: string, b: { id: string; publicKey: `0x${string}` }) => post(`/api/invites/${encodeURIComponent(token)}/accept`, b),
+  financeRule: (threshold: number) => post('/api/settings/finance-rule', { threshold }),
   pot: (b: { team: string; perPersonCap: number; budget?: number; vendorIds: string[]; color?: string }) => post('/api/pots', b),
   updatePot: (id: string, b: Partial<{ team: string; perPersonCap: number; budget: number; vendorIds: string[]; color: string }>) => post(`/api/pots/${id}/update`, b),
   fundPot: (id: string, amount: number) => post(`/api/pots/${id}/fund`, { amount, requestId: requestId(`fund-${id}`) }),
+  topupRequest: (id: string, amount: number) => post(`/api/pots/${id}/topup-request`, { amount, requestId: requestId(`topup-${id}`) }),
   returnPot: (id: string, amount: number) => post(`/api/pots/${id}/return`, { amount, requestId: requestId(`return-${id}`) }),
   perk: (b: { personId: string; name: string; cap: number; periodLabel: 'day' | 'month' | 'year'; vendorIds: string[]; color?: string }) => post('/api/perks', b),
   closeQuarter: (potId: string, sharePct: number) => post(`/api/pots/${potId}/close`, { sharePct, requestId: requestId(`close-${potId}`) }),
@@ -54,8 +65,8 @@ export const api = {
   recordPasskey: (b: { personId: string; vendorId: string; amount: number; note: string; tx?: string; rejected?: boolean }) =>
     post('/api/passkey/record', { ...b, requestId: requestId('passkey') }),
   payInvoice: (id: string) => post(`/api/invoices/${id}/pay`, { requestId: requestId(`invoice-${id}`) }),
-  receipt: (id: string, viewer?: string) => fetch(`/api/receipts/${id}${q(viewer)}`).then(j),
-  activityCsv: (viewer?: string) => `/api/activity.csv${q(viewer)}`,
+  receipt: (id: string) => fetch(`/api/receipts/${id}`).then(j),
+  activityCsv: () => '/api/activity.csv',
 }
 
 export const money = (n: number, cents = false) =>

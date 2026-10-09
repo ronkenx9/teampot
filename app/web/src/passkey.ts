@@ -4,6 +4,7 @@ import { http, pad, parseUnits, stringToHex } from 'viem'
 import { Account, createClient, WebAuthnP256 } from 'viem/tempo'
 import { tempoModerato } from 'viem/tempo/chains'
 import { PublicKey } from 'ox'
+import { Signature } from 'ox'
 import { SignatureEnvelope } from 'ox/tempo'
 import * as OxWebAuthn from 'ox/WebAuthnP256'
 
@@ -13,6 +14,15 @@ export async function enrollPasskey(personId: string, name: string) {
   const cred = await WebAuthnP256.createCredential({ label: `Teampot · ${name}` } as any)
   const r = await fetch('/api/passkey/enroll', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ personId, id: cred.id, publicKey: cred.publicKey }) })
   if (!r.ok) throw new Error((await r.json()).error || 'Could not turn on Face ID')
+}
+
+export async function createInvitePasskey(name: string) {
+  return WebAuthnP256.createCredential({ label: `Teampot · ${name}` } as any)
+}
+
+export async function signInPasskey(personId: string, challenge: `0x${string}`, credentialId: string) {
+  const { metadata, signature } = await OxWebAuthn.sign({ challenge, credentialId })
+  return { personId, metadata, signature: Signature.toHex(signature as any) as `0x${string}` }
 }
 
 type PayInfo = { company: `0x${string}`; token: `0x${string}`; credentialId: string; publicKey: `0x${string}`; vendors: Record<string, `0x${string}`> }

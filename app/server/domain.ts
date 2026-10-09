@@ -12,6 +12,7 @@ export type Person = {
   keyTx?: string
   passkey?: { id: string; publicKey: `0x${string}`; tx: string; needsRefresh?: boolean }
   country?: string
+  removed?: boolean
 }
 export type Vendor = { id: string; name: string; category: string; address: string }
 export type Pot = {
@@ -30,16 +31,27 @@ export type Pot = {
 export type Perk = { id: string; personId: string; name: string; cap: number; periodLabel: string; periodSec: number; vendorIds: string[]; color: string; keyTx?: string }
 export type ActivityKind = 'payday' | 'spend' | 'held' | 'approved' | 'returned' | 'invoice' | 'paid' | 'setup' | 'perk' | 'quarter' | 'kudos' | 'declined' | 'admin'
 export type Activity = { id: string; at: number; kind: ActivityKind; title: string; detail: string; amount?: number; who?: string; tx?: string; potId?: string; perkId?: string; memo?: string }
-export type Held = { id: string; at: number; personId: string; potId: string; vendorId: string; amount: number; note: string; reason: 'new-vendor' | 'over-limit'; status: 'held' | 'approved' | 'returned'; tx?: string }
+export type Held = { id: string; at: number; personId: string; potId: string; vendorId: string; amount: number; note: string; reason: 'new-vendor' | 'over-limit' | 'finance-rule'; status: 'held' | 'approved' | 'returned'; tx?: string }
 export type Invoice = { id: string; number: string; at: number; contractorId: string; amount: number; description: string; status: 'submitted' | 'paid' | 'declined'; tx?: string; paidMs?: number; declineReason?: string }
 export type PaydayRun = { id: string; at: number; date: string; tx: string; total: number; count: number; ms: number; lines: { personId: string; gross: number; memo: string }[] }
 export type QuarterClose = { id: string; at: number; potId: string; savings: number; sharePct: number; pool: number; perPerson: number; tx: string; memberIds: string[] }
 export type KudosCredit = { personId: string; closeId: string; left: number }
 export type KudosAward = { id: string; at: number; fromPersonId: string; toPersonId: string; amount: number; note: string; tx: string }
 export type Processed = Record<string, unknown>
+export type Session = { id: string; personId: string; demo: boolean; createdAt: number; expiresAt: number }
+export type AuthChallenge = { id: string; personId: string; challenge: `0x${string}`; createdAt: number; expiresAt: number }
+export type Invite = {
+  token: string
+  personId: string
+  createdBy: string
+  createdAt: number
+  expiresAt: number
+  usedAt?: number
+}
 export type State = {
+  version: number
   epoch: string
-  company: { name: string; address: string }
+  company: { name: string; address: string; financeApprovalThreshold: number }
   people: Person[]
   vendors: Vendor[]
   pots: Pot[]
@@ -53,6 +65,9 @@ export type State = {
   kudosAwards: KudosAward[]
   nextPayday: string
   processed: Processed
+  sessions: Session[]
+  authChallenges: AuthChallenge[]
+  invites: Invite[]
   seeded: boolean
 }
 
@@ -82,6 +97,8 @@ export function normalizeState(s: Partial<State> | null, seed: () => State): Sta
   }))
   return {
     ...base,
+    version: base.version ?? 0,
+    company: { ...(base.company as State['company']), financeApprovalThreshold: (base.company as State['company'])?.financeApprovalThreshold ?? 1000 },
     pots,
     perks: base.perks ?? [],
     paydayRuns: base.paydayRuns ?? [],
@@ -90,6 +107,9 @@ export function normalizeState(s: Partial<State> | null, seed: () => State): Sta
     kudosAwards: base.kudosAwards ?? [],
     nextPayday: base.nextPayday ?? nextMonthlyDate(),
     processed: base.processed ?? {},
+    sessions: base.sessions ?? [],
+    authChallenges: base.authChallenges ?? [],
+    invites: base.invites ?? [],
   } as State
 }
 

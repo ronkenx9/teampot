@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api, ago, money, resetDate, type Activity, type Held, type Invoice, type Person, type State } from './api'
-import { enrollPasskey, passkeysSupported, payWithPasskey } from './passkey'
+import { createInvitePasskey, enrollPasskey, passkeysSupported, payWithPasskey, signInPasskey } from './passkey'
 
 type Viewer = 'jordan' | 'ava' | 'sam' | 'mateo'
 const VIEWERS: { id: Viewer; label: string; full: string; sub: string }[] = [
@@ -13,15 +13,30 @@ const VIEWERS: { id: Viewer; label: string; full: string; sub: string }[] = [
 type Toast = { id: number; text: string; tone: 'good' | 'warn' | 'bad'; receipt?: string }
 
 export default function App() {
-  const [s, setS] = useState<State | null>(null)
+  const [s, setS] = useState<State | null>(() => {
+    try { return JSON.parse(localStorage.getItem('tp-state') || 'null') } catch { return null }
+  })
   const [viewer, setViewer] = useState<Viewer>(() => (localStorage.getItem('tp-viewer') as Viewer) || 'jordan')
   const [toasts, setToasts] = useState<Toast[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<any | null>(null)
+  const [setupName, setSetupName] = useState('Northwind Studio')
+  const inviteToken = useMemo(() => location.pathname.startsWith('/invite/') ? decodeURIComponent(location.pathname.split('/invite/')[1] || '') : '', [])
 
-  const refresh = useCallback(() => api.state(viewer).then((x) => { setS(x); setError(null) }).catch((e) => setError(e.message)), [viewer])
-  useEffect(() => { refresh(); const t = setInterval(refresh, 4000); return () => clearInterval(t) }, [refresh])
+  const load = (x: State) => { setS(x); try { localStorage.setItem('tp-state', JSON.stringify(x)) } catch { /* private mode */ } setError(null) }
+  // Ask who we are first, so a visitor without a session never triggers a failed (401) request.
+  const refresh = useCallback(async () => {
+    try {
+      const me = await api.me()
+      if (!me.signedIn) {
+        if (inviteToken) return
+        await api.demo(viewer)
+      }
+      load(await api.state())
+    } catch (e: any) { setError(e.message) }
+  }, [viewer, inviteToken])
+  useEffect(() => { if (!inviteToken) { refresh(); const t = setInterval(refresh, 4000); return () => clearInterval(t) } }, [refresh, inviteToken])
   useEffect(() => { try { localStorage.setItem('tp-viewer', viewer) } catch { /* private mode */ } }, [viewer])
 
   const toast = (t: Omit<Toast, 'id'>) => {
@@ -33,8 +48,16 @@ export default function App() {
     setBusy(key)
     try { done(await fn()) } catch (e: any) { toast({ text: e.message, tone: 'bad' }) } finally { setBusy(null); refresh() }
   }
-  const openReceipt = (id: string) => run('receipt', () => api.receipt(id, viewer), setReceipt)
+  const openReceipt = (id: string) => run('receipt', () => api.receipt(id), setReceipt)
 
+  const switchDemo = (id: Viewer) => run('demo', () => api.demo(id), () => { setS(null); setViewer(id) })
+  const realSignIn = (id: Viewer) => run('signin', async () => {
+    const ch = await api.challenge(id)
+    const signed = await signInPasskey(id, ch.challenge, ch.credentialId)
+    return api.verify({ ...signed, challengeId: ch.id })
+  }, () => toast({ text: 'Signed in with Face ID', tone: 'good' }))
+
+  if (inviteToken) return <InviteAccept token={inviteToken} toast={toast} />
   if (!s && error) return <Shell><ErrorState text={error} retry={refresh} /></Shell>
   if (!s) return <Shell><Skeleton /></Shell>
   if (!s.seeded) return (
@@ -43,7 +66,8 @@ export default function App() {
         <FillMark ratio={0.75} />
         <h1>Every team runs its own money.</h1>
         <p>Finance funds each department. Department heads set the spending frame.</p>
-        <button className="btn primary" disabled={!!busy} onClick={() => run('setup', api.setup, () => toast({ text: 'Departments are funded', tone: 'good' }))}>
+        <label className="setup-field">Company name<input value={setupName} onChange={(e) => setSetupName(e.target.value)} /></label>
+        <button className="btn primary" disabled={!!busy} onClick={() => run('setup', () => api.setup({ companyName: setupName }), () => toast({ text: 'Departments are funded', tone: 'good' }))}>
           {busy ? 'Setting up...' : 'Fund departments'}
         </button>
       </div>
@@ -55,14 +79,16 @@ export default function App() {
     <Shell>
       <header className="top">
         <div className="brand"><Logo /><span className="co">{s.company.name}</span></div>
+        {s.auth?.demo && <span className="demo-chip">Demo</span>}
         <div className="viewas" role="tablist" aria-label="View as">
-          <span className="viewas-label">View as</span>
+          <span className="viewas-label">Demo mode</span>
           {VIEWERS.map((v) => (
-            <button key={v.id} role="tab" aria-selected={viewer === v.id} className={viewer === v.id ? 'on' : ''} onClick={() => { setS(null); setViewer(v.id) }}>
+            <button key={v.id} role="tab" aria-selected={viewer === v.id} className={viewer === v.id ? 'on' : ''} onClick={() => switchDemo(v.id)}>
               <Avatar name={v.full} small /> <span><b>{v.label}</b><small>{v.sub}</small></span>
             </button>
           ))}
         </div>
+        <button className="btn ghost" disabled={!!busy || s.auth?.demo === false} onClick={() => realSignIn(viewer)}>Sign in with Face ID</button>
       </header>
       <main>
         {viewer === 'jordan' && <Finance {...ctx} viewer={viewer} />}
@@ -70,7 +96,7 @@ export default function App() {
         {viewer === 'sam' && (s.people.find((p) => p.id === 'sam') ? <Employee {...ctx} me={s.people.find((p) => p.id === 'sam')!} /> : <Skeleton />)}
         {viewer === 'mateo' && (s.people.find((p) => p.id === 'mateo') ? <Contractor {...ctx} me={s.people.find((p) => p.id === 'mateo')!} /> : <Skeleton />)}
       </main>
-      <footer className="foot">Demo company · test money · receipts open a public record</footer>
+      <footer className="foot">{s.auth?.demo ? 'Demo company · ' : ''}test money · receipts open a public record</footer>
       <div className="toasts" aria-live="polite">
         {toasts.map((t) => <div key={t.id} className={`toast ${t.tone}`}>{t.tone === 'warn' && <FillMark ratio={0.35} small />}<span>{t.text}</span>{t.receipt && <a href={t.receipt} target="_blank" rel="noreferrer">Receipt</a>}</div>)}
       </div>
@@ -142,10 +168,10 @@ function Finance({ s, busy, run, toast, openReceipt, viewer }: Ctx & { viewer: V
     </div>,
     payday: <div className="grid finance-grid"><section className="span7">{paydayPanel}</section><section className="card span5"><div className="card-h"><h2>Payday history</h2></div><ul className="rows">{s.paydayRuns.length ? s.paydayRuns.map((p) => <li key={p.id}><FillMark ratio={1} small /><span className="grow"><b>{p.date}</b><small>{plural(p.count, 'person', 'people')} · landed in {(p.ms / 1000).toFixed(1)}s</small></span><span className="num">{money(p.total)}</span></li>) : <li><Empty text="No payday run yet." /></li>}</ul></section></div>,
     pots: <div className="grid finance-grid"><section className="card span7"><div className="card-h"><h2>Departments & perks</h2><span className="muted">Changing limits updates department cards</span></div><AdminTools mode="pots" s={s} busy={busy} run={run} toast={toast} /></section><section className="card span5 color-sage"><div className="card-h"><h2>Departments</h2></div><div className="pots single">{s.pots.map((pt) => <PotCard key={pt.id} s={s} potId={pt.id} />)}</div></section></div>,
-    people: <div className="grid finance-grid"><section className="card span5 color-butter"><div className="card-h"><h2>People</h2></div><AdminTools mode="people" s={s} busy={busy} run={run} toast={toast} /></section><section className="card span7"><div className="card-h"><h2>Directory</h2></div><ul className="rows">{s.people.filter((p) => p.role !== 'contractor').map((p) => <li key={p.id}><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title} · {p.team || 'Finance'}</small></span>{p.salary && <span className="num">{money(p.salary)}</span>}</li>)}</ul></section></div>,
+    people: <div className="grid finance-grid"><section className="card span5 color-butter"><div className="card-h"><h2>People</h2></div><AdminTools mode="people" s={s} busy={busy} run={run} toast={toast} /></section><section className="card span7"><div className="card-h"><h2>Directory</h2></div><ul className="rows">{s.people.filter((p) => p.role !== 'contractor').map((p) => <li key={p.id}><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title} · {p.team || 'Finance'}</small></span>{p.salary && <span className="num">{money(p.salary)}</span>}{p.role !== 'admin' && <button className="btn small ghost" disabled={!!busy} onClick={() => run('remove' + p.id, () => api.removePerson(p.id), () => toast({ text: `${p.name.split(' ')[0]} removed`, tone: 'good' }))}>Remove</button>}</li>)}</ul></section></div>,
     contractors: <div className="grid finance-grid"><section className="card span12"><div className="card-h"><h2>Contractors</h2><span className="pill">{openInv.length} to review</span></div><Invoices s={s} busy={busy} run={run} toast={toast} canPay /></section></div>,
     quarter: <div className="grid finance-grid"><section className="card span7 color-sage"><div className="card-h"><h2>Quarter close</h2><span className="muted">Savings become kudos</span></div><QuarterClose s={s} busy={busy} run={run} toast={toast} /></section><section className="card span5"><div className="card-h"><h2>Earned while unspent</h2><span className="pill">{s.simulatedEarnings.label}</span></div><b className="big-money">{money(s.simulatedEarnings.amount)}</b><p className="muted">{s.simulatedEarnings.note}</p></section></div>,
-    activity: <div className="grid finance-grid"><section className="card span12"><div className="card-h"><h2>Activity</h2><a className="btn small ghost" href={api.activityCsv(viewer)}>Export CSV</a></div><Feed s={s} openReceipt={openReceipt} /></section></div>,
+    activity: <div className="grid finance-grid"><section className="card span12"><div className="card-h"><h2>Activity</h2><a className="btn small ghost" href={api.activityCsv()}>Export CSV</a></div><Feed s={s} openReceipt={openReceipt} /></section></div>,
   }
 
   return (
@@ -166,6 +192,7 @@ function Lead({ s, busy, run, toast, openReceipt, me }: Ctx & { me: Person }) {
       <section className="card span12 org-panel"><div className="card-h"><h2>Company map</h2><span className="muted">Your department, inside the company frame</span></div><OrgMap s={s} activePotId={me.team} /></section>
       <section className="card span7"><div className="card-h"><h2>Your department</h2></div><PotCard s={s} potId={me.team!} big /></section>
       <section className="card span5"><div className="card-h"><h2>Needs your OK</h2><span className="pill">{waiting.length}</span></div><Approvals s={s} items={waiting} busy={busy} run={run} toast={toast} approverId={me.id} /></section>
+      <section className="card span12"><div className="card-h"><h2>Department settings</h2><a className="btn small ghost" href={api.activityCsv()}>Export activity</a></div><AdminTools s={s} busy={busy} run={run} toast={toast} /></section>
       <section className="span5"><Wallet s={s} me={me} busy={busy} run={run} toast={toast} /></section>
       <section className="card span7"><div className="card-h"><h2>Department activity</h2></div><Feed s={s} filter={(a) => a.potId === me.team} openReceipt={openReceipt} /></section>
       <section className="card span12"><div className="card-h"><h2>Kudos</h2></div><Kudos s={s} me={me} busy={busy} run={run} toast={toast} /></section>
@@ -211,6 +238,37 @@ function Contractor({ s, busy, run, toast, me }: Ctx & { me: Person }) {
         <div className="card flat"><div className="card-h"><h3>Your invoices</h3></div><Invoices s={s} busy={busy} run={run} toast={toast} items={mine} /></div>
       </div>
     </div>
+  )
+}
+
+function InviteAccept({ token, toast }: { token: string; toast: (t: Omit<Toast, 'id'>) => void }) {
+  const [info, setInfo] = useState<any | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => { api.inviteInfo(token).then(setInfo).catch((e) => setError(e.message)) }, [token])
+  const accept = async () => {
+    if (!info) return
+    setBusy(true)
+    try {
+      const cred = await createInvitePasskey(info.person.name)
+      await api.acceptInvite(token, { id: cred.id, publicKey: cred.publicKey as `0x${string}` })
+      toast({ text: 'Face ID is set up', tone: 'good' })
+      location.href = '/'
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Shell compact>
+      <div className="boot-card">
+        <FillMark ratio={0.8} />
+        <h1>{info ? `Join ${info.person.team}.` : 'Opening invite.'}</h1>
+        <p>{error || (info ? `${info.person.name} · ${info.person.title}` : 'Checking this link.')}</p>
+        {info && <button className="btn primary" disabled={busy || !passkeysSupported()} onClick={accept}>{busy ? 'Setting up...' : 'Set up Face ID'}</button>}
+      </div>
+    </Shell>
   )
 }
 
@@ -379,11 +437,13 @@ function AdminTools({ s, busy, run, toast, mode = 'all' }: Pick<Ctx, 's' | 'busy
   const pot = s.pots.find((p) => p.id === potId) ?? s.pots[0]
   const [cap, setCap] = useState(String(pot?.perPersonCap ?? 0))
   const [budget, setBudget] = useState(String(pot?.budget ?? 0))
+  const [threshold, setThreshold] = useState(String(s.company.financeApprovalThreshold ?? 1000))
   const [moveAmount, setMoveAmount] = useState('250')
   const [vendorIds, setVendorIds] = useState<string[]>(pot?.vendorIds ?? [])
   const [personName, setPersonName] = useState('Nora Patel')
   const [personTitle, setPersonTitle] = useState('Brand Designer')
   const [personTeam, setPersonTeam] = useState(s.pots[0]?.id ?? '')
+  const [inviteLink, setInviteLink] = useState('')
   const [perkPerson, setPerkPerson] = useState(s.people.find((p) => p.role !== 'contractor' && p.role !== 'admin')?.id ?? '')
   useEffect(() => { const p = s.pots.find((x) => x.id === potId); if (p) { setCap(String(p.perPersonCap)); setBudget(String(p.budget)); setVendorIds(p.vendorIds) } }, [potId, s.pots])
   const toggleVendor = (id: string) => setVendorIds((xs) => xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id])
@@ -395,12 +455,15 @@ function AdminTools({ s, busy, run, toast, mode = 'all' }: Pick<Ctx, 's' | 'busy
       {mode !== 'people' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('pot', () => api.updatePot(potId, { perPersonCap: Number(cap), budget: Number(budget), vendorIds }), (r: any) => toast({ text: `Updating department cards · ${r.reissued} refreshed`, tone: 'good' })) }}>
         <h3>Edit department</h3><div className="two"><label>Department<select value={potId} onChange={(e) => setPotId(e.target.value)}>{s.pots.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label><label>Member limit<div className="money-in"><span>$</span><input value={cap} onChange={(e) => setCap(e.target.value.replace(/[^\d.]/g, ''))} /></div></label></div><label>Budget frame<div className="money-in"><span>$</span><input value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^\d.]/g, ''))} /></div></label><div className="check-grid">{s.vendors.map((v) => <label key={v.id} className="check"><input type="checkbox" checked={vendorIds.includes(v.id)} onChange={() => toggleVendor(v.id)} />{v.name}</label>)}</div><button className="btn primary" disabled={!!busy}>Save department</button>
       </form>}
+      {mode !== 'people' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('rule', () => api.financeRule(Number(threshold)), () => toast({ text: 'Finance rule saved', tone: 'good' })) }}>
+        <h3>Finance rule</h3><label>Finance reviews payments over<div className="money-in"><span>$</span><input inputMode="decimal" value={threshold} onChange={(e) => setThreshold(e.target.value.replace(/[^\d.]/g, ''))} /></div></label><button className="btn ghost" disabled={!!busy || !Number(threshold)}>Save rule</button>
+      </form>}
       {mode !== 'people' && <form className="form mini" onSubmit={(e) => e.preventDefault()}>
         <h3>Move budget</h3><div className="two"><label>Amount<div className="money-in"><span>$</span><input inputMode="decimal" value={moveAmount} onChange={(e) => setMoveAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div></label><label>Department<select value={potId} onChange={(e) => setPotId(e.target.value)}>{s.pots.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label></div>
-        <div className="two"><button type="button" className="btn ghost" disabled={!!busy || !Number(moveAmount)} onClick={() => run('fund' + potId, () => api.fundPot(potId, Number(moveAmount)), (r: any) => toast({ text: `Funded ${s.pots.find((p) => p.id === potId)?.team}`, tone: 'good', receipt: r.receipt }))}>Fund</button><button type="button" className="btn ghost" disabled={!!busy || !Number(moveAmount)} onClick={() => run('return' + potId, () => api.returnPot(potId, Number(moveAmount)), (r: any) => toast({ text: `Returned from ${s.pots.find((p) => p.id === potId)?.team}`, tone: 'good', receipt: r.receipt }))}>Return</button></div>
+        <div className="two"><button type="button" className="btn ghost" disabled={!!busy || !Number(moveAmount)} onClick={() => run('fund' + potId, () => s.auth?.role === 'admin' ? api.fundPot(potId, Number(moveAmount)) : api.topupRequest(potId, Number(moveAmount)), (r: any) => toast({ text: s.auth?.role === 'admin' ? `Funded ${s.pots.find((p) => p.id === potId)?.team}` : 'Top-up sent to Finance', tone: 'good', receipt: r.receipt }))}>{s.auth?.role === 'admin' ? 'Fund' : 'Request top-up'}</button><button type="button" className="btn ghost" disabled={!!busy || !Number(moveAmount)} onClick={() => run('return' + potId, () => api.returnPot(potId, Number(moveAmount)), (r: any) => toast({ text: `Returned from ${s.pots.find((p) => p.id === potId)?.team}`, tone: 'good', receipt: r.receipt }))}>Return</button></div>
       </form>}
-      {mode !== 'pots' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('person', () => api.person({ name: personName, role: 'employee', title: personTitle, team: personTeam, salary: 3600 }), () => toast({ text: 'Person added', tone: 'good' })) }}>
-        <h3>Add person</h3><div className="two"><label>Name<input value={personName} onChange={(e) => setPersonName(e.target.value)} /></label><label>Department<select value={personTeam} onChange={(e) => setPersonTeam(e.target.value)}>{s.pots.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label></div><label>Title<input value={personTitle} onChange={(e) => setPersonTitle(e.target.value)} /></label><button className="btn ghost" disabled={!!busy}>Add person</button>
+      {mode !== 'pots' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('invite', () => api.invite({ name: personName, role: 'employee', title: personTitle, team: personTeam, salary: 3600 }), (r: any) => { setInviteLink(`${location.origin}${r.inviteLink}`); toast({ text: 'Invite link ready', tone: 'good' }) }) }}>
+        <h3>Invite person</h3><div className="two"><label>Name<input value={personName} onChange={(e) => setPersonName(e.target.value)} /></label><label>Department<select value={personTeam} onChange={(e) => setPersonTeam(e.target.value)}>{s.pots.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label></div><label>Title<input value={personTitle} onChange={(e) => setPersonTitle(e.target.value)} /></label>{inviteLink && <p className="hint">{inviteLink}</p>}<button className="btn ghost" disabled={!!busy}>Create invite</button>
       </form>}
       {mode !== 'people' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); const ue = s.vendors.find((v) => v.name === 'Uber Eats')?.id ?? s.vendors[0].id; run('perk-new', () => api.perk({ personId: perkPerson, name: 'Snack dash', cap: 25, periodLabel: 'day', vendorIds: [ue] }), () => toast({ text: 'Perk added', tone: 'good' })) }}>
         <h3>Add perk</h3><label>Person<select value={perkPerson} onChange={(e) => setPerkPerson(e.target.value)}>{s.people.filter((p) => p.role !== 'contractor' && p.role !== 'admin').map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><button className="btn ghost" disabled={!!busy}>Add daily snack perk</button>

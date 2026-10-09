@@ -53,3 +53,21 @@ Tempo Moderato chain 42431. Evidence below is from local server `PORT=8790` unle
 - Held for approval = Tempo rejects the spend, Teampot records it, then the department account pays directly if an eligible lead or Finance approves.
 - Re-issued demo cards rotate to a new derived key version because revoked keys cannot be reused.
 - Earned while unspent remains simulated until a public testnet vault is available.
+
+## Pass 4 Product-Ready Proofs
+| Feature | Result | Evidence |
+|---|---|---|
+| Real passkey sign-in | WORKS app-side with WebAuthn verification | `scripts/e2e-passkey.ts`: Ava enrolls a headless WebAuthn passkey, signs a server challenge, receives an HTTP-only session cookie, and `/api/state` reports `{ personId: "ava", demo: false }` |
+| Session authorization | WORKS | `scripts/e2e-passkey.ts` refuses Ava's Engineering return; `server/app.test.ts` proves Sam cannot spend as Ava |
+| Invite onboarding | WORKS | `scripts/e2e-passkey.ts`: Finance creates Nina Park's one-time invite; Nina accepts with a passkey and spends from Design, tx `0x52b2a6f45ef58521bc3af88fe6c3aac2e7e5de4b0979a076ce3b1b9e416fc015` |
+| Company Finance rule | WORKS app-side | `scripts/e2e.mjs`: Sam's $1,200 Figma payment becomes a held `finance-rule` decision; Ava is refused; Finance returns it |
+| Contractor department pay | WORKS | `scripts/e2e.mjs`: Mateo belongs to Design and invoice pay now uses the department account, tx `0x857fb49f398232bfc60abe862788391038bc92dc18a8a60990e78481fb6cdf5a` |
+| Optimistic concurrency guard | WORKS | `server/store.test.ts`: stale version save rejects with 409 and preserves the newer state |
+| Rate limiting | WORKS app-side | Sign-in, invite, invite acceptance, setup, demo-session and reset routes use in-memory per-IP buckets and return 429 on excess attempts |
+| Health check | WORKS | `curl http://localhost:8790/api/health` returned `{ "ok": true, "service": "teampot", "version": 189 }` during local gate run |
+
+## Pass 4 Real vs App-Enforced
+- Real on Moderato: department funding, department-issued demo/passkey spends, invitee passkey spending, contractor pay from the department account, passkey receipt verification, payday, approvals, returns, quarter close and kudos.
+- App-enforced: session role authorization, one-time invite expiry/use, the "payments over $X need Finance" threshold, setup/rate-limit boundaries, and optimistic state conflict detection before saving.
+- Not chain-enforced: Tempo Moderato exposes periodic limits and recipient scopes, but this build did not find a supported per-transaction cap primitive. The single-payment Finance threshold is therefore enforced before attempting the chain spend; refused payments become Finance decisions.
+- Local-cookie note: production HTTPS cookies include `Secure`; local `http://localhost:8790` omits `Secure` so browser testing can sign in.

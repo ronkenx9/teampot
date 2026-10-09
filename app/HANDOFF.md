@@ -74,3 +74,32 @@
 - G6 Secrets: PASS by inspection/scan: no private-key, blob-token, or reset-token values added; tx hashes and placeholder env names appear in docs/tests only.
 - G7 Responsive: PASS fallback, `BASE=http://localhost:8790 npm run responsive`; Chromium launch remains blocked by sandbox permissions.
 - G8 Department delegation: PASS inside `npm run e2e`: Finance funds Design; Design root issues Sam's key; Sam spends; off-list spend is held; Ava approves from Design; Ava cannot approve her own request; Design returns unspent money.
+
+## Pass 4: Product-Ready Sessions, Invites, Rules
+- Real sessions: added passkey challenge/verify sign-in, HTTP-only SameSite session cookies, `/api/me`, logout, and a visible Demo mode. Public demo switching now sets a demo session; real API state and writes authorize from the session role rather than trusting `viewer` params.
+- Invites: Finance or a department head can create one-time expiring invite links. The invitee sets up Face ID, lands in their own wallet, and the new passkey is issued as their department spending key.
+- Authorization matrix: Finance controls company/payday/vendor/global funding; department heads control their own department and cannot self-approve; employees/contractors can only act for themselves. Unit tests cover cross-person and cross-department refusals.
+- Company setup: first run can set a company name from the UI and the setup API accepts a full fresh-company payload with departments, heads and invitees. The default path still keeps Northwind Studio as the demo seed, funds departments, issues department keys/perks, and creates a Finance demo session.
+- Finance rule: `company.financeApprovalThreshold` defaults to $1,000. Payments above it are held as Finance-only decisions before a chain spend is attempted. Tempo Moderato per-transaction caps were not used; this is app-enforced and documented in VERIFIED.
+- Departments: heads can invite/remove members, update their department settings, request top-ups, return funds, export department activity, and manage perks/vendors. Removing a member revokes the department key when one exists and clears their sessions.
+- Contractors: seeded contractors now belong to departments; paying Mateo's invoice pays from Design instead of the company account.
+- Robustness: state now has optimistic versions; saves reject stale base versions, with unit coverage. Added in-memory rate limits for sign-in, invite, setup and reset surfaces, structured server error logging without secrets, and `/api/health`.
+- Mobile app: added web manifest, theme colour, service worker, offline shell, cached-state first paint, and invite acceptance page.
+
+## Pass 4 Real vs App-Enforced
+- Real on Moderato: department/passkey spends, invitee passkey spend, contractor department pay, payday, department funding/returns, approvals, quarter close, kudos, receipt verification.
+- App-enforced: sessions/roles, invite one-time use/expiry, Finance threshold, no-self-approval, viewer privacy, and optimistic conflict checks.
+- Not implemented as a chain primitive: per-payment ceiling. The app refuses above-threshold payments and records them as Finance decisions.
+
+## Pass 4 Gate Results
+- G1 Typecheck: PASS, `npm run typecheck`.
+- G2 Unit tests: PASS, `npm test` (4 files, 21 tests).
+- G3 Build: PASS, `npm run build`.
+- G4 E2E: PASS, `BASE=http://localhost:8790 npm run e2e`.
+- G5 Banned words: PASS, `npm run check:banned`.
+- G6 Secrets: PASS by working diff scan; no secret env files edited.
+- G7 Responsive: PASS fallback, `BASE=http://localhost:8790 npm run responsive`; browser launch remains blocked by sandbox permissions.
+- G8 Department delegation: PASS in `npm run e2e`.
+- G9 Auth: PASS, `BASE=http://localhost:8790 npm run e2e:passkey`.
+- G10 Concurrency: PASS in `npm test` via `server/store.test.ts`.
+- G11 Finance rule: PASS in `npm run e2e`.

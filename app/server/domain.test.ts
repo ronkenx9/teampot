@@ -6,8 +6,9 @@ import {
 } from './domain.js'
 
 const state = (): State => ({
+  version: 0,
   epoch: 'e',
-  company: { name: 'Co', address: '0xco' },
+  company: { name: 'Co', address: '0xco', financeApprovalThreshold: 1000 },
   people: [],
   vendors: [],
   pots: [],
@@ -21,6 +22,9 @@ const state = (): State => ({
   kudosAwards: [],
   nextPayday: '2026-11-08',
   processed: {},
+  sessions: [],
+  authChallenges: [],
+  invites: [],
   seeded: false,
 })
 

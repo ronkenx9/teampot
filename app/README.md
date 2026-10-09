@@ -6,12 +6,16 @@ Every team runs its own money. Teampot runs payday, funded department accounts, 
 
 ## Features
 - Finance dashboard: org map, department funding/returns, payday preview/confirm, next payday date, history, people management, vendor management, CSV export, receipt detail sheet.
+- Sign-in: public Demo mode is visible; real users sign in with Face ID / Touch ID passkeys and receive an HTTP-only session cookie.
+- Invites: Finance or a department head sends a one-time link; the new person sets up Face ID and lands in their department wallet.
 - Departments: Finance funds each department account. Department roots issue per-person limits and approved vendor lists enforced by Tempo access keys.
+- Finance rule: payments over the company threshold become Finance-only decisions.
 - Approve and add: a lead can pay a held vendor from the department account and add it to the department list; demo keys rotate and department cards are re-issued.
 - Perks: per-person allowances such as Lunch and Learning, each issued from the person's department account as its own access key.
 - Quarter close: computes real remaining limits, pays a kudos pool from the department account, records a leaderboard, and lets teammates award kudos.
 - Contractor portal: invoice list, paid-in-seconds badge, and decline-with-reason.
 - Face ID: browser passkeys become a person's spending key; the server records only verified receipts.
+- Mobile app shell: installable PWA manifest, cached first paint, and an offline page.
 - Earned while unspent: shown only as a clearly labelled simulated card.
 
 ## Run Locally
@@ -21,7 +25,7 @@ Every team runs its own money. Teampot runs payday, funded department accounts, 
 4. `PORT=8790 npx tsx server/local.ts`
 5. Open `http://localhost:8790`.
 
-Use **View as** to switch between Finance (Jordan), a department head (Ava), an employee (Sam), and a contractor (Mateo). Click **Fund departments** once after a reset.
+Use the visible **Demo mode** switcher to move between Finance (Jordan), a department head (Ava), an employee (Sam), and a contractor (Mateo). Click **Fund departments** once after a reset. The setup API also accepts a fresh-company payload with `companyName`, `departments`, and `invites` for non-demo starts.
 
 ## Test
 From `app/`:

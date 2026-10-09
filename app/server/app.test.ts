@@ -39,25 +39,33 @@ describe('API validation and guards', () => {
     tempoCalls.payday = 0
   })
 
+  const demoCookie = async (app: any, personId = 'jordan') => {
+    const r = await app.request('/api/auth/demo', { method: 'POST', body: JSON.stringify({ personId }), headers: { 'content-type': 'application/json' } })
+    return r.headers.get('set-cookie')!.split(';')[0]
+  }
+
   it('returns friendly 400s for bad input', async () => {
     const { app } = await import('./app.js')
-    const r = await app.request('/api/vendors', { method: 'POST', body: JSON.stringify({ name: '', category: '' }), headers: { 'content-type': 'application/json' } })
+    const cookie = await demoCookie(app)
+    const r = await app.request('/api/vendors', { method: 'POST', body: JSON.stringify({ name: '', category: '' }), headers: { 'content-type': 'application/json', cookie } })
     expect(r.status).toBe(400)
     expect((await r.json()).error).toBeTruthy()
   })
 
   it('returns 404 for unknown ids', async () => {
     const { app } = await import('./app.js')
-    const r = await app.request('/api/people/not-here/update', { method: 'POST', body: JSON.stringify({ title: 'x' }), headers: { 'content-type': 'application/json' } })
+    const cookie = await demoCookie(app)
+    const r = await app.request('/api/people/not-here/update', { method: 'POST', body: JSON.stringify({ title: 'x' }), headers: { 'content-type': 'application/json', cookie } })
     expect(r.status).toBe(404)
     expect((await r.json()).error).toMatch(/not found/i)
   })
 
   it('guards payday with request idempotency', async () => {
     const { app } = await import('./app.js')
+    const cookie = await demoCookie(app)
     const body = JSON.stringify({ requestId: 'payday-same-key' })
-    const a = await app.request('/api/payday', { method: 'POST', body, headers: { 'content-type': 'application/json' } })
-    const b = await app.request('/api/payday', { method: 'POST', body, headers: { 'content-type': 'application/json' } })
+    const a = await app.request('/api/payday', { method: 'POST', body, headers: { 'content-type': 'application/json', cookie } })
+    const b = await app.request('/api/payday', { method: 'POST', body, headers: { 'content-type': 'application/json', cookie } })
     expect(a.status).toBe(200)
     expect(b.status).toBe(200)
     expect((await a.json()).tx).toEqual((await b.json()).tx)
@@ -66,9 +74,11 @@ describe('API validation and guards', () => {
 
   it("scopes an employee state view to that person's money only", async () => {
     const { app } = await import('./app.js')
-    await app.request('/api/payday', { method: 'POST', body: JSON.stringify({ requestId: 'privacy-payday' }), headers: { 'content-type': 'application/json' } })
+    const finance = await demoCookie(app)
+    await app.request('/api/payday', { method: 'POST', body: JSON.stringify({ requestId: 'privacy-payday' }), headers: { 'content-type': 'application/json', cookie: finance } })
 
-    const r = await app.request('/api/state?viewer=sam')
+    const sam = await demoCookie(app, 'sam')
+    const r = await app.request('/api/state', { headers: { cookie: sam } })
     expect(r.status).toBe(200)
     const body = await r.json()
     const dump = JSON.stringify(body)
@@ -89,12 +99,43 @@ describe('API validation and guards', () => {
 
   it('declines invoices with a reason', async () => {
     const { app } = await import('./app.js')
-    const created = await app.request('/api/invoices', { method: 'POST', body: JSON.stringify({ contractorId: 'mateo', amount: 50, description: 'Sketches' }), headers: { 'content-type': 'application/json' } })
+    const mateo = await demoCookie(app, 'mateo')
+    const created = await app.request('/api/invoices', { method: 'POST', body: JSON.stringify({ contractorId: 'mateo', amount: 50, description: 'Sketches' }), headers: { 'content-type': 'application/json', cookie: mateo } })
     const inv = await created.json()
-    const declined = await app.request(`/api/invoices/${inv.id}/decline`, { method: 'POST', body: JSON.stringify({ reason: 'Wrong file type' }), headers: { 'content-type': 'application/json' } })
+    const finance = await demoCookie(app)
+    const declined = await app.request(`/api/invoices/${inv.id}/decline`, { method: 'POST', body: JSON.stringify({ reason: 'Wrong file type' }), headers: { 'content-type': 'application/json', cookie: finance } })
     expect(declined.status).toBe(200)
     const body = await declined.json()
     expect(body.status).toBe('declined')
     expect(body.declineReason).toBe('Wrong file type')
+  })
+
+  it('authorizes API calls from the session role, not request body viewer fields', async () => {
+    const { app } = await import('./app.js')
+    const ava = await demoCookie(app, 'ava')
+    const bad = await app.request('/api/pots/eng/return', { method: 'POST', body: JSON.stringify({ amount: 1, requestId: 'auth-eng-return' }), headers: { 'content-type': 'application/json', cookie: ava } })
+    expect(bad.status).toBe(403)
+
+    const sam = await demoCookie(app, 'sam')
+    const spendAsAva = await app.request('/api/spend', { method: 'POST', body: JSON.stringify({ personId: 'ava', vendorId: 'figma', amount: 5, note: 'x' }), headers: { 'content-type': 'application/json', cookie: sam } })
+    expect(spendAsAva.status).toBe(403)
+  })
+
+  it('turns payments over the Finance threshold into Finance-only decisions', async () => {
+    const { app } = await import('./app.js')
+    const sam = await demoCookie(app, 'sam')
+    const held = await app.request('/api/spend', { method: 'POST', body: JSON.stringify({ personId: 'sam', vendorId: 'figma', amount: 1200, note: 'Annual suite', requestId: 'finance-rule-test' }), headers: { 'content-type': 'application/json', cookie: sam } })
+    expect(held.status).toBe(200)
+    const body = await held.json()
+    expect(body.held.reason).toBe('finance-rule')
+
+    const ava = await demoCookie(app, 'ava')
+    const leadApprove = await app.request(`/api/held/${body.held.id}/approve`, { method: 'POST', body: JSON.stringify({ requestId: 'lead-finance-rule-test' }), headers: { 'content-type': 'application/json', cookie: ava } })
+    expect(leadApprove.status).toBe(403)
+
+    const finance = await demoCookie(app, 'jordan')
+    const financeReturn = await app.request(`/api/held/${body.held.id}/return`, { method: 'POST', body: JSON.stringify({ requestId: 'finance-rule-return-test' }), headers: { 'content-type': 'application/json', cookie: finance } })
+    expect(financeReturn.status).toBe(200)
+    expect((await financeReturn.json()).status).toBe('returned')
   })
 })
