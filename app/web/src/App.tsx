@@ -260,7 +260,7 @@ function MoneyHome({ s, me, busy, run, toast, openReceipt, showSpend }: Pick<Ctx
       </section>
       <section className="money-split">
         <div><small>Keep</small><b>{money(me.balance)}</b></div>
-        <div><small>Earning</small><b>{money(earning)}</b></div>
+        <div><small>{s.earnEntries?.find((e) => e.personId === me.id)?.mode === 'real' ? 'Earning' : 'Earning · illustrative'}</small><b>{money(earning)}</b></div>
         <div><small>Invest</small><b>{money(invested)}</b></div>
       </section>
       {showSpend && <Wallet s={s} me={me} busy={busy} run={run} toast={toast} />}
@@ -289,7 +289,7 @@ function EarnCard({ me, entry, busy, run, toast }: Pick<Ctx, 'busy' | 'run' | 't
     <section className="card flat earn-card">
       <div className="card-h"><h3>Earning</h3><span className="pill">{entry?.mode === 'real' ? 'Live' : 'Simulated'}</span></div>
       <b className="big-money">{money(entry?.balance ?? 0)}</b>
-      <p className="muted">{entry?.reason || 'No public earning pool is available yet, so this is labelled simulated.'}</p>
+      <p className="muted">{entry?.mode === 'real' ? 'Your idle cash is earning and stays spendable.' : "Illustrative for now: earning goes live when Tempo's earning vaults open on the test network."}</p>
       <form className="form compact-form" onSubmit={(e) => { e.preventDefault(); run('earn', () => api.earnDeposit({ personId: me.id, amount: Number(amount) }), (r: any) => toast({ text: r.mode === 'real' ? 'Earning deposit confirmed' : 'Earning is simulated for now', tone: r.mode === 'real' ? 'good' : 'warn' })) }}>
         <label>Move idle cash<div className="money-in"><span>$</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div></label>
         <button className="btn ghost" disabled={!!busy || !Number(amount)}>Move to Earning</button>
@@ -310,7 +310,7 @@ function InvestCard({ s, me, inv, busy, run, toast }: Pick<Ctx, 's' | 'busy' | '
     <section className="card flat invest-card">
       <div className="card-h"><h3>Invest</h3><span className="pill">{delayed} prices</span></div>
       <form className="form compact-form" onSubmit={(e) => { e.preventDefault(); run('election', () => api.election({ personId: me.id, stockId, percent: Number(percent) }), () => toast({ text: 'Payday investing saved', tone: 'good' })) }}>
-        <div className="two"><label>Each payday<input inputMode="numeric" value={percent} onChange={(e) => setPercent(e.target.value.replace(/[^\d.]/g, ''))} /></label><label>Stock<select value={stockId} onChange={(e) => setStockId(e.target.value as StockId)}>{s.stocks.map((st) => <option key={st.id} value={st.id}>{st.display}</option>)}</select></label></div>
+        <div className="two"><label>Share of each payday<div className="money-in"><input inputMode="numeric" value={percent} onChange={(e) => setPercent(e.target.value.replace(/[^\d.]/g, ''))} /><span style={{ paddingRight: 12 }}>%</span></div></label><label>Stock<select value={stockId} onChange={(e) => setStockId(e.target.value as StockId)}>{s.stocks.map((st) => <option key={st.id} value={st.id}>{st.display}</option>)}</select></label></div>
         <button className="btn ghost" disabled={!!busy}>Save payday split</button>
       </form>
       <div className="stock-list">
