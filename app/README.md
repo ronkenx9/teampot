@@ -1,6 +1,6 @@
 # Teampot
 
-**Live demo: https://teampot.vercel.app** (Tempo Moderato testnet, test money)
+**Live demo: https://teampot.vercel.app/app** (Tempo Moderato testnet, test money)
 
 Every team runs its own money. Teampot runs payday, funded department accounts, perks, kudos from savings, and contractor pay for everyone a company works with.
 
@@ -23,9 +23,9 @@ Every team runs its own money. Teampot runs payday, funded department accounts, 
 2. `npm install && (cd web && npm install)`
 3. `npm run build`
 4. `PORT=8790 npx tsx server/local.ts`
-5. Open `http://localhost:8790`.
+5. Open `http://localhost:8790` for the landing page or `http://localhost:8790/app` for the live demo.
 
-Use the visible **Demo mode** switcher to move between Finance (Jordan), a department head (Ava), an employee (Sam), and a contractor (Mateo). Click **Fund departments** once after a reset. The setup API also accepts a fresh-company payload with `companyName`, `departments`, and `invites` for non-demo starts.
+Use the visible **Demo mode** switcher inside `/app` to move between Finance (Jordan), a department head (Ava), an employee (Sam), and a contractor (Mateo). Click **Fund departments** once after a reset. Invite links open under `/app/invite/:token`. The setup API also accepts a fresh-company payload with `companyName`, `departments`, and `invites` for non-demo starts.
 
 ## Test
 From `app/`:
@@ -38,6 +38,7 @@ BASE=http://localhost:8790 npm run e2e
 BASE=http://localhost:8790 npm run e2e:passkey
 npm run check:banned
 BASE=http://localhost:8790 npm run responsive
+BASE=http://localhost:8790 npm run landing
 ```
 
 `npm run responsive` uses Playwright when it is installed. Without Playwright, it loads the local app and records the manual fallback in `GATES.md`.

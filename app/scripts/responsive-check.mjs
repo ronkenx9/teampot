@@ -1,4 +1,5 @@
 const BASE = process.env.BASE || 'http://localhost:8790'
+const APP = `${BASE.replace(/\/$/, '')}/app`
 process.env.PLAYWRIGHT_BROWSERS_PATH ||= './.cache/ms-playwright'
 const viewers = ['jordan', 'ava', 'sam', 'mateo']
 const sizes = [{ width: 375, height: 812 }, { width: 1280, height: 900 }]
@@ -8,8 +9,8 @@ async function main() {
   try {
     ;({ chromium } = await import('playwright'))
   } catch {
-    const r = await fetch(BASE)
-    if (!r.ok) throw new Error(`Could not load ${BASE}: ${r.status}`)
+    const r = await fetch(APP)
+    if (!r.ok) throw new Error(`Could not load ${APP}: ${r.status}`)
     console.log('Playwright is not installed; loaded the app and documented manual responsive fallback.')
     return
   }
@@ -18,8 +19,8 @@ async function main() {
   try {
     browser = await chromium.launch()
   } catch (e) {
-    const r = await fetch(BASE)
-    if (!r.ok) throw new Error(`Could not load ${BASE}: ${r.status}`)
+    const r = await fetch(APP)
+    if (!r.ok) throw new Error(`Could not load ${APP}: ${r.status}`)
     console.log(`Playwright is installed, but the browser could not launch here; loaded the app and documented manual responsive fallback. ${e.message.split('\n')[0]}`)
     return
   }
@@ -31,7 +32,7 @@ async function main() {
         const logs = []
         page.on('console', (msg) => { if (msg.type() === 'error') logs.push(msg.text()) })
         page.on('pageerror', (err) => logs.push(err.message))
-        await page.goto(BASE, { waitUntil: 'networkidle' })
+        await page.goto(APP, { waitUntil: 'networkidle' })
         await page.evaluate((v) => localStorage.setItem('tp-viewer', v), viewer)
         await page.reload({ waitUntil: 'networkidle' })
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)

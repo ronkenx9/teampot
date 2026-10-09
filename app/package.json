@@ -11,7 +11,8 @@
     "e2e": "node scripts/e2e.mjs",
     "e2e:passkey": "tsx scripts/e2e-passkey.ts",
     "check:banned": "node scripts/check-banned-ui.mjs",
-    "responsive": "node scripts/responsive-check.mjs"
+    "responsive": "node scripts/responsive-check.mjs",
+    "landing": "node scripts/landing-check.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.4",

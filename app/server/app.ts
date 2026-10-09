@@ -474,7 +474,7 @@ app.post('/api/setup', async (c) => {
     S.people.push(p)
     const raw = randomBytes(18).toString('base64url')
     S.invites.push({ token: hashSecret(raw), personId: p.id, createdBy: 'jordan', createdAt: now(), expiresAt: now() + DAY_MS })
-    setupInviteLinks.push({ personId: p.id, inviteLink: `/invite/${raw}` })
+    setupInviteLinks.push({ personId: p.id, inviteLink: `/app/invite/${raw}` })
   }
   for (const pt of S.pots) await fundDepartment(pt)
   for (const x of S.people.filter((p) => p.demoKey)) {
@@ -520,7 +520,7 @@ app.post('/api/invites', async (c) => {
   const inv: Invite = { token: hashSecret(raw), personId: p.id, createdBy: a.person.id, createdAt: now(), expiresAt: now() + DAY_MS }
   S.invites.push(inv)
   log({ kind: 'admin', title: `${p.name} invited`, detail: `${p.title} · ${pot(body.team).team}`, who: p.id, potId: body.team, memo: 'admin:invite' })
-  return c.json({ ok: true, person: p, inviteLink: `/invite/${raw}`, token: raw, expiresAt: inv.expiresAt })
+  return c.json({ ok: true, person: p, inviteLink: `/app/invite/${raw}`, token: raw, expiresAt: inv.expiresAt })
 })
 
 app.get('/api/invites/:token', (c) => {

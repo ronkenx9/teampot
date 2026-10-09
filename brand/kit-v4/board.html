@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Teampot brand kit v4</title>
+    <style>
+      :root{--clay:#E8552D;--ink:#141414;--paper:#F6F4F0;--line:#E6DED3;--muted:#6F6A63;--soft:#ECE6DD}
+      *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.45 "Inter Tight",Inter,system-ui,sans-serif}main{width:min(1360px,calc(100% - 48px));margin:0 auto;padding:42px 0 64px}.hero{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:stretch}.panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:26px}.ink{background:var(--ink);color:#fff}.panel h1,.panel h2{margin:0;font-weight:800;font-style:italic;letter-spacing:0;line-height:.95}.panel h1{font-size:82px}.panel h2{font-size:38px}.kicker{margin:0 0 12px;color:var(--clay);font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.ink .kicker{color:#FF9A78}.muted{color:var(--muted)}.ink .muted{color:#D8D0C5}.logo-row{display:flex;align-items:center;gap:28px;flex-wrap:wrap}.logo-row img{max-width:300px;height:auto}.mark-tile{width:96px;height:96px;display:grid;place-items:center;border-radius:8px;background:var(--paper)}.ink .mark-tile{background:rgba(255,255,255,.08)}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin-top:18px}.swatch{min-height:145px;border-radius:8px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid var(--line)}.swatch b{font-size:22px}.type-sample{font-size:64px;font-weight:800;font-style:italic;line-height:.9;letter-spacing:0;margin-top:10px}.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:18px}.fill{display:grid;grid-template-columns:repeat(4,18px);gap:7px}.fill span{width:18px;height:18px;border-radius:5px;background:#E4DED5}.fill span.on{background:var(--clay)}.screens{display:grid;grid-template-columns:1.2fr 1fr .72fr;gap:18px;margin-top:18px}.screen{background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px;min-height:250px;overflow:hidden}.screen h3{margin:0 0 12px;font-size:18px}.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.kpis div,.dept,.phone-card,.row{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--paper)}.kpis b,.phone-card b{display:block;font-size:25px;font-style:italic}.dept{display:flex;align-items:center;gap:10px;margin-top:10px}.gauge{display:grid;grid-template-columns:repeat(4,7px);gap:4px}.gauge span{width:7px;height:7px;border-radius:2px;background:#E4DED5}.gauge span.on{background:var(--clay)}.phone{background:var(--soft);border:8px solid #fff;border-radius:26px;padding:12px;box-shadow:0 18px 40px rgba(20,20,20,.12)}.phone-card{background:var(--ink);color:#fff}.phone-card small{color:#ddd}.phone-card button{width:100%;border:0;background:var(--clay);color:#fff;border-radius:8px;padding:11px;font-weight:900}.row{display:flex;justify-content:space-between;gap:12px;margin-top:10px}.small{font-size:13px;color:var(--muted)}@media(max-width:900px){.hero,.grid,.rules,.screens{grid-template-columns:1fr}.panel h1{font-size:52px}.type-sample{font-size:44px}}
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="panel">
+          <p class="kicker">Teampot v4</p>
+          <h1>Every team runs its own money.</h1>
+        </div>
+        <div class="panel ink">
+          <p class="kicker">Locked logo</p>
+          <div class="logo-row">
+            <img src="../logo-v4/final/teampot-logo-reversed.svg" alt="Teampot reversed logo">
+            <span class="mark-tile"><img src="../logo-v4/final/teampot-symbol-reversed.svg" width="66" alt="Teampot symbol reversed"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top:18px">
+        <p class="kicker">Logo system</p>
+        <div class="logo-row">
+          <img src="../logo-v4/final/teampot-logo.svg" alt="Teampot primary logo">
+          <img src="../logo-v4/final/teampot-logo-black.svg" alt="Teampot black logo">
+          <span class="mark-tile"><img src="../logo-v4/final/teampot-symbol.svg" width="66" alt="Teampot symbol"></span>
+          <span class="mark-tile"><img src="../logo-v4/final/teampot-app-icon.svg" width="76" alt="Teampot app icon"></span>
+        </div>
+        <div class="rules">
+          <article><h2>Clear space</h2><p class="muted">Keep one symbol width around the logo on all sides.</p></article>
+          <article><h2>Minimum size</h2><p class="muted">Use the lockup at 120 px wide or larger. Use the symbol below that.</p></article>
+          <article><h2>Do not redraw</h2><p class="muted">The lifted clay lid and ink bowl are final assets, not a construction style.</p></article>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="swatch" style="background:#E8552D;color:#fff"><span>Clay</span><b>#E8552D</b></div>
+        <div class="swatch" style="background:#141414;color:#fff"><span>Ink</span><b>#141414</b></div>
+        <div class="swatch" style="background:#F6F4F0"><span>Paper</span><b>#F6F4F0</b></div>
+        <div class="swatch" style="background:#6F6A63;color:#fff"><span>Neutral</span><b>#6F6A63</b></div>
+      </section>
+
+      <section class="panel" style="margin-top:18px">
+        <p class="kicker">Type and UI marks</p>
+        <div class="rules">
+          <article><h2>Inter Tight</h2><div class="type-sample">Money moves.</div></article>
+          <article><h2>Money style</h2><div class="type-sample">$42,180</div></article>
+          <article><h2>Fill gauge</h2><div class="fill" aria-label="Budget-left fill gauge">
+            <span></span><span></span><span class="on"></span><span class="on"></span><span></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span>
+          </div><p class="muted">The 4 by 4 Fill block is a budget-left UI element, not the logo.</p></article>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top:18px">
+        <p class="kicker">Product screens</p>
+        <div class="screens">
+          <article class="screen">
+            <h3>Finance overview</h3>
+            <div class="kpis"><div><small>Company balance</small><b>$42,180</b></div><div><small>Payroll</small><b>$16,500</b></div><div><small>Waiting</small><b>2</b></div></div>
+            <div class="dept"><div class="gauge"><span></span><span></span><span class="on"></span><span class="on"></span><span></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div><b>Design</b><span class="small">$3,560 funded</span></div>
+            <div class="dept"><div class="gauge"><span></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div><b>Engineering</b><span class="small">$5,940 funded</span></div>
+          </article>
+          <article class="screen">
+            <h3>Department head</h3>
+            <div class="row"><b>PixelVault Stock</b><span>$420</span></div>
+            <div class="row"><b>Approve + add</b><span>Design</span></div>
+            <div class="row"><b>Return budget</b><span>$250</span></div>
+          </article>
+          <article class="screen">
+            <h3>Phone spend</h3>
+            <div class="phone"><div class="phone-card"><small>Sam · Design</small><b>$547 left</b><p>Pay Figma from your phone</p><button>Confirm with Face ID</button></div></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

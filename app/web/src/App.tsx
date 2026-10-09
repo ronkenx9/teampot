@@ -22,7 +22,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<any | null>(null)
   const [setupName, setSetupName] = useState('Northwind Studio')
-  const inviteToken = useMemo(() => location.pathname.startsWith('/invite/') ? decodeURIComponent(location.pathname.split('/invite/')[1] || '') : '', [])
+  const inviteToken = useMemo(() => {
+    const match = location.pathname.match(/^\/(?:app\/)?invite\/([^/]+)/)
+    return match ? decodeURIComponent(match[1] || '') : ''
+  }, [])
 
   const load = (x: State) => { setS(x); try { localStorage.setItem('tp-state', JSON.stringify(x)) } catch { /* private mode */ } setError(null) }
   // Ask who we are first, so a visitor without a session never triggers a failed (401) request.
@@ -253,7 +256,7 @@ function InviteAccept({ token, toast }: { token: string; toast: (t: Omit<Toast, 
       const cred = await createInvitePasskey(info.person.name)
       await api.acceptInvite(token, { id: cred.id, publicKey: cred.publicKey as `0x${string}` })
       toast({ text: 'Face ID is set up', tone: 'good' })
-      location.href = '/'
+      location.href = '/app'
     } catch (e: any) {
       setError(e.message)
     } finally {

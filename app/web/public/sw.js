@@ -1,5 +1,5 @@
-const CACHE = 'teampot-shell-v1'
-const SHELL = ['/', '/offline.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png']
+const CACHE = 'teampot-shell-v2'
+const SHELL = ['/', '/app', '/offline.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)))

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#F6F4F0"/>
+  <rect x="72" y="72" width="1056" height="486" rx="28" fill="#141414"/>
+  <path fill="#F6F4F0" d="M150 225 C178 338 272 435 380 435 C488 435 581 338 612 225 C614 218 609 217 604 219 C529 254 455 275 380 275 C305 275 230 254 155 219 C151 217 148 219 150 225 Z"/>
+  <path fill="#E8552D" d="M177 161 C260 187 334 191 395 190 C476 188 537 171 578 148 C594 140 601 153 591 167 C544 214 470 236 388 236 C307 236 226 215 178 183 C168 176 169 158 177 161 Z"/>
+  <text x="680" y="203" fill="#E8552D" font-family="Inter Tight, Arial, sans-serif" font-size="56" font-weight="800" font-style="italic">teampot</text>
+  <text x="680" y="298" fill="#F6F4F0" font-family="Inter Tight, Arial, sans-serif" font-size="62" font-weight="800" font-style="italic">Every team runs</text>
+  <text x="680" y="372" fill="#F6F4F0" font-family="Inter Tight, Arial, sans-serif" font-size="62" font-weight="800" font-style="italic">its own money.</text>
+  <text x="680" y="438" fill="#D8D0C5" font-family="Inter Tight, Arial, sans-serif" font-size="28">Finance sets the frame. Departments decide.</text>
+</svg>

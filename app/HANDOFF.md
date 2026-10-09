@@ -103,3 +103,30 @@
 - G9 Auth: PASS, `BASE=http://localhost:8790 npm run e2e:passkey`.
 - G10 Concurrency: PASS in `npm test` via `server/store.test.ts`.
 - G11 Finance rule: PASS in `npm run e2e`.
+
+## Pass 5: Landing Page and Brand Kit
+- Routing: `/` is now a landing page, while the live demo app is under `/app`. The Vite bundle chooses the route client-side and the single Vercel/static fallback still serves both paths.
+- PWA and invites: `manifest.webmanifest` now starts at `/app`; the service worker caches `/app`; generated invite links now use `/app/invite/:token`. The client still accepts the legacy `/invite/:token` path so old links do not strand anyone.
+- Landing: added a mobile-first landing page with the locked headline/supporting line, problem section, three-step flow, audience rows, Tempo explanation, GitHub link, "Demo company · test money" footer, and "See what's verified" link to `app/VERIFIED.md` on GitHub.
+- Product shot decision: Playwright screenshots are blocked in this sandbox, so the landing hero renders product UI components directly with real Teampot demo data and app visual language rather than shipping a broken screenshot placeholder.
+- Metadata: added SEO description, Open Graph/Twitter metadata, and `web/public/og.svg` built from the logo mark plus the headline.
+- Brand kit: added `brand/kit-v4/board.html`, `brand/kit-v4/GUIDELINES.md`, and `brand/kit-v4/board.png`. The PNG is a static export, not the canonical Playwright screenshot, because Chromium cannot launch here.
+- Docs: README now points visitors to `/` for the landing page and `/app` for the demo, and lists the new landing gate.
+
+## Pass 5 Gate Results
+- G1 Typecheck: PASS, `npm run typecheck`.
+- G2 Unit tests: PASS, `npm test` (4 files, 21 tests).
+- G3 Build: PASS, `npm run build`.
+- G4 E2E: PASS, `BASE=http://localhost:8790 npm run e2e`.
+- G5 Banned words: PASS, `npm run check:banned`.
+- G6 Secrets: PASS by current working diff scan; no secret values added. Recent git history still contains placeholder env names and public tx hashes only.
+- G7 Responsive: PASS fallback, `BASE=http://localhost:8790 npm run responsive`; it loads `/app`, then records the Chromium sandbox limitation.
+- G8 Department delegation: PASS inside `npm run e2e`.
+- G9 Auth: PASS, `BASE=http://localhost:8790 npm run e2e:passkey`.
+- G10 Concurrency: PASS in `npm test`.
+- G11 Finance rule: PASS inside `npm run e2e`.
+- G12 Landing: BLOCKED by environment, not app code. `BASE=http://localhost:8790 npm run landing` aborts before page load because Chromium fails with `bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer... Permission denied (1100)`. HTTP smoke verified `/`, `/app`, `/app/invite/example-token`, `/manifest.webmanifest`, and `/og.svg` return 200.
+
+## Pass 5 Known Gaps
+- A non-restricted browser environment still needs to run `BASE=http://localhost:8790 npm run landing` to prove no overflow/console errors at 375 and 1280 px and to confirm the landing CTA reaches `/app`.
+- Re-export `brand/kit-v4/board.html` with Playwright for the canonical `board.png`; the included PNG is a fallback export because Playwright screenshotting is blocked locally.
