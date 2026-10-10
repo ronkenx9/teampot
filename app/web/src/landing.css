@@ -205,3 +205,49 @@
 @keyframes lp-fill{0%,15%{transform:scaleX(0)}55%,88%{transform:scaleX(.62)}100%{transform:scaleX(.62)}}
 .lp-art-refuse{font-size:9px;fill:#D93025}
 @media (prefers-reduced-motion:reduce){.lp-art .draw,.lp-tree .draw{stroke-dashoffset:0;animation:none!important}.lp-art .node,.lp-tree .node{opacity:1;animation:none!important}.lp-art .deal,.lp-art .pop,.lp-art .fill{animation:none!important}.lp-art .fill{transform:scaleX(.62)}}
+/* live stage */
+.lp-roles{display:flex;justify-content:center;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.lp-roles button{all:unset;cursor:pointer;display:grid;gap:2px;text-align:center;padding:10px 18px;border-radius:18px;transition:background .3s cubic-bezier(.2,.8,.2,1)}
+.lp-roles button b{font-weight:500;font-size:15px}
+.lp-roles button span{font-size:12px;color:var(--t2)}
+.lp-roles button.on{background:#fff}
+.lp-roles button:focus-visible{outline:2px solid #000}
+.lp-stage figure{align-items:center}
+.lp-side{all:unset;cursor:pointer;width:250px;transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .3s;opacity:.85}
+.lp-side:hover{opacity:1;transform:translateY(-6px)}
+.lp-side img{width:100%;border-radius:32px 32px 0 0}
+.lp-side:focus-visible{outline:2px solid #000;outline-offset:4px;border-radius:32px}
+.lp-stage .lp-side img,.lp-stage .lp-live img{transform:none!important;opacity:1!important}
+.lp-live{position:relative;width:312px;height:620px;border-radius:44px;background:#fff;box-shadow:0 0 0 8px #fff,0 30px 80px rgba(0,0,0,.18);overflow:hidden;align-self:flex-end;flex:none}
+.lp-live iframe{position:absolute;top:0;left:0;width:390px;height:775px;border:0;transform:scale(.8);transform-origin:top left;transition:filter .45s cubic-bezier(.2,.8,.2,1)}
+.lp-live.switching iframe{filter:blur(14px)}
+.lp-live img{width:100%;display:block}
+.lp-live-tag{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:6px;background:rgba(0,0,0,.82);color:#fff;border-radius:999px;padding:7px 12px;font-size:12px;pointer-events:none;white-space:nowrap}
+.lp-live-tag i{width:7px;height:7px;border-radius:50%;background:#2FD08A;animation:lp-blink 1.6s ease-in-out infinite}
+@keyframes lp-blink{50%{opacity:.3}}
+@media (max-width:1100px){.lp-side{width:190px}}
+@media (max-width:720px){.lp-side{display:none}.lp-stage figure{height:auto;padding:24px 0 0}.lp-live{width:300px;height:600px}.lp-live iframe{transform:scale(.77)}.lp-roles button{padding:8px 12px}}
+/* ---- light beams ---- */
+.lp-art .beam,.lp-tree .beam{stroke-dasharray:.16 1.2;stroke-dashoffset:.16;opacity:0;filter:drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 7px var(--c))}
+.lp-art.in .beam,.lp-tree.in .beam{animation:beam var(--dur,3s) cubic-bezier(.45,0,.25,1) var(--d,0s) infinite}
+@keyframes beam{0%{stroke-dashoffset:.16;opacity:0}6%{opacity:1}55%{stroke-dashoffset:-1;opacity:1}62%,100%{stroke-dashoffset:-1;opacity:0}}
+.lp-tree.in .beam.stop{animation-name:beam-stop}
+@keyframes beam-stop{0%{stroke-dashoffset:.16;opacity:0}6%{opacity:1}40%{stroke-dashoffset:-.55;opacity:1}46%,100%{stroke-dashoffset:-.55;opacity:0}}
+/* the node outline lights up in its color when the beam arrives */
+.lp-art .lit rect,.lp-art .lit circle,.lp-tree .lit rect,.lp-tree .lit circle{transition:none}
+.lp-art.in .lit,.lp-tree.in .lit{animation:lit var(--dur,3s) ease-out var(--d,0s) infinite}
+@keyframes lit{0%,50%{filter:none}57%{filter:drop-shadow(0 0 2px var(--c)) drop-shadow(0 0 10px var(--c))}85%,100%{filter:none}}
+.lp-art.in .lit rect,.lp-tree.in .lit rect,.lp-art.in .lit circle,.lp-tree.in .lit circle{animation:lit-stroke var(--dur,3s) ease-out var(--d,0s) infinite}
+@keyframes lit-stroke{0%,50%{}57%{stroke:var(--c);stroke-width:1.8}85%,100%{}}
+.lp-tree .refuse{opacity:0}
+.lp-tree.in .refuse{animation:refuse var(--dur) ease var(--d) infinite}
+@keyframes refuse{0%,38%{opacity:0}44%,72%{opacity:1}82%,100%{opacity:0}}
+/* outline traces: light running around a card's edge */
+.lp-art .trace{stroke-dasharray:.12 1;stroke-dashoffset:0;opacity:0;filter:drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 6px var(--c))}
+.lp-art.in .trace{animation:trace 4.8s linear 1s infinite}
+@keyframes trace{0%{stroke-dashoffset:0;opacity:0}8%{opacity:1}92%{opacity:1}100%{stroke-dashoffset:-1.12;opacity:0}}
+@media (prefers-reduced-motion:reduce){.lp-art .beam,.lp-tree .beam,.lp-art .trace{display:none}.lp-art .lit,.lp-tree .lit,.lp-tree .refuse{animation:none!important}.lp-tree .refuse{opacity:1}}
+.lp-live img{display:block!important}
+.lp-live-wrap{position:relative;align-self:flex-end;flex:none}
+.lp-live-wrap .lp-live-tag{top:-40px;bottom:auto}
+.lp-stage figure{padding-top:72px}

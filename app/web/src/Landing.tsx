@@ -45,14 +45,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section className="lp-stage" aria-label="Teampot on a phone">
-          <figure>
-            <img src="/shots/m-ava-home.webp" width="780" height="1688" alt="Ava, Design head: department balance and the head key Finance gave her." loading="lazy" />
-            <img src="/shots/m-sam-home.webp" width="780" height="1688" alt="Sam's home: his money and the cards Ava signed for him." />
-            <img src="/shots/m-jordan-home.webp" width="780" height="1688" alt="Jordan in Finance: the company treasury, head keys and payday." loading="lazy" />
-          </figure>
-          <p>Live screens from the demo. Every number is read from Tempo.</p>
-        </section>
+        <LiveStage />
 
         <Section eyebrow="One app" title={<>Everything work pays you,<br />in one place</>}>
           <div className="lp-cards">
@@ -121,6 +114,52 @@ export default function Landing() {
         <p className="lp-foot-note">Demo company on the Tempo testnet. Test money only.</p>
       </footer>
     </div>
+  )
+}
+
+const ROLES = [
+  { id: 'ava', name: 'Ava', role: 'Department head', shot: '/shots/m-ava-home.webp' },
+  { id: 'sam', name: 'Sam', role: 'Employee', shot: '/shots/m-sam-home.webp' },
+  { id: 'jordan', name: 'Jordan', role: 'Finance', shot: '/shots/m-jordan-home.webp' },
+  { id: 'mateo', name: 'Mateo', role: 'Contractor', shot: '/shots/m-mateo-home.webp' },
+] as const
+
+/** The hero stage: the middle phone is the live app (tap around); side phones switch its role. */
+function LiveStage() {
+  const [ref, on] = useInView<HTMLElement>()
+  const [role, setRole] = useState<(typeof ROLES)[number]['id']>('sam')
+  const [ready, setReady] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const frame = useRef<HTMLIFrameElement | null>(null)
+  useEffect(() => {
+    if (!on || ready) return
+    fetch('/api/auth/demo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ personId: 'sam' }) })
+      .finally(() => { try { localStorage.setItem('tp-viewer', 'sam') } catch { /* private mode */ } setReady(true) })
+  }, [on, ready])
+  const pick = (id: typeof role) => {
+    if (id === role) return
+    setRole(id)
+    setSwitching(true)
+    frame.current?.contentWindow?.postMessage({ type: 'tp-tour', viewer: id, tab: 'home', task: null }, location.origin)
+    setTimeout(() => setSwitching(false), 1200)
+  }
+  const idx = ROLES.findIndex((r) => r.id === role)
+  const left = ROLES[(idx + ROLES.length - 1) % ROLES.length]
+  const right = ROLES[(idx + 1) % ROLES.length]
+  return (
+    <section className="lp-stage" ref={ref} aria-label="Try Teampot live">
+      <div className="lp-roles" role="tablist" aria-label="Choose a role">
+        {ROLES.map((r) => <button key={r.id} role="tab" aria-selected={r.id === role} className={r.id === role ? 'on' : ''} onClick={() => pick(r.id)}><b>{r.name}</b><span>{r.role}</span></button>)}
+      </div>
+      <figure>
+        <button className="lp-side left" onClick={() => pick(left.id)} aria-label={`Switch to ${left.name}, ${left.role}`}><img src={left.shot} width="780" height="1688" alt="" loading="lazy" /></button>
+        <div className="lp-live-wrap"><span className="lp-live-tag"><i /> Live · tap around</span><div className={`lp-live ${switching ? 'switching' : ''}`}>
+          {ready ? <iframe ref={frame} title="Teampot live demo" src="/app?embed=1" loading="lazy" /> : <img src="/shots/m-sam-home.webp" width="780" height="1688" alt="Sam's home in Teampot" />}
+        </div></div>
+        <button className="lp-side right" onClick={() => pick(right.id)} aria-label={`Switch to ${right.name}, ${right.role}`}><img src={right.shot} width="780" height="1688" alt="" loading="lazy" /></button>
+      </figure>
+      <p>The middle phone is the real app on the Tempo testnet. Tap a side phone or a name to switch roles.</p>
+    </section>
   )
 }
 
@@ -205,17 +244,24 @@ function useInView<T extends Element>() {
   return [ref, seen] as const
 }
 
+const LIGHT = { design: '#FF6A3D', eng: '#4C8DFF', mkt: '#2FD08A', ink: '#111' }
+
+/** A beam of light that travels a path; `--dur`/`--d` set its timing. */
+const Beam = ({ d, color, dur = 2.8, delay = 0, width = 2 }: { d: string; color: string; dur?: number; delay?: number; width?: number }) =>
+  <path className="beam" d={d} pathLength={1} fill="none" stroke={color} strokeWidth={width} strokeLinecap="round" style={{ ['--c' as any]: color, ['--dur' as any]: `${dur}s`, ['--d' as any]: `${delay}s` }} />
+
 function PayArt() {
   const [ref, on] = useInView<SVGSVGElement>()
+  const arc = 'M95 140 C 130 80, 190 80, 225 120'
   return (
     <svg ref={ref} viewBox="0 0 320 200" className={`lp-art ${on ? 'in' : ''}`} aria-hidden>
       <rect x="70" y="30" width="180" height="150" rx="14" fill="#fff" stroke="#D4D4D4" />
-      <rect x="80" y="22" width="160" height="10" rx="5" fill="none" stroke="#E2E2E2" />
+      <rect className="trace" x="70" y="30" width="180" height="150" rx="14" pathLength={1} fill="none" stroke={LIGHT.design} strokeWidth="1.5" style={{ ['--c' as any]: LIGHT.design }} />
       <text x="88" y="56" className="lp-art-label">PAYDAY</text>
-      <path id="pay-arc" className="draw" pathLength={1} d="M95 140 C 130 80, 190 80, 225 120" fill="none" stroke="#C8C8C8" />
+      <path className="draw" pathLength={1} d={arc} fill="none" stroke="#DADADA" />
+      <Beam d={arc} color={LIGHT.mkt} dur={2.6} delay={0.4} />
       <circle cx="95" cy="140" r="3" fill="#fff" stroke="#999" />
-      {on && <circle r="3.5" fill="#000"><animateMotion dur="2.4s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;.55;1" calcMode="linear"><mpath href="#pay-arc" /></animateMotion><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.55;.6;1" dur="2.4s" repeatCount="indefinite" /></circle>}
-      <g className="pop"><rect x="198" y="108" width="52" height="20" rx="6" fill="#000" /><text x="224" y="122" textAnchor="middle" className="lp-art-chip">$3,600</text></g>
+      <g className="lit" style={{ ['--c' as any]: LIGHT.mkt, ['--dur' as any]: '2.6s', ['--d' as any]: '0.4s' }}><rect x="198" y="108" width="52" height="20" rx="6" fill="#000" stroke="#000" /><text x="224" y="122" textAnchor="middle" className="lp-art-chip">$3,600</text></g>
       <line x1="95" y1="160" x2="225" y2="160" stroke="#E5E5E5" />
       <text x="95" y="174" className="lp-art-label">LANDED IN ~1S</text>
     </svg>
@@ -229,7 +275,8 @@ function CardArt() {
       <rect x="70" y="40" width="170" height="104" rx="14" fill="none" stroke="#E6E6E6" />
       <rect x="78" y="54" width="170" height="104" rx="14" fill="none" stroke="#E0E0E0" />
       <g className="deal">
-        <rect x="86" y="68" width="170" height="104" rx="14" fill="#fff" stroke="#BDBDBD" />
+        <rect x="86" y="68" width="170" height="104" rx="14" fill="#fff" stroke="#CFCFCF" />
+        <rect className="trace loop" x="86" y="68" width="170" height="104" rx="14" pathLength={1} fill="none" stroke={LIGHT.design} strokeWidth="1.6" style={{ ['--c' as any]: LIGHT.design }} />
         <rect x="102" y="84" width="22" height="5" rx="2.5" fill="#E8552D" />
         <text x="102" y="106" className="lp-art-label">DESIGN CARD · SIGNED BY AVA</text>
         <text x="102" y="132" className="lp-art-big">$600 / month</text>
@@ -245,13 +292,14 @@ function CardArt() {
 function TreasuryArt() {
   const [ref, on] = useInView<SVGSVGElement>()
   const ys = [40, 100, 160]
+  const depts = [['Design', LIGHT.design], ['Engineering', LIGHT.eng], ['Marketing', LIGHT.mkt]] as const
   return (
     <svg ref={ref} viewBox="0 0 320 200" className={`lp-art ${on ? 'in' : ''}`} aria-hidden>
-      {ys.map((y, i) => <path key={y} id={`tr-${i}`} className="draw" style={{ ['--d' as any]: `${i * 0.15}s` }} pathLength={1} d={`M112 100 C 170 100, 170 ${y}, 230 ${y}`} fill="none" stroke="#CFCFCF" />)}
-      {on && ys.map((y, i) => <circle key={y} r="3" fill="#000"><animateMotion dur="2.2s" begin={`${0.6 + i * 0.45}s`} repeatCount="indefinite"><mpath href={`#tr-${i}`} /></animateMotion></circle>)}
+      {ys.map((y, i) => <path key={y} className="draw" style={{ ['--d' as any]: `${i * 0.15}s` }} pathLength={1} d={`M112 100 C 170 100, 170 ${y}, 230 ${y}`} fill="none" stroke="#DADADA" />)}
+      {ys.map((y, i) => <Beam key={`b${y}`} d={`M112 100 C 170 100, 170 ${y}, 230 ${y}`} color={depts[i][1]} dur={3} delay={0.6 + i * 0.5} />)}
       <rect x="40" y="88" width="72" height="24" rx="7" fill="#000" />
       <text x="76" y="104" textAnchor="middle" className="lp-art-chip">Treasury</text>
-      {['Design', 'Engineering', 'Marketing'].map((t, i) => <g key={t} className="node" style={{ ['--d' as any]: `${0.5 + i * 0.15}s` }}><rect x="230" y={ys[i] - 11} width="78" height="22" rx="7" fill="#fff" stroke="#D0D0D0" /><text x="269" y={ys[i] + 4} textAnchor="middle" className="lp-art-node">{t}</text></g>)}
+      {depts.map(([t, c], i) => <g key={t} className="node" style={{ ['--d' as any]: `${0.5 + i * 0.15}s` }}><g className="lit" style={{ ['--c' as any]: c, ['--dur' as any]: '3s', ['--d' as any]: `${0.6 + i * 0.5}s` }}><rect x="230" y={ys[i] - 11} width="78" height="22" rx="7" fill="#fff" stroke="#D0D0D0" /></g><text x="269" y={ys[i] + 4} textAnchor="middle" className="lp-art-node">{t}</text></g>)}
     </svg>
   )
 }
@@ -260,26 +308,28 @@ function KeyTree() {
   const [ref, on] = useInView<SVGSVGElement>()
   const cards = [60, 110, 160, 210, 260]
   const depts = [90, 160, 230]
+  const deptMeta = [['Marketing', LIGHT.mkt], ['Design', LIGHT.design], ['Engineering', LIGHT.eng]] as const
+  const deptPath = (y: number) => `M130 160 C 180 160, 180 ${y}, 230 ${y}`
+  const cardPath = (y: number) => `M361 160 C 400 160, 400 ${y}, 440 ${y}`
   return (
     <svg ref={ref} viewBox="0 0 520 320" className={`lp-tree ${on ? 'in' : ''}`} aria-label="Treasury funds department accounts; each head key signs cards, and Tempo refuses payments outside a card">
-      <path id="kt-root" className="draw" pathLength={1} d="M30 160 L130 160" stroke="#000" strokeWidth="1.5" fill="none" />
+      <path className="draw" pathLength={1} d="M30 160 L130 160" stroke="#000" strokeWidth="1.5" fill="none" />
+      <Beam d="M30 160 L130 160" color="#fff" dur={3.6} delay={1.4} width={2.5} />
       <circle cx="30" cy="160" r="5" fill="#000" />
       <text x="30" y="190" className="lp-art-node" textAnchor="middle">Treasury</text>
-      {depts.map((y, i) => <path key={y} id={`kt-d${i}`} className="draw" style={{ ['--d' as any]: `${0.3 + i * 0.1}s` }} pathLength={1} d={`M130 160 C 180 160, 180 ${y}, 230 ${y}`} fill="none" stroke={i === 1 ? '#000' : '#CFCFCF'} strokeWidth={i === 1 ? 1.5 : 1} />)}
-      {depts.map((y, i) => <g key={y} className="node" style={{ ['--d' as any]: `${0.6 + i * 0.1}s` }}><rect x="230" y={y - 13} width="96" height="26" rx="13" fill={i === 1 ? '#000' : '#fff'} stroke={i === 1 ? '#000' : '#D0D0D0'} /><text x="278" y={y + 4} textAnchor="middle" className={i === 1 ? 'lp-art-chip' : 'lp-art-node'}>{['Marketing', 'Design', 'Engineering'][i]}</text></g>)}
+      {depts.map((y, i) => <path key={y} className="draw" style={{ ['--d' as any]: `${0.3 + i * 0.1}s` }} pathLength={1} d={deptPath(y)} fill="none" stroke={i === 1 ? '#000' : '#D6D6D6'} strokeWidth={i === 1 ? 1.5 : 1} />)}
+      {depts.map((y, i) => <Beam key={`b${y}`} d={deptPath(y)} color={deptMeta[i][1]} dur={3.6} delay={1.6 + i * 0.35} width={2.2} />)}
+      {depts.map((y, i) => <g key={y} className="node" style={{ ['--d' as any]: `${0.6 + i * 0.1}s` }}><g className="lit" style={{ ['--c' as any]: deptMeta[i][1], ['--dur' as any]: '3.6s', ['--d' as any]: `${1.6 + i * 0.35}s` }}><rect x="230" y={y - 13} width="96" height="26" rx="13" fill={i === 1 ? '#000' : '#fff'} stroke={i === 1 ? '#000' : '#D0D0D0'} /></g><text x="278" y={y + 4} textAnchor="middle" className={i === 1 ? 'lp-art-chip' : 'lp-art-node'}>{deptMeta[i][0]}</text></g>)}
       <path className="draw" style={{ ['--d' as any]: '0.9s' }} pathLength={1} d="M326 160 L351 160" stroke="#000" strokeWidth="1.5" fill="none" />
-      <circle cx="356" cy="160" r="5" fill="#fff" stroke="#000" strokeWidth="1.5" className="node" style={{ ['--d' as any]: '1s' }} />
+      <g className="lit" style={{ ['--c' as any]: LIGHT.design, ['--dur' as any]: '3.6s', ['--d' as any]: '2.3s' }}><circle cx="356" cy="160" r="5" fill="#fff" stroke="#000" strokeWidth="1.5" /></g>
       <text x="356" y="140" className="lp-art-node" textAnchor="middle">Head key</text>
-      {cards.map((y, i) => <path key={y} id={`kt-c${i}`} className="draw" style={{ ['--d' as any]: `${1.1 + i * 0.06}s` }} pathLength={1} d={`M361 160 C 400 160, 400 ${y}, 440 ${y}`} fill="none" stroke={i === 2 ? '#000' : '#D6D6D6'} strokeWidth={i === 2 ? 1.5 : 1} />)}
-      {cards.map((y, i) => <rect key={y} className="node" style={{ ['--d' as any]: `${1.3 + i * 0.06}s` }} x="440" y={y - 9} width="44" height="18" rx="5" fill={i === 2 ? '#000' : '#fff'} stroke={i === 2 ? '#000' : '#D0D0D0'} />)}
+      {cards.map((y, i) => <path key={y} className="draw" style={{ ['--d' as any]: `${1.1 + i * 0.06}s` }} pathLength={1} d={cardPath(y)} fill="none" stroke={i === 2 ? '#000' : '#DADADA'} strokeWidth={i === 2 ? 1.5 : 1} />)}
+      {cards.map((y, i) => i !== 4 && <Beam key={`c${y}`} d={cardPath(y)} color={LIGHT.design} dur={3.6} delay={2.5 + i * 0.12} />)}
+      {cards.map((y, i) => <g key={y} className="node" style={{ ['--d' as any]: `${1.3 + i * 0.06}s` }}>{i !== 4 ? <g className="lit" style={{ ['--c' as any]: LIGHT.design, ['--dur' as any]: '3.6s', ['--d' as any]: `${2.5 + i * 0.12}s` }}><rect x="440" y={y - 9} width="44" height="18" rx="5" fill={i === 2 ? '#000' : '#fff'} stroke={i === 2 ? '#000' : '#D0D0D0'} /></g> : <rect x="440" y={y - 9} width="44" height="18" rx="5" fill="#fff" stroke="#D0D0D0" />}</g>)}
       <rect x="446" y="158.5" width="10" height="3" rx="1.5" fill="#E8552D" />
-      {/* money flows treasury → Design → head key → card */}
-      <path id="kt-flow" d="M30 160 L130 160 C 180 160, 180 160, 230 160 L326 160 L361 160 C 400 160, 400 160, 440 160" fill="none" stroke="none" />
-      {on && <circle r="4" fill="#E8552D"><animateMotion dur="3s" begin="1.6s" repeatCount="indefinite"><mpath href="#kt-flow" /></animateMotion></circle>}
-      {/* a payment off the card's list: Tempo stops it */}
-      <path id="kt-refuse" d="M361 160 C 400 160, 400 260, 440 260" fill="none" stroke="none" />
-      {on && <g><circle r="3.5" fill="#D93025"><animateMotion dur="3s" begin="2.4s" repeatCount="indefinite" keyPoints="0;.62;.62" keyTimes="0;.5;1" calcMode="linear"><mpath href="#kt-refuse" /></animateMotion><animate attributeName="opacity" begin="2.4s" dur="3s" values="1;1;0;0" keyTimes="0;.62;.75;1" repeatCount="indefinite" /></circle>
-        <g opacity="0"><animate attributeName="opacity" begin="2.4s" dur="3s" values="0;0;1;1;0" keyTimes="0;.5;.55;.8;1" repeatCount="indefinite" /><circle cx="416" cy="232" r="9" fill="#fff" stroke="#D93025" /><path d="M412 228 l8 8 M420 228 l-8 8" stroke="#D93025" strokeWidth="1.6" /><text x="416" y="254" textAnchor="middle" className="lp-art-refuse">Refused by Tempo</text></g></g>}
+      {/* a payment off the card's list: the red beam stops and Tempo refuses it */}
+      <path className="beam stop" d="M361 160 C 400 160, 400 260, 440 260" pathLength={1} fill="none" stroke="#FF3B30" strokeWidth={2.2} strokeLinecap="round" style={{ ['--c' as any]: '#FF3B30', ['--dur' as any]: '3.6s', ['--d' as any]: '2.9s' }} />
+      <g className="refuse" style={{ ['--dur' as any]: '3.6s', ['--d' as any]: '2.9s' }}><circle cx="416" cy="232" r="9" fill="#fff" stroke="#FF3B30" /><path d="M412 228 l8 8 M420 228 l-8 8" stroke="#FF3B30" strokeWidth="1.6" /><text x="416" y="254" textAnchor="middle" className="lp-art-refuse">Refused by Tempo</text></g>
       <text x="462" y="300" className="lp-art-node" textAnchor="middle">Cards</text>
       <line x1="30" y1="300" x2="490" y2="300" stroke="#E6E6E6" />
     </svg>
