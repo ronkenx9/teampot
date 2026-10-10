@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000;width:1600px;height:1600px;overflow:hidden}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script></head><body>
+<script type="module">
+import * as THREE from 'three'
+import { SVGLoader } from 'three/addons/loaders/SVGLoader.js'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+const BOWL = 'M58 302 C100 470 240 615 400 615 C560 615 698 470 743 302 C746 292 738 290 731 293 C620 345 510 376 400 376 C290 376 180 345 69 293 C62 290 55 293 58 302 Z'
+const LID = 'M98 207 C220 246 330 252 420 250 C540 247 630 221 690 188 C714 176 724 196 709 216 C640 285 530 318 410 318 C290 318 170 287 99 240 C84 230 86 203 98 207 Z'
+const W = 1600, H = 1600
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false })
+r.setSize(W, H); r.setPixelRatio(1); r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05; r.outputColorSpace = THREE.SRGBColorSpace
+document.body.appendChild(r.domElement)
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#000')
+// Liquid swirl environment (warm clay + cool steel), like the reference's flowing reflections.
+const c = document.createElement('canvas'); c.width = 2048; c.height = 1024; const x = c.getContext('2d')
+const g = x.createLinearGradient(0, 0, 0, 1024); g.addColorStop(0, '#1a1d24'); g.addColorStop(0.5, '#3b4250'); g.addColorStop(1, '#0b0c0f'); x.fillStyle = g; x.fillRect(0, 0, 2048, 1024)
+for (let i = 0; i < 90; i++) {
+  x.beginPath(); const y0 = 120 + i * 9; x.moveTo(0, y0)
+  for (let px = 0; px <= 2048; px += 16) x.lineTo(px, y0 + Math.sin(px / 170 + i * 0.35) * 70 + Math.sin(px / 61 + i) * 18)
+  x.strokeStyle = i % 3 === 0 ? `rgba(232,85,45,${0.10 + (i % 7) * 0.02})` : i % 3 === 1 ? `rgba(230,205,180,${0.10 + (i % 5) * 0.03})` : `rgba(150,175,205,${0.08 + (i % 4) * 0.03})`
+  x.lineWidth = 6 + (i % 5) * 4; x.stroke()
+}
+x.fillStyle = 'rgba(255,255,255,0.9)'; x.fillRect(700, 120, 640, 90); x.fillRect(240, 700, 260, 40)
+const tex = new THREE.CanvasTexture(c); tex.mapping = THREE.EquirectangularReflectionMapping; tex.colorSpace = THREE.SRGBColorSpace
+const pm = new THREE.PMREMGenerator(r); const room = pm.fromScene(new RoomEnvironment(), 0.04).texture
+scene.environment = pm.fromEquirectangular(tex).texture
+const mk = (d, mat, z) => {
+  const shapes = SVGLoader.createShapes(new SVGLoader().parse(`<svg><path d="${d}"/></svg>`).paths[0])
+  const geo = new THREE.ExtrudeGeometry(shapes, { depth: 46, bevelEnabled: true, bevelThickness: 14, bevelSize: 9, bevelSegments: 10, curveSegments: 64 })
+  geo.translate(-400, -400, z); geo.scale(1, -1, 1)
+  return new THREE.Mesh(geo, mat)
+}
+const chrome = new THREE.MeshPhysicalMaterial({ color: '#d7dbe2', metalness: 1, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.25 })
+const clay = new THREE.MeshPhysicalMaterial({ color: '#E8552D', metalness: 0.25, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.1 })
+const grp = new THREE.Group(); grp.add(mk(BOWL, chrome, 0)); grp.add(mk(LID, clay, 10)); scene.add(grp)
+grp.rotation.set(-0.28, 0.42, 0.04); grp.scale.setScalar(1.25)
+const cam = new THREE.PerspectiveCamera(30, W / H, 1, 6000); cam.position.set(0, 40, 2300); cam.lookAt(0, 20, 0)
+const key = new THREE.DirectionalLight('#ffffff', 2.2); key.position.set(-600, 900, 1200); scene.add(key)
+const rim = new THREE.DirectionalLight('#ffd2bf', 1.4); rim.position.set(900, -300, -400); scene.add(rim)
+r.render(scene, cam); document.title = 'done'
+</script></body></html>
