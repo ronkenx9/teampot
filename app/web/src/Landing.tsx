@@ -153,7 +153,7 @@ function LiveStage() {
       </div>
       <figure>
         <button className="lp-side left" onClick={() => pick(left.id)} aria-label={`Switch to ${left.name}, ${left.role}`}><img src={left.shot} width="780" height="1688" alt="" loading="lazy" /></button>
-        <div className="lp-live-wrap"><span className="lp-live-tag"><i /> Live · tap around</span><div className={`lp-live ${switching ? 'switching' : ''}`}>
+        <div className="lp-live-wrap"><div className={`lp-live ${switching ? 'switching' : ''}`}>
           {ready ? <iframe ref={frame} title="Teampot live demo" src="/app?embed=1" loading="lazy" /> : <img src="/shots/m-sam-home.webp" width="780" height="1688" alt="Sam's home in Teampot" />}
         </div></div>
         <button className="lp-side right" onClick={() => pick(right.id)} aria-label={`Switch to ${right.name}, ${right.role}`}><img src={right.shot} width="780" height="1688" alt="" loading="lazy" /></button>
