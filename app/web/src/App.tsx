@@ -151,8 +151,10 @@ function WelcomeScreen({ busy, mode, setMode, chooseDemo, signIn }: {
         <img className="welcome-mark" src="/mark3d.webp" width="1200" height="1200" alt="" />
         <h1>Teampot</h1>
         <p>Every team runs its own money.</p>
-        <button className="btn welcome-primary" onClick={() => setMode('demo')}>Try the demo</button>
-        <button className="link-button" onClick={() => setMode('signin')}>Sign in with Face ID</button>
+        {busy === 'demo' || busy === 'signin'
+          ? <p className="welcome-loading" role="status"><span className="spinner" aria-hidden />Opening your view…</p>
+          : <><button className="btn welcome-primary" onClick={() => setMode('demo')}>Try the demo</button>
+            <button className="link-button" onClick={() => setMode('signin')}>Sign in with Face ID</button></>}
       </main>
       <span className="welcome-flat-mark"><PotMark size={34} /></span>
       {mode && (

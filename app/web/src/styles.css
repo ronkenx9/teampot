@@ -199,3 +199,13 @@ button.feed-row:hover .grow b{text-decoration:underline;text-decoration-thicknes
 .balance-hero,.wallet-hero{grid-template-columns:minmax(0,1fr)}.wallet-hero b{font-size:clamp(2.6rem,15vw,6.8rem)}
 .surface-stack{grid-template-columns:minmax(0,1fr)}.bento-grid>*{min-width:0}
 .welcome-mark{-webkit-mask-image:radial-gradient(closest-side,#000 72%,transparent 100%);mask-image:radial-gradient(closest-side,#000 72%,transparent 100%)}
+@media (min-width:900px){
+.wallet-hero b{font-size:clamp(3.5rem,6vw,5.25rem);line-height:1}
+.balance-hero b{font-size:clamp(3rem,5vw,4.5rem);line-height:1}
+.hero-actions-wallet{max-width:480px}
+.role-page main{max-width:1040px;margin:0 auto}
+}
+.welcome-loading{display:flex;align-items:center;gap:10px;color:#D6D6DA;font-size:17px;min-height:46px;margin:0}
+.spinner{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation-duration:2.4s}}
