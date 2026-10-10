@@ -7,7 +7,7 @@ import * as Store from './store.js'
 import {
   DAY, MONTH, YEAR, applyKudosDebit, applyStockTrade, canAwardKudos, decodeMemoLabel, defaultStocks, holdReason, idempotent, invoiceNumber,
   moneyMemo, nextMonthlyDate, normalizeState, potApprovedTotal, potSavings, roundMoney, slug, splitKudos, stockPosition, uid,
-  type Activity, type AuthChallenge, type Held, type Invite, type Invoice, type Perk, type Person, type Pot, type Session, type State, type StockId, type TestStock, type Vendor,
+  type Activity, type AuthChallenge, type Held, type TopUp, type Invite, type Invoice, type Perk, type Person, type Pot, type Session, type State, type StockId, type TestStock, type Vendor,
 } from './domain.js'
 
 const colors = ['#E8552D', '#141414', '#6F6A63', '#B8401C']
@@ -95,7 +95,7 @@ function seedState(): State {
     epoch,
     company: { name: 'Northwind Studio', address: T.companyAccount.address, financeApprovalThreshold: 1000 },
     people, vendors, pots, perks,
-    activity: [], held: [], invoices: [], paydayRuns: [], quarterCloses: [], kudosCredits: [], kudosAwards: [],
+    activity: [], held: [], topups: [], invoices: [], paydayRuns: [], quarterCloses: [], kudosCredits: [], kudosAwards: [],
     stocks: defaultStocks(), payElections: [{ personId: 'sam', stockId: 'aapl', percent: 20 }], stockTrades: [], earnEntries: [],
     nextPayday: nextMonthlyDate(), processed: {}, sessions: [], authChallenges: [], invites: [], seeded: false,
   }
@@ -108,6 +108,9 @@ const perkKeyPk = (perkId: string) => T.derivedKeyPk(S.epoch, perkId, 'perk')
 const deptRootPk = (potId: string) => T.derivedDepartmentRootPk(S.epoch, potId)
 const deptRoot = (potId: string) => T.rootFromPk(deptRootPk(potId))
 const deptAddress = (potId: string) => T.p256RootAddress(deptRootPk(potId))
+const headKeyPk = (pt: Pot) => T.derivedKeyPk(S.epoch, pt.id, `head:${pt.headId}:${pt.headKeyVersion ?? 0}`)
+/** The head's admin key acting as the department account, or null when the department has no head yet. */
+const headSigner = (pt: Pot) => (pt.headId && pt.headKeyTx ? T.accessAccount(headKeyPk(pt), deptRoot(pt.id)) : null)
 const personalRootPk = (personId: string) => T.derivedPersonalRootPk(S.epoch, personId)
 const personalRoot = (personId: string) => T.rootFromPk(personalRootPk(personId))
 const keyRef = (x: Person): T.KeyRef | null => (x.passkey && !x.passkey.needsRefresh ? { passkey: x.passkey.publicKey } : x.demoKey ? { pk: keyPk(x) } : null)
@@ -178,7 +181,8 @@ const isHeadOf = (a: Actor, potId?: string) => a.person.role === 'lead' && !!pot
 const requireFinance = (a: Actor) => { if (!isFinance(a)) throw forbidden('Only Finance can do this'); return a }
 const requireFinanceOrHead = (a: Actor, potId?: string) => { if (!isFinance(a) && !isHeadOf(a, potId)) throw forbidden('Only Finance or this department head can do this'); return a }
 const requireSelf = (a: Actor, personId: string) => { if (!isFinance(a) && a.person.id !== personId) throw forbidden('This belongs to another person'); return a }
-const canInviteFor = (a: Actor, role: Person['role'], team?: string) => isFinance(a) || (a.person.role === 'lead' && team === a.person.team && role !== 'admin')
+// A head can add employees and contractors to their own department; only Finance adds heads, Finance users, or salaries.
+const canInviteFor = (a: Actor, role: Person['role'], team?: string, salary?: number) => isFinance(a) || (a.person.role === 'lead' && team === a.person.team && (role === 'employee' || role === 'contractor') && !salary)
 const safeLog = (c: any, e: any) => {
   const status = e.status ?? 500
   if (status < 500) return
@@ -203,16 +207,25 @@ async function cachedRemaining(label: string, ref: T.KeyRef | null, source = T.c
   return value
 }
 
+/** Who signs a member card: the department head's admin key, or the department root (Finance) for the head's own card. */
+function cardSigner(pt: Pot, x: Person) {
+  const head = x.id !== pt.headId ? headSigner(pt) : null
+  return { signer: head ?? deptRoot(pt.id), issuer: head ? pt.headId! : 'finance' }
+}
+
 async function issuePotKey(x: Person) {
   if (!x.team || x.role === 'contractor' || x.role === 'admin') return null
   const pt = pot(x.team)
-  const source = deptRoot(pt.id)
+  const parent = deptRoot(pt.id)
+  const { signer, issuer } = cardSigner(pt, x)
+  const vendors = pt.vendorIds.map((v) => vendor(v).address)
   if (x.passkey && !x.demoKey) {
     try {
       const ref = { passkey: x.passkey.publicKey } as T.KeyRef
-      await T.revokeKeyOn(source, ref).catch(() => {})
-      const tx = await T.issueKeyOn(source, ref, pt.perPersonCap, pt.periodSec, pt.vendorIds.map((v) => vendor(v).address))
+      await T.revokeKeyVia(signer, parent, ref).catch(() => {})
+      const tx = await T.issueKeyVia(signer, parent, ref, pt.perPersonCap, pt.periodSec, vendors)
       x.keyTx = tx
+      x.keyIssuer = issuer
       x.passkey = { ...x.passkey, tx, needsRefresh: false }
       return tx
     } catch {
@@ -222,22 +235,50 @@ async function issuePotKey(x: Person) {
   }
   const oldVersion = x.keyVersion ?? 0
   if (x.keyTx) {
-    await T.revokeKeyOn(source, { pk: keyPk(x, oldVersion) }).catch(() => {})
+    await T.revokeKeyVia(signer, parent, { pk: keyPk(x, oldVersion) }).catch(() => {})
     x.keyVersion = oldVersion + 1
   } else {
     x.keyVersion = oldVersion
   }
-  const ref = { pk: keyPk(x) } as T.KeyRef
-  const tx = await T.issueKeyOn(source, ref, pt.perPersonCap, pt.periodSec, pt.vendorIds.map((v) => vendor(v).address))
+  const tx = await T.issueKeyVia(signer, parent, { pk: keyPk(x) }, pt.perPersonCap, pt.periodSec, vendors)
   x.keyTx = tx
+  x.keyIssuer = issuer
   x.demoKey = true
   return tx
 }
 
+/** Finance appoints a department head: the department root authorizes the head's admin key (TIP-1049). */
+async function issueHeadKey(pt: Pot, head: Person) {
+  const parent = deptRoot(pt.id)
+  if (pt.headId && pt.headKeyTx) {
+    await T.revokeKeyOn(parent, { pk: headKeyPk(pt) }).catch(() => {})
+    pt.headKeyVersion = (pt.headKeyVersion ?? 0) + 1
+  }
+  pt.headId = head.id
+  const tx = await T.authorizeAdminKey(parent, { pk: headKeyPk(pt) })
+  pt.headKeyTx = tx
+  pt.headSince = now()
+  log({ kind: 'admin', title: `${head.name.split(' ')[0]} runs ${pt.team}`, detail: 'Finance gave the head key for the department account', tx, who: head.id, potId: pt.id, memo: `${pt.id}:head` })
+  return tx
+}
+
+/** Pay from a department: signed by the head key when the head decides, by the department root when Finance does. */
+function departmentPayer(pt: Pot, actor: Actor) {
+  if (actor.person.role === 'lead') {
+    const head = headSigner(pt)
+    if (!head || pt.headId !== actor.person.id) throw forbidden(`Only the ${pt.team} head key can pay from this department`)
+    return { pay: (to: string, amount: number, note: string) => T.spendWithKeyOn(deptRoot(pt.id), { pk: headKeyPk(pt) }, to, amount, note), signedBy: `${actor.person.name.split(' ')[0]}'s head key` }
+  }
+  return { pay: (to: string, amount: number, note: string) => T.payFrom(deptRoot(pt.id), to, amount, note), signedBy: 'Finance' }
+}
+
 async function issuePerkKey(p: Perk) {
   const owner = person(p.personId)
-  const tx = await T.issueKeyOn(deptRoot(owner.team!), { pk: perkKeyPk(p.id) }, p.cap, p.periodSec, p.vendorIds.map((v) => vendor(v).address))
+  const pt = pot(owner.team!)
+  const { signer, issuer } = cardSigner(pt, owner)
+  const tx = await T.issueKeyVia(signer, deptRoot(pt.id), { pk: perkKeyPk(p.id) }, p.cap, p.periodSec, p.vendorIds.map((v) => vendor(v).address))
   p.keyTx = tx
+  p.keyIssuer = issuer
   return tx
 }
 
@@ -458,7 +499,37 @@ async function view(_viewerId: string | null | undefined, actor: Actor) {
     trades: S.stockTrades.filter((t) => t.personId === p.id).slice(0, 12).map((t) => ({ ...t, receipt: T.EXPLORER + t.tx })),
   }))
   const earnEntries = scope.isAdmin ? S.earnEntries : S.earnEntries.filter((e) => e.personId === scope.viewer.id)
+  const peopleById = new Map(people.map((p) => [p.id, p]))
+  const nameOf = (id?: string) => (!id || id === 'finance' ? 'Finance' : S.people.find((p) => p.id === id)?.name ?? id)
+  // The delegation tree as Tempo sees it: treasury → department accounts → head key → cards.
+  const controls = {
+    treasury: { name: S.company.name, account: S.company.address, link: T.EXPLORER_ACCOUNT + S.company.address, balance: scope.isAdmin ? companyBalance : null, holder: 'Finance' },
+    departments: pots.map((pt) => {
+      const account = deptAddress(pt.id)
+      const cards = [
+        ...S.people.filter((x) => x.team === pt.id && !x.removed && x.keyTx && peopleById.has(x.id) && (scope.isAdmin || scope.viewer.role === 'lead' || x.id === scope.viewer.id)).map((x) => ({
+          id: `card-${x.id}`, kind: 'member' as const, personId: x.id, name: x.name, label: `${pt.team} card`, cap: pt.perPersonCap, period: pt.periodLabel,
+          left: peopleById.get(x.id)?.pot?.left ?? null, vendors: pt.vendorIds.map((v) => vendor(v).name), device: !!x.passkey && !x.demoKey,
+          issuedBy: nameOf(x.keyIssuer), tx: x.keyTx, receipt: x.keyTx ? T.EXPLORER + x.keyTx : undefined,
+        })),
+        ...perks.filter((p) => person(p.personId).team === pt.id).map((p) => ({
+          id: `perk-${p.id}`, kind: 'perk' as const, personId: p.personId, name: person(p.personId).name, label: `${p.name} perk`, cap: p.cap, period: p.periodLabel,
+          left: p.left, vendors: p.vendors, device: false, issuedBy: nameOf(p.keyIssuer), tx: p.keyTx, receipt: p.keyTx ? T.EXPLORER + p.keyTx : undefined,
+        })),
+      ]
+      return {
+        id: pt.id, team: pt.team, color: pt.color, account, link: T.EXPLORER_ACCOUNT + account,
+        balance: scope.isAdmin || scope.viewer.team === pt.id ? departmentBalanceById[pt.id] ?? 0 : null,
+        budget: pt.budget, perPersonCap: pt.perPersonCap, vendors: pt.vendorIds.map((v) => vendor(v).name),
+        rootHolder: 'Finance',
+        head: pt.headId ? { personId: pt.headId, name: nameOf(pt.headId), since: pt.headSince ?? null, tx: pt.headKeyTx, receipt: pt.headKeyTx ? T.EXPLORER + pt.headKeyTx : undefined } : null,
+        cards,
+      }
+    }),
+  }
   return {
+    controls,
+    topups: S.topups.filter((t) => scope.isAdmin || (scope.viewer.role === 'lead' && t.potId === scope.viewer.team)),
     auth: { personId: actor.person.id, role: actor.person.role, demo: actor.demo },
     company: { name: S.company.name, balance: scope.isAdmin ? companyBalance : 0, financeApprovalThreshold: S.company.financeApprovalThreshold },
     nextPayday: S.nextPayday,
@@ -607,10 +678,15 @@ app.post('/api/setup', async (c) => {
     setupInviteLinks.push({ personId: p.id, inviteLink: `/app/invite/${raw}` })
   }
   for (const pt of S.pots) await fundDepartment(pt)
+  for (const pt of S.pots) {
+    const head = S.people.find((p) => p.role === 'lead' && p.team === pt.id && !p.removed)
+    if (head) await issueHeadKey(pt, head)
+  }
   for (const x of S.people.filter((p) => p.demoKey)) {
     const tx = await issuePotKey(x)
     const pt = pot(x.team!)
-    log({ kind: 'setup', title: `${x.name} joined the ${pt.team} pot`, detail: `$${pt.perPersonCap}/${pt.periodLabel} · ${pt.vendorIds.length} approved vendors`, tx: tx ?? undefined, potId: pt.id, who: x.id, memo: `setup:${pt.id}` })
+    const by = x.keyIssuer && x.keyIssuer !== 'finance' ? person(x.keyIssuer).name.split(' ')[0] : 'Finance'
+    log({ kind: 'setup', title: `${by} issued ${x.name.split(' ')[0]}'s ${pt.team} card`, detail: `$${pt.perPersonCap}/${pt.periodLabel} · ${pt.vendorIds.length} approved vendors`, tx: tx ?? undefined, potId: pt.id, who: x.id, memo: `setup:${pt.id}` })
   }
   for (const p of S.perks) {
     const tx = await issuePerkKey(p)
@@ -658,7 +734,7 @@ app.post('/api/invites', async (c) => {
   const a = actorFrom(c)
   const body = await parseBody(c, z.object({ name: text(80), role: z.enum(['lead', 'employee', 'contractor']), title: text(80), team: text(40), salary: optionalNumber, country: z.string().optional() }))
   pot(body.team)
-  if (!canInviteFor(a, body.role, body.team)) throw forbidden('Only Finance or this department head can invite here')
+  if (!canInviteFor(a, body.role, body.team, body.salary)) throw forbidden('Heads invite employees and contractors to their own team. Finance sets salaries and appoints heads.')
   const p: Person = { id: slug(body.name), name: body.name, role: body.role, title: body.title, team: body.team, salary: body.salary, country: body.country, address: T.newAddress(), demoKey: false }
   S.people.push(p)
   const raw = randomBytes(18).toString('base64url')
@@ -680,8 +756,11 @@ app.post('/api/invites/:token/accept', async (c) => {
   const body = await parseBody(c, z.object({ id: text(200), publicKey: z.string().regex(/^0x[0-9a-fA-F]+$/) }))
   const x = person(inv.personId)
   const pt = pot(x.team!)
-  const tx = await T.issueKeyOn(deptRoot(pt.id), { passkey: body.publicKey as `0x${string}` }, pt.perPersonCap, pt.periodSec, pt.vendorIds.map((v) => vendor(v).address))
+  const { signer, issuer } = cardSigner(pt, x)
+  const tx = await T.issueKeyVia(signer, deptRoot(pt.id), { passkey: body.publicKey as `0x${string}` }, pt.perPersonCap, pt.periodSec, pt.vendorIds.map((v) => vendor(v).address))
   x.passkey = { id: body.id, publicKey: body.publicKey as `0x${string}`, tx }
+  x.keyTx = tx
+  x.keyIssuer = issuer
   x.demoKey = false
   inv.usedAt = now()
   log({ kind: 'setup', title: `${x.name.split(' ')[0]} set up Face ID`, detail: `Joined ${pt.team}`, tx, who: x.id, potId: pt.id, memo: 'setup:invite' })
@@ -818,9 +897,12 @@ app.post('/api/passkey/enroll', async (c) => {
   const x = person(body.personId)
   requireSelf(a, x.id)
   const pt = pot(x.team!)
-  const tx = await T.issueKeyOn(deptRoot(pt.id), { passkey: body.publicKey as `0x${string}` }, pt.perPersonCap, pt.periodSec, pt.vendorIds.map((v) => vendor(v).address))
-  if (x.demoKey && !x.passkey) await T.revokeKeyOn(deptRoot(pt.id), { pk: keyPk(x) }).catch(() => {})
+  const { signer, issuer } = cardSigner(pt, x)
+  const tx = await T.issueKeyVia(signer, deptRoot(pt.id), { passkey: body.publicKey as `0x${string}` }, pt.perPersonCap, pt.periodSec, pt.vendorIds.map((v) => vendor(v).address))
+  if (x.demoKey && !x.passkey) await T.revokeKeyVia(signer, deptRoot(pt.id), { pk: keyPk(x) }).catch(() => {})
   x.passkey = { id: body.id, publicKey: body.publicKey as `0x${string}`, tx }
+  x.keyTx = tx
+  x.keyIssuer = issuer
   x.demoKey = false
   log({ kind: 'setup', title: `${x.name.split(' ')[0]} turned on Face ID`, detail: `Pays from the ${pt.team} pot with this device`, tx, who: x.id, potId: pt.id, memo: `setup:face` })
   return c.json({ ok: true })
@@ -865,15 +947,17 @@ app.post('/api/held/:id/:action', async (c) => {
   if (!canDecide) return c.json({ error: approver.id === h.personId ? "You can't approve your own request. Finance will take it from here." : "Only Finance or this team's lead can decide this." }, 403)
   if (action === 'approve' || action === 'approve-add') {
     const v = vendor(h.vendorId)
-    h.tx = await T.payFrom(deptRoot(h.potId), v.address, h.amount, moneyMemo(`${h.potId}:approved`))
+    const payer = departmentPayer(pot(h.potId), a)
+    h.tx = await payer.pay(v.address, h.amount, moneyMemo(`${h.potId}:approved`))
     h.status = 'approved'
+    h.signedBy = payer.signedBy
     if (action === 'approve-add') {
       const pt = pot(h.potId)
       if (!pt.vendorIds.includes(v.id)) pt.vendorIds.push(v.id)
       const receipts = await reissueTeamKeys(pt.id)
       log({ kind: 'admin', title: `${v.name} added to ${pt.team}`, detail: `Updated ${receipts.length} team cards`, tx: receipts[0], potId: pt.id, memo: `${pt.id}:vendor` })
     }
-    log({ kind: 'approved', title: `Approved: ${v.name}`, detail: `Paid by ${pot(h.potId).team}`, amount: h.amount, tx: h.tx, who: h.personId, potId: h.potId, memo: `${h.potId}:approved` })
+    log({ kind: 'approved', title: `Approved: ${v.name}`, detail: `Paid from ${pot(h.potId).team} · signed by ${payer.signedBy}`, amount: h.amount, tx: h.tx, who: h.personId, potId: h.potId, memo: `${h.potId}:approved` })
   } else {
     h.status = 'returned'
     log({ kind: 'returned', title: `Returned: ${vendor(h.vendorId).name}`, detail: 'Nothing was paid', amount: h.amount, who: h.personId, potId: h.potId, memo: `${h.potId}:returned` })
@@ -895,7 +979,7 @@ app.post('/api/vendors', async (c) => {
 app.post('/api/people', async (c) => {
   const a = actorFrom(c)
   const body = await parseBody(c, z.object({ name: text(80), role: z.enum(['admin', 'lead', 'employee', 'contractor']), title: text(80), team: z.string().optional(), salary: optionalNumber, country: z.string().optional() }))
-  if (!canInviteFor(a, body.role, body.team)) throw forbidden('Only Finance or the department head can add this person')
+  if (!canInviteFor(a, body.role, body.team, body.salary)) throw forbidden('Heads add employees and contractors to their own team. Finance sets salaries and appoints heads.')
   if (body.team) pot(body.team)
   const p: Person = { id: slug(body.name), name: body.name, role: body.role, title: body.title, team: body.team, salary: body.salary, country: body.country, address: T.newAddress(), demoKey: body.role === 'lead' || body.role === 'employee' }
   p.address = T.derivedPersonalAddress(S.epoch, p.id)
@@ -910,7 +994,8 @@ app.post('/api/people/:id/update', async (c) => {
   const p = person(c.req.param('id'))
   requireFinanceOrHead(a, p.team)
   const body = await parseBody(c, z.object({ name: text(80).optional(), role: z.enum(['admin', 'lead', 'employee', 'contractor']).optional(), title: text(80).optional(), team: z.string().optional(), salary: optionalNumber, country: z.string().optional() }))
-  if (body.role === 'admin' && !isFinance(a)) throw forbidden('Only Finance can create Finance users')
+  if (!isFinance(a) && (body.role !== undefined || body.team !== undefined || body.salary !== undefined)) throw forbidden('Only Finance changes roles, teams and salaries')
+  if (body.role === 'lead') throw forbidden('Appoint heads from the department instead')
   const keyAffects = body.team !== undefined && body.team !== p.team
   if (body.team) pot(body.team)
   Object.assign(p, body)
@@ -924,7 +1009,13 @@ app.post('/api/people/:id/remove', async (c) => {
   const p = person(c.req.param('id'))
   requireFinanceOrHead(a, p.team)
   if (p.role === 'admin') throw forbidden('Finance users cannot be removed here')
-  if (p.keyTx && p.team) await T.revokeKeyOn(deptRoot(p.team), p.passkey && !p.passkey.needsRefresh ? { passkey: p.passkey.publicKey } : { pk: keyPk(p) }).catch(() => {})
+  if (p.role === 'lead' && !isFinance(a)) throw forbidden('Only Finance removes a department head')
+  if (p.keyTx && p.team) await T.revokeKeyVia(cardSigner(pot(p.team), p).signer, deptRoot(p.team), p.passkey && !p.passkey.needsRefresh ? { passkey: p.passkey.publicKey } : { pk: keyPk(p) }).catch(() => {})
+  if (p.team && pot(p.team).headId === p.id) {
+    const pt = pot(p.team)
+    await T.revokeKeyOn(deptRoot(pt.id), { pk: headKeyPk(pt) }).catch(() => {})
+    pt.headId = undefined; pt.headKeyTx = undefined
+  }
   p.removed = true
   S.sessions = S.sessions.filter((s) => s.personId !== p.id)
   log({ kind: 'admin', title: `${p.name} removed`, detail: p.team ? `${pot(p.team).team} access revoked` : 'Access revoked', who: p.id, potId: p.team, memo: 'admin:remove' })
@@ -948,8 +1039,21 @@ app.post('/api/pots/:id/update', async (c) => {
   requireFinanceOrHead(a, pt.id)
   const body = await parseBody(c, z.object({ team: text(60).optional(), perPersonCap: number.optional(), budget: optionalNumber, vendorIds: z.array(z.string()).optional(), color: z.string().optional() }))
   if (body.vendorIds) body.vendorIds.forEach((id) => vendor(id))
+  // Finance owns the frame (budget); the head tunes rules inside it (member cap, vendors).
+  const budgetChange = body.budget !== undefined && roundMoney(body.budget) !== pt.budget
+  if (budgetChange && !isFinance(a)) throw forbidden('Only Finance changes a department budget. Ask for a top-up instead.')
+  const nextBudget = body.budget !== undefined ? roundMoney(body.budget) : pt.budget
+  const nextCap = body.perPersonCap ? roundMoney(body.perPersonCap) : pt.perPersonCap
+  if (nextCap > nextBudget) return c.json({ error: `A member limit can't be more than the ${pt.team} budget (${nextBudget.toLocaleString('en-US', { style: 'currency', currency: 'USD' })})` }, 400)
   const keyAffects = body.perPersonCap !== undefined || body.vendorIds !== undefined
-  Object.assign(pt, { ...body, perPersonCap: body.perPersonCap ? roundMoney(body.perPersonCap) : pt.perPersonCap, budget: body.budget !== undefined ? roundMoney(body.budget) : pt.budget })
+  const delta = roundMoney(nextBudget - pt.budget)
+  Object.assign(pt, { ...body, perPersonCap: nextCap, budget: nextBudget })
+  // A budget change moves real money between the treasury and the department account.
+  if (budgetChange && S.seeded && delta > 0) await fundDepartment(pt, delta)
+  if (budgetChange && S.seeded && delta < 0) {
+    const tx = await T.payFrom(deptRoot(pt.id), S.company.address, -delta, moneyMemo(`return ${pt.team}`))
+    log({ kind: 'admin', title: `${pt.team} budget lowered`, detail: `${(-delta).toLocaleString('en-US', { style: 'currency', currency: 'USD' })} back to the treasury`, amount: -delta, tx, potId: pt.id, memo: `${pt.id}:return` })
+  }
   const receipts = keyAffects && S.seeded ? await reissueTeamKeys(pt.id) : []
   log({ kind: 'admin', title: `${pt.team} pot updated`, detail: keyAffects ? `Updated ${receipts.length} team cards` : 'Saved', tx: receipts[0], potId: pt.id, memo: 'admin:pot' })
   return c.json({ ...pt, reissued: receipts.length })
@@ -969,14 +1073,47 @@ app.post('/api/pots/:id/fund', async (c) => {
 app.post('/api/pots/:id/topup-request', async (c) => {
   const a = actorFrom(c)
   const pt = pot(c.req.param('id'))
-  requireFinanceOrHead(a, pt.id)
+  if (!isHeadOf(a, pt.id)) throw forbidden(`Only the ${pt.team} head asks Finance for more budget`)
   const body = await parseBody(c, z.object({ amount: number, note: z.string().trim().max(80).optional().default('Budget top-up') }))
-  const finance = S.people.find((p) => p.role === 'admin')!
-  const syntheticVendor = S.vendors.find((v) => v.id === 'notion') ?? S.vendors[0]
-  const h: Held = { id: uid(), at: now(), personId: finance.id, potId: pt.id, vendorId: syntheticVendor.id, amount: roundMoney(body.amount), note: body.note, reason: 'finance-rule', status: 'held' }
-  S.held.unshift(h)
-  log({ kind: 'held', title: `${pt.team} requested top-up`, detail: body.note, amount: h.amount, who: a.person.id, potId: pt.id, memo: `${pt.id}:topup` })
-  return c.json(h)
+  const t: TopUp = { id: uid(), at: now(), potId: pt.id, amount: roundMoney(body.amount), note: body.note, requestedBy: a.person.id, status: 'requested' }
+  S.topups.unshift(t)
+  log({ kind: 'held', title: `${pt.team} asked for more budget`, detail: body.note, amount: t.amount, who: a.person.id, potId: pt.id, memo: `${pt.id}:topup` })
+  return c.json(t)
+})
+
+app.post('/api/topups/:id/:action', async (c) => {
+  const a = requireFinance(actorFrom(c))
+  const t = requireOne(S.topups.find((x) => x.id === c.req.param('id')), 'Top-up request')
+  const action = c.req.param('action')
+  if (!['fund', 'decline'].includes(action)) return c.json({ error: 'Unknown decision' }, 400)
+  if (t.status !== 'requested') return c.json(t)
+  const pt = pot(t.potId)
+  if (action === 'fund') {
+    t.tx = (await fundDepartment(pt, t.amount)) ?? undefined
+    pt.budget = roundMoney(pt.budget + t.amount)
+    t.status = 'funded'
+  } else {
+    t.status = 'declined'
+    log({ kind: 'returned', title: `${pt.team} top-up declined`, detail: t.note, amount: t.amount, potId: pt.id, memo: `${pt.id}:topup` })
+  }
+  t.decidedBy = a.person.id
+  return c.json(t)
+})
+
+/** Finance appoints (or replaces) a department head: revoke the old admin key, authorize the new one. */
+app.post('/api/pots/:id/head', async (c) => {
+  requireFinance(actorFrom(c))
+  const pt = pot(c.req.param('id'))
+  const body = await parseBody(c, z.object({ personId: text(40) }))
+  const next = person(body.personId)
+  if (next.team !== pt.id || next.role === 'contractor' || next.removed) return c.json({ error: `Pick someone on the ${pt.team} team` }, 400)
+  const prev = pt.headId ? S.people.find((p) => p.id === pt.headId) : undefined
+  if (prev && prev.id !== next.id) prev.role = 'employee'
+  next.role = 'lead'
+  const tx = await issueHeadKey(pt, next)
+  // Existing cards were signed by the old head (or Finance); re-sign them under the new head key.
+  if (S.seeded) await reissueTeamKeys(pt.id)
+  return c.json({ ok: true, headId: next.id, tx, receipt: T.EXPLORER + tx })
 })
 
 app.post('/api/pots/:id/return', async (c) => {
@@ -986,7 +1123,8 @@ app.post('/api/pots/:id/return', async (c) => {
   const body = await parseBody(c, z.object({ amount: number, requestId }))
   if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
   const amount = roundMoney(body.amount)
-  const tx = await T.payFrom(deptRoot(pt.id), S.company.address, amount, moneyMemo(`return ${pt.team}`))
+  const tx = await departmentPayer(pt, a).pay(S.company.address, amount, moneyMemo(`return ${pt.team}`))
+  pt.budget = roundMoney(Math.max(0, pt.budget - amount))
   pt.returnTx = tx
   log({ kind: 'admin', title: `${pt.team} returned budget`, detail: `${amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} returned to Finance`, amount, tx, potId: pt.id, memo: `${pt.id}:return` })
   const out = { ok: true, tx, potId: pt.id, receipt: T.EXPLORER + tx }
@@ -1019,7 +1157,9 @@ app.post('/api/pots/:id/close', async (c) => {
   const savings = potSavings(limits.map((l) => l?.remaining ?? 0), potApprovedTotal(S, pt.id))
   const split = splitKudos(savings, body.sharePct, members.map((m) => m.id))
   if (split.pool <= 0) return c.json({ error: 'No savings to share this time' }, 400)
-  const r = await T.paydayFrom(deptRoot(pt.id), split.lines.map((l) => ({ to: person(l.personId).address, amount: l.amount, note: `kudos ${pt.team}` })))
+  const closer = a.person.role === 'lead' ? headSigner(pt) : deptRoot(pt.id)
+  if (!closer) throw forbidden(`The ${pt.team} head key is not set up`)
+  const r = await T.paydayFrom(closer, split.lines.map((l) => ({ to: person(l.personId).address, amount: l.amount, note: `kudos ${pt.team}` })))
   const close = { id: uid(), at: Date.now(), potId: pt.id, savings, sharePct: body.sharePct, pool: split.pool, perPerson: split.perPerson, tx: r.tx, memberIds: members.map((m) => m.id) }
   S.quarterCloses.unshift(close)
   for (const line of split.lines) S.kudosCredits.push({ personId: line.personId, closeId: close.id, left: line.amount })
@@ -1067,8 +1207,9 @@ app.post('/api/invoices/:id/pay', async (c) => {
   if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
   if (inv.status === 'paid') return c.json(inv)
   if (inv.status === 'declined') return c.json({ error: 'This invoice was declined' }, 409)
+  if (!isFinance(a) && inv.amount > S.company.financeApprovalThreshold) return c.json({ error: `Invoices over $${S.company.financeApprovalThreshold} need Finance` }, 403)
   const t0 = Date.now()
-  inv.tx = contractor.team ? await T.payFrom(deptRoot(contractor.team), contractor.address, inv.amount, inv.number) : await T.companyPay(contractor.address, inv.amount, inv.number)
+  inv.tx = contractor.team ? await departmentPayer(pot(contractor.team), a).pay(contractor.address, inv.amount, inv.number) : await T.companyPay(contractor.address, inv.amount, inv.number)
   inv.paidMs = Date.now() - t0
   inv.status = 'paid'
   log({ kind: 'paid', title: `${contractor.name} paid · ${inv.number}`, detail: `Paid in ${(inv.paidMs / 1000).toFixed(1)}s`, amount: inv.amount, tx: inv.tx, who: inv.contractorId, potId: contractor.team, memo: `invoice:${inv.number}` })

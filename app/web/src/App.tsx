@@ -11,7 +11,7 @@ const VIEWERS: { id: Viewer; label: string; full: string; sub: string; avatar: s
   { id: 'mateo', label: 'Mateo', full: 'Mateo Ruiz', sub: 'Contractor', avatar: 'MR', do: 'Send an invoice and get paid in seconds.' },
 ]
 type Toast = { id: number; text: string; tone: 'good' | 'warn' | 'bad'; receipt?: string }
-type Task = 'pay' | 'invest' | 'rules' | 'payday' | 'invoice' | 'team' | 'person' | 'vendor' | 'perk'
+type Task = 'pay' | 'invest' | 'rules' | 'payday' | 'invoice' | 'invite' | 'topup' | 'howto'
 type RoleMode = 'demo' | 'signin'
 
 export default function App() {
@@ -110,7 +110,7 @@ export default function App() {
         realSignIn={realSignIn}
         busy={busy}
       >
-        {viewer === 'jordan' && <Finance {...ctx} active={activeTab} setTask={setTask} />}
+        {viewer === 'jordan' && <Finance {...ctx} active={activeTab} setTask={setTask} setActive={setActiveTab} />}
         {viewer === 'ava' && (s.people.find((p) => p.id === 'ava') ? <Lead {...ctx} active={activeTab} setTask={setTask} me={s.people.find((p) => p.id === 'ava')!} /> : <Skeleton />)}
         {viewer === 'sam' && (s.people.find((p) => p.id === 'sam') ? <Employee {...ctx} active={activeTab} setTask={setTask} me={s.people.find((p) => p.id === 'sam')!} /> : <Skeleton />)}
         {viewer === 'mateo' && (s.people.find((p) => p.id === 'mateo') ? <Contractor {...ctx} active={activeTab} setTask={setTask} me={s.people.find((p) => p.id === 'mateo')!} /> : <Skeleton />)}
@@ -134,7 +134,7 @@ type Ctx = {
 const ROLE_TABS: Record<Viewer, { id: string; label: string }[]> = {
   sam: [{ id: 'home', label: 'Home' }, { id: 'spend', label: 'Spend' }, { id: 'invest', label: 'Invest' }, { id: 'activity', label: 'Activity' }],
   ava: [{ id: 'home', label: 'Home' }, { id: 'approvals', label: 'Approvals' }, { id: 'team', label: 'Team' }, { id: 'activity', label: 'Activity' }],
-  jordan: [{ id: 'home', label: 'Home' }, { id: 'payday', label: 'Payday' }, { id: 'teams', label: 'Teams' }, { id: 'activity', label: 'Activity' }],
+  jordan: [{ id: 'home', label: 'Home' }, { id: 'teams', label: 'Departments' }, { id: 'payday', label: 'Payday' }, { id: 'activity', label: 'Activity' }],
   mateo: [{ id: 'home', label: 'Home' }, { id: 'invoices', label: 'Invoices' }, { id: 'activity', label: 'Activity' }],
 }
 
@@ -232,33 +232,29 @@ function RoleFrame({ s, viewer, active, setActive, profileOpen, setProfileOpen, 
 
 function TaskSheet({ task, ctx, viewer, close }: { task: Task; ctx: Ctx; viewer: Viewer; close: () => void }) {
   const { s, busy, run, toast } = ctx
-  const sam = s.people.find((p) => p.id === 'sam')
-  const ava = s.people.find((p) => p.id === 'ava')
-  const mateo = s.people.find((p) => p.id === 'mateo')
+  const me = s.people.find((p) => p.id === viewer)
   const title: Record<Task, string> = {
-    pay: 'Pay from team card',
-    invest: 'Invest pay',
-    rules: 'Team rules',
+    pay: 'Pay with your card',
+    invest: 'Invest',
+    rules: 'Card rules',
     payday: 'Review payday',
     invoice: 'Send invoice',
-    team: 'Update team',
-    person: 'Invite person',
-    vendor: 'Add vendor',
-    perk: 'Add perk',
+    invite: 'Invite someone',
+    topup: 'Ask Finance for more',
+    howto: 'How Teampot works',
   }
   return (
     <div className="sheet" role="dialog" aria-modal="true" aria-label={title[task]}>
       <div className="sheet-card task-card">
         <div className="sheet-head"><span /><h2>{title[task]}</h2><button className="plain" onClick={close}>Done</button></div>
-        {task === 'pay' && sam && <Wallet s={s} me={viewer === 'ava' && ava ? ava : sam} busy={busy} run={run} toast={toast} onDone={close} />}
-        {task === 'invest' && sam && <InvestCard s={s} me={sam} inv={s.investments.find((x) => x.personId === sam.id)} busy={busy} run={run} toast={toast} />}
-        {task === 'rules' && <AdminTools s={s} busy={busy} run={run} toast={toast} mode="pots" />}
+        {task === 'pay' && me && <Wallet s={s} me={me} busy={busy} run={run} toast={toast} onDone={close} />}
+        {task === 'invest' && me && <InvestCard s={s} me={me} inv={s.investments.find((x) => x.personId === me.id)} busy={busy} run={run} toast={toast} />}
+        {task === 'rules' && me?.team && <CardRules s={s} potId={me.team} busy={busy} run={run} toast={toast} onDone={close} />}
         {task === 'payday' && <PaydayTask s={s} busy={busy} run={run} toast={toast} />}
-        {task === 'invoice' && mateo && <InvoiceComposer s={s} busy={busy} run={run} toast={toast} me={mateo} />}
-        {task === 'team' && <AdminTools s={s} busy={busy} run={run} toast={toast} mode="pots" />}
-        {task === 'person' && <AdminTools s={s} busy={busy} run={run} toast={toast} mode="people" />}
-        {task === 'vendor' && <AdminTools s={s} busy={busy} run={run} toast={toast} mode="pots" />}
-        {task === 'perk' && <AdminTools s={s} busy={busy} run={run} toast={toast} mode="pots" />}
+        {task === 'invoice' && me && <InvoiceComposer s={s} busy={busy} run={run} toast={toast} me={me} />}
+        {task === 'invite' && <InvitePerson s={s} busy={busy} run={run} toast={toast} />}
+        {task === 'topup' && me?.team && <TopUpRequest s={s} potId={me.team} busy={busy} run={run} toast={toast} onDone={close} />}
+        {task === 'howto' && <HowItWorks s={s} viewer={viewer} />}
       </div>
     </div>
   )
@@ -279,85 +275,99 @@ function tabIcon(id: string) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{paths[id] ?? paths.home}</svg>
 }
 
-function Finance({ s, busy, run, toast, openReceipt, active, setTask }: Ctx & { active: string; setTask: (task: Task) => void }) {
-  const staff = s.people.filter((p) => p.salary)
-  const payroll = staff.reduce((a, p) => a + (p.salary || 0), 0)
-  const waiting = s.held.filter((h) => h.status === 'held')
+function Finance({ s, busy, run, toast, openReceipt, active, setTask, setActive }: Ctx & { active: string; setTask: (task: Task) => void; setActive: (id: string) => void }) {
+  const waiting = s.held.filter((h) => h.status === 'held' && h.reason === 'finance-rule')
+  const topups = s.topups.filter((t) => t.status === 'requested')
   const openInv = s.invoices.filter((i) => i.status === 'submitted')
   const lastPayday = s.paydayRuns[0]
-  if (active === 'payday') return <div className="surface two-col"><PaydayTask s={s} busy={busy} run={run} toast={toast} /><section className="panel"><SectionTitle title="Payday history" sub="Every line lands from one review." /><ul className="rows">{s.paydayRuns.length ? s.paydayRuns.map((p) => <li key={p.id}><FillMark ratio={1} small /><span className="grow"><b>{p.date}</b><small>{plural(p.count, 'person', 'people')} · landed in {(p.ms / 1000).toFixed(1)}s</small></span><span className="num">{money(p.total)}</span></li>) : <li><Empty text="No payday run yet. Review payday to make the first one." /></li>}</ul></section></div>
-  if (active === 'teams') return <div className="surface two-col"><section className="panel"><SectionTitle title="Teams" sub="Departments get budgets; heads manage spend." action={<button className="btn small primary" onClick={() => setTask('team')}>Edit rules</button>} /><div className="pots single">{s.pots.map((pt) => <PotCard key={pt.id} s={s} potId={pt.id} />)}</div></section><section className="panel"><SectionTitle title="People" sub="Invite teammates and refresh access." action={<button className="btn small ghost" onClick={() => setTask('person')}>Invite</button>} /><Directory s={s} busy={busy} run={run} toast={toast} /></section></div>
-  if (active === 'activity') return <div className="surface"><section className="panel"><SectionTitle title="Activity" sub="Receipts, approvals, invoices and payday in one list." action={<a className="btn small ghost" href={api.activityCsv()}>Export CSV</a>} /><Feed s={s} openReceipt={openReceipt} /></section></div>
-
+  const depts = s.controls.departments
+  if (active === 'payday') return <div className="surface two-col"><PaydayTask s={s} busy={busy} run={run} toast={toast} /><section className="panel"><SectionTitle title="Payday history" sub="One payment from the treasury pays everyone, each line with a note." /><ul className="rows">{s.paydayRuns.length ? s.paydayRuns.map((p) => <li key={p.id}><span className="grow"><b>{p.date}</b><small>{plural(p.count, 'person', 'people')} · landed in {(p.ms / 1000).toFixed(1)}s</small></span><span className="num">{money(p.total)}</span><a className="rec" href={`https://explore.testnet.tempo.xyz/tx/${p.tx}`} target="_blank" rel="noreferrer">Record</a></li>) : <li><Empty text="No payday yet." /></li>}</ul></section></div>
+  if (active === 'teams') return (
+    <div className="surface">
+      <PageIntro title="Departments" text="Each department has its own account on Tempo. You decide how much goes in and who holds the head key. The head runs everything inside it." action={<button className="btn small ghost" onClick={() => setTask('howto')}>How it works</button>} />
+      {depts.map((d) => <DepartmentCard key={d.id} s={s} d={d} mode="finance" busy={busy} run={run} toast={toast} />)}
+      <section className="panel"><SectionTitle title="People" sub="Finance sets salaries and appoints heads." action={<button className="btn small primary" onClick={() => setTask('invite')}>Invite</button>} /><Directory s={s} busy={busy} run={run} toast={toast} /></section>
+      <CompanyRules s={s} busy={busy} run={run} toast={toast} />
+    </div>
+  )
+  if (active === 'activity') return <div className="surface"><section className="panel"><SectionTitle title="Activity" sub="Every payment, approval and key change, with its public record." action={<a className="btn small ghost" href={api.activityCsv()}>Export CSV</a>} /><Feed s={s} openReceipt={openReceipt} /></section></div>
+  const needs = waiting.length + topups.length + openInv.length
   return (
-    <div className="surface finance-home">
-      <DismissibleTip id="tip-finance" text="You fund each department once. Its lead runs the spending inside the limits you set." cta="See teams" onCta={() => setTask('team')} />
+    <div className="surface">
       <section className="balance-hero dark">
-        <span>Company balance</span>
+        <span>Company treasury</span>
         <b>{money(s.company.balance, true)}</b>
-        <em>{lastPayday ? `Last payday ${ago(lastPayday.at)}` : `Next payday ${s.nextPayday}`}</em>
-        <button className="btn primary clay" onClick={() => setTask('payday')}>Review payday</button>
+        <em>{lastPayday ? `Last payday ${ago(lastPayday.at)} · next ${s.nextPayday}` : `Next payday ${s.nextPayday}`}</em>
+        <div className="hero-buttons"><button className="btn primary clay" onClick={() => setTask('payday')}>Review payday</button><a className="btn on-dark" href={s.controls.treasury.link} target="_blank" rel="noreferrer">Public record</a></div>
       </section>
-      <div className="bento-grid">
-        <section className="panel map-panel"><SectionTitle title="Company map" sub="Finance funds departments. Each team spends inside its own frame." /><OrgMap s={s} /></section>
-        <section className="panel"><SectionTitle title="Waiting" sub="Money that needs a decision." /><KpiStack items={[['Approvals', String(waiting.length)], ['Invoices', String(openInv.length)], ['Payroll', money(payroll)]]} /></section>
-      </div>
-      <section className="panel"><SectionTitle title="Departments" sub="Fill shows how much of each department frame remains." /><div className="pots">{s.pots.map((pt) => <PotCard key={pt.id} s={s} potId={pt.id} />)}</div></section>
+      <AuthorityCard s={s} viewer="jordan" setTask={setTask} />
+      <section className="panel">
+        <SectionTitle title={needs ? 'Needs you' : 'Nothing needs you'} sub={needs ? 'Only decisions a head can’t make.' : 'Heads handle their own requests. Big payments and top-ups come here.'} />
+        {topups.length > 0 && <TopUps s={s} items={topups} busy={busy} run={run} toast={toast} />}
+        {waiting.length > 0 && <Approvals s={s} items={waiting} busy={busy} run={run} toast={toast} approverId="jordan" />}
+        {openInv.length > 0 && <Invoices s={s} busy={busy} run={run} toast={toast} items={openInv} canPay />}
+      </section>
+      <section className="panel">
+        <SectionTitle title="Departments" sub="Balance on Tempo, who holds the head key, and how many cards they issued." action={<button className="btn small ghost" onClick={() => setActive('teams')}>Manage</button>} />
+        <ul className="rows dept-rows">{depts.map((d) => <li key={d.id}><span className="dept-dot" style={{ background: d.color }} /><span className="grow"><b>{d.team}</b><small>{d.head ? `${d.head.name.split(' ')[0]} holds the head key` : 'No head yet · Finance runs it'} · {plural(d.cards.length, 'card', 'cards')}</small></span><span className="num">{money(d.balance ?? 0)}</span></li>)}</ul>
+      </section>
     </div>
   )
 }
 
 function Lead({ s, busy, run, toast, openReceipt, me, active, setTask }: Ctx & { me: Person; active: string; setTask: (task: Task) => void }) {
-  // A lead never approves their own request; those go to Finance.
-  const waiting = s.held.filter((h) => h.status === 'held' && h.potId === me.team && h.personId !== me.id)
-  const pot = s.pots.find((p) => p.id === me.team)!
-  if (active === 'approvals') return <div className="surface"><section className="panel"><SectionTitle title="Approvals" sub={waiting.length ? "Open the request, then approve, add the vendor, or return it." : "If a section is empty, there's nothing to unblock right now."} /><Approvals s={s} items={waiting} busy={busy} run={run} toast={toast} approverId={me.id} /></section></div>
-  if (active === 'team') return <div className="surface two-col"><section className="panel"><SectionTitle title="Team card" sub="Money your team gave each person to spend on approved vendors." action={<button className="btn small primary" onClick={() => setTask('rules')}>Edit rules</button>} /><PotCard s={s} potId={me.team!} big /></section><section className="panel"><SectionTitle title="Rules" sub="Limits and vendors for the Design team." /><AdminTools s={s} busy={busy} run={run} toast={toast} mode="pots" /></section></div>
-  if (active === 'activity') return <div className="surface"><section className="panel"><SectionTitle title="Team activity" sub="Design spend, approvals and returned requests." action={<a className="btn small ghost" href={api.activityCsv()}>Export CSV</a>} /><Feed s={s} filter={(a) => a.potId === me.team} openReceipt={openReceipt} /></section></div>
+  // A head never approves their own request; those go to Finance.
+  const waiting = s.held.filter((h) => h.status === 'held' && h.potId === me.team && h.personId !== me.id && h.reason !== 'finance-rule')
+  const invoices = s.invoices.filter((i) => i.status === 'submitted')
+  const dept = s.controls.departments.find((d) => d.id === me.team)
+  const myTopups = s.topups.filter((t) => t.potId === me.team).slice(0, 3)
+  if (active === 'approvals') return <div className="surface"><section className="panel"><SectionTitle title="Approvals" sub="Approving pays from the department with your head key. Over the Finance limit goes to Finance." /><Approvals s={s} items={waiting} busy={busy} run={run} toast={toast} approverId={me.id} /></section><section className="panel"><SectionTitle title="Contractor invoices" sub={`Paid from ${dept?.team ?? 'your department'} with your head key.`} /><Invoices s={s} busy={busy} run={run} toast={toast} items={s.invoices} canPay /></section></div>
+  if (active === 'team') return (
+    <div className="surface">
+      <PageIntro title={dept?.team ?? 'Team'} text="Every card below was signed by your head key. Change the rules and Teampot re-issues them; Tempo enforces the new limits right away." action={<button className="btn small primary" onClick={() => setTask('rules')}>Edit rules</button>} />
+      {dept && <DepartmentCard s={s} d={dept} mode="head" busy={busy} run={run} toast={toast} />}
+      <section className="panel"><SectionTitle title="Budget" sub="Finance decides how much is in the department. Ask when you need more." action={<button className="btn small ghost" onClick={() => setTask('topup')}>Ask for more</button>} />{myTopups.length ? <ul className="rows">{myTopups.map((t) => <li key={t.id}><span className="grow"><b>{money(t.amount)} · {t.note}</b><small>{t.status === 'requested' ? 'Waiting for Finance' : t.status === 'funded' ? 'Funded by Finance' : 'Declined'} · {ago(t.at)}</small></span></li>)}</ul> : <Empty text="No requests yet." />}</section>
+      <section className="panel"><SectionTitle title="People" sub="Add employees and contractors to your team. Finance sets salaries." action={<button className="btn small ghost" onClick={() => setTask('invite')}>Invite</button>} /><Directory s={s} busy={busy} run={run} toast={toast} /></section>
+    </div>
+  )
+  if (active === 'activity') return <div className="surface"><section className="panel"><SectionTitle title="Team activity" sub="Spend, approvals and card changes in your department." action={<a className="btn small ghost" href={api.activityCsv()}>Export CSV</a>} /><Feed s={s} filter={(a) => a.potId === me.team} openReceipt={openReceipt} /></section></div>
   return (
     <div className="surface">
-      <DismissibleTip id="tip-ava" text={waiting.length ? "Sam's request is waiting. Approve it, or approve and add the vendor so it goes through next time." : 'Your team is clear. Tune limits or vendors from Team.'} cta={waiting.length ? 'Review' : 'Team'} onCta={() => setTask(waiting.length ? 'rules' : 'team')} />
-      <section className={`balance-hero ${waiting.length ? 'warm' : ''}`}>
-        <span>{waiting.length ? 'Needs your OK' : 'Approvals'}</span>
-        <b>{waiting.length ? `${waiting.length} request${waiting.length === 1 ? '' : 's'}` : 'All clear'}</b>
-        <em>{waiting.length ? 'Design money waits until you decide.' : 'New requests will appear here with the reason.'}</em>
+      <section className={`balance-hero ${waiting.length ? 'warm' : 'dark'}`}>
+        <span>{dept?.team} department</span>
+        <b>{money(dept?.balance ?? 0, true)}</b>
+        <em>{waiting.length ? `${plural(waiting.length, 'request', 'requests')} waiting for you` : 'Nothing waiting. Your cards are doing the work.'}</em>
+        <div className="hero-buttons">{waiting.length ? <button className="btn primary clay" onClick={() => document.getElementById('lead-approvals')?.scrollIntoView({ behavior: 'smooth' })}>Review</button> : <button className="btn primary clay" onClick={() => setTask('rules')}>Edit rules</button>}{dept && <a className="btn on-dark" href={dept.link} target="_blank" rel="noreferrer">Public record</a>}</div>
       </section>
-      <div className="bento-grid">
-        <section className="panel"><SectionTitle title="Team budget" sub={`${pot.team}: each person sees only their spend room.`} /><PotCard s={s} potId={me.team!} big /></section>
-        <section className="panel"><SectionTitle title="Rules" sub="Approved vendors and limits." action={<button className="btn small ghost" onClick={() => setTask('rules')}>Open</button>} /><RuleSummary pot={pot} /></section>
-      </div>
-      <section className="panel"><SectionTitle title="Recent" sub="Team activity that changed money or approvals." /><Feed s={s} filter={(a) => a.potId === me.team} compact openReceipt={openReceipt} /></section>
+      <AuthorityCard s={s} viewer="ava" setTask={setTask} />
+      <section className="panel" id="lead-approvals"><SectionTitle title="Waiting for you" sub="Approve pays from the department with your head key. Approve + add also puts the vendor on everyone's card." /><Approvals s={s} items={waiting} busy={busy} run={run} toast={toast} approverId={me.id} /></section>
+      {invoices.length > 0 && <section className="panel"><SectionTitle title="Invoices" sub="Contractors on your team." /><Invoices s={s} busy={busy} run={run} toast={toast} items={invoices} canPay /></section>}
+      <section className="panel"><SectionTitle title="Recent" sub="What changed in your department." /><Feed s={s} filter={(a) => a.potId === me.team} compact openReceipt={openReceipt} /></section>
     </div>
   )
 }
 
 function Employee({ s, busy, run, toast, openReceipt, me, active, setTask }: Ctx & { me: Person; active: string; setTask: (task: Task) => void }) {
-  if (active === 'spend') return <div className="surface"><Wallet s={s} me={me} busy={busy} run={run} toast={toast} /><PerkCards s={s} me={me} busy={busy} run={run} toast={toast} /></div>
+  if (active === 'spend') return <div className="surface"><MyCards s={s} me={me} /><Wallet s={s} me={me} busy={busy} run={run} toast={toast} /><PerkCards s={s} me={me} busy={busy} run={run} toast={toast} /></div>
   if (active === 'invest') return <div className="surface"><InvestCard s={s} me={me} inv={s.investments.find((x) => x.personId === me.id)} busy={busy} run={run} toast={toast} /><EarnCard s={s} me={me} entry={s.earnEntries.find((e) => e.personId === me.id)} busy={busy} run={run} toast={toast} /></div>
-  if (active === 'activity') return <div className="surface"><section className="panel"><SectionTitle title="Activity" sub="Your pay, team spend and receipts." /><Feed s={s} filter={(a) => a.who === me.id || a.kind === 'payday'} openReceipt={openReceipt} /></section></div>
-  return (
-    <div className="surface">
-      <DismissibleTip id="tip-sam" text="Try paying PixelVault Stock. It's not on your team's list, so it'll wait for Ava." cta="Try it" onCta={() => setTask('pay')} />
-      <MoneyHome s={s} me={me} openReceipt={openReceipt} setTask={setTask} />
-    </div>
-  )
+  if (active === 'activity') return <div className="surface"><section className="panel"><SectionTitle title="Activity" sub="Your pay, your card and your receipts." /><Feed s={s} filter={(a) => a.who === me.id || a.kind === 'payday'} openReceipt={openReceipt} /></section></div>
+  return <div className="surface"><MoneyHome s={s} me={me} openReceipt={openReceipt} setTask={setTask} /></div>
 }
 
 function Contractor({ s, busy, run, toast, me, active, setTask }: Ctx & { me: Person; active: string; setTask: (task: Task) => void }) {
   const mine = s.invoices.filter((i) => i.contractorId === me.id)
-  if (active === 'invoices') return <div className="surface"><section className="panel"><SectionTitle title="Invoices" sub="Submitted, paid and declined work." action={<button className="btn small primary" onClick={() => setTask('invoice')}>Send invoice</button>} /><Invoices s={s} busy={busy} run={run} toast={toast} items={mine} /></section></div>
-  if (active === 'activity') return <div className="surface"><section className="panel"><SectionTitle title="Activity" sub="Invoice status and payment records." /><Invoices s={s} busy={busy} run={run} toast={toast} items={mine} /></section></div>
+  if (active === 'invoices' || active === 'activity') return <div className="surface"><section className="panel"><SectionTitle title="Invoices" sub="Submitted, paid and declined work." action={<button className="btn small primary" onClick={() => setTask('invoice')}>Send invoice</button>} /><Invoices s={s} busy={busy} run={run} toast={toast} items={mine} /></section></div>
   const paid = mine.filter((i) => i.status === 'paid').reduce((a, i) => a + i.amount, 0)
   return (
     <div className="surface">
-      <DismissibleTip id="tip-mateo" text="Send an invoice from here. Finance can approve and pay it in seconds." cta="Send" onCta={() => setTask('invoice')} />
       <section className="balance-hero dark">
         <span>Paid to you</span>
         <b>{money(paid, true)}</b>
-        <em>{mine.length ? `${mine.length} invoice${mine.length === 1 ? '' : 's'} in the demo` : 'No invoices yet.'}</em>
-        <button className="btn primary clay" onClick={() => setTask('invoice')}>Send an invoice</button>
+        <em>{mine.length ? `${plural(mine.length, 'invoice', 'invoices')}` : 'No invoices yet.'}</em>
+        <div className="hero-buttons"><button className="btn primary clay" onClick={() => setTask('invoice')}>Send an invoice</button></div>
       </section>
-      <section className="panel"><SectionTitle title="Invoices" sub="Submitted work waits for Finance." /><Invoices s={s} busy={busy} run={run} toast={toast} items={mine} /></section>
+      <AuthorityCard s={s} viewer="mateo" setTask={setTask} />
+      <section className="panel"><SectionTitle title="Invoices" sub="Your team's head or Finance pays them." /><Invoices s={s} busy={busy} run={run} toast={toast} items={mine} /></section>
     </div>
   )
 }
@@ -371,50 +381,136 @@ function MoneyHome({ s, me, openReceipt, setTask }: Pick<Ctx, 's' | 'openReceipt
   const total = me.balance + invested + earning
   const cost = inv?.positions.reduce((a, p) => a + p.value - p.gain, 0) ?? 0
   const gain = cost > 0 ? ((invested - cost) / cost) * 100 : null
-  const pot = s.pots.find((p) => p.id === me.team)
-  const left = me.pot?.left ?? 0
   return (
     <div className="money-home surface-stack">
       <section className="wallet-hero">
-        <div className="wallet-topline"><span>Total balance</span>{gain !== null && <em className={gain >= 0 ? 'gain' : 'loss'}>{gain >= 0 ? '+' : ''}{gain.toFixed(1)}% invested</em>}</div>
+        <div className="wallet-topline"><span>Your money</span>{gain !== null && <em className={gain >= 0 ? 'gain' : 'loss'}>{gain >= 0 ? '+' : ''}{gain.toFixed(1)}% invested</em>}</div>
         <b><MoneyParts value={total} /></b>
-        <small>{pay ? `Last payday ${ago(pay.at)}` : `Next payday ${s.nextPayday}`}</small>
-        <div className="hero-actions-wallet">
-          <button className="pill-action" onClick={() => setTask('pay')}>Pay</button>
-          <button className="face-orb" aria-label="Pay with Face ID" onClick={() => setTask('pay')}><FaceIcon /></button>
-          <button className="pill-action" onClick={() => setTask('invest')}>Invest</button>
-        </div>
+        <small>{pay ? `Last payday ${ago(pay.at)}` : `Next payday ${s.nextPayday}`} · {money(me.balance)} cash{invested ? ` · ${money(invested)} invested` : ''}</small>
+        <div className="hero-buttons"><button className="btn primary" onClick={() => setTask('pay')}>Pay</button><button className="btn ghost" onClick={() => setTask('invest')}>Invest</button></div>
       </section>
-      <div className="bento-grid">
-        <section className="panel team-tile"><SectionTitle title="Your team card" sub="Money your team gave you to spend on approved vendors." />{pot && <><b>{money(Math.round(left))} <span>left in {pot.team}</span></b><Bar used={(me.pot?.cap ?? 0) - left} cap={me.pot?.cap ?? 0} color={pot.color} /></>}</section>
-        <section className="panel pay-tile"><SectionTitle title="Your pay" sub="Cash, earning and investments." /><KpiStack items={[['Cash', money(me.balance)], ['Earning', money(earning)], ['Invested', money(invested)]]} /></section>
-      </div>
+      <MyCards s={s} me={me} onHowto={() => setTask('howto')} />
       <section className="panel"><SectionTitle title="Recent" sub="Payday and money movement, newest first." /><Feed s={s} filter={(a) => a.who === me.id || a.kind === 'payday'} compact openReceipt={openReceipt} /></section>
     </div>
   )
 }
 
-function SectionTitle({ title, sub, action }: { title: string; sub?: string; action?: ReactNode }) {
-  return <div className="section-title"><div><h2>{title}</h2>{sub && <p>{sub}</p>}</div>{action}</div>
-}
-
-function DismissibleTip({ id, text, cta, onCta }: { id: string; text: string; cta: string; onCta: () => void }) {
-  const [hidden, setHidden] = useState(() => {
-    try { return localStorage.getItem(id) === '1' } catch { return false }
-  })
-  if (hidden) return null
+/** The person's cards exactly as Tempo holds them: who signed them, the limit, the vendors. */
+function MyCards({ s, me, onHowto }: { s: State; me: Person; onHowto?: () => void }) {
+  const dept = s.controls.departments.find((d) => d.id === me.team)
+  const cards = dept?.cards.filter((c) => c.personId === me.id) ?? []
+  if (!dept || !cards.length) return null
   return (
-    <section className="tip-card">
-      <FillMark ratio={0.55} small />
-      <p>{text}</p>
-      <button className="btn small primary" onClick={onCta}>{cta}</button>
-      <button className="close-tip" aria-label="Dismiss tip" onClick={() => { setHidden(true); try { localStorage.setItem(id, '1') } catch { /* private mode */ } }}><svg viewBox="0 0 24 24" aria-hidden><path d="M7 7l10 10M17 7 7 17" /></svg></button>
+    <section className="panel">
+      <SectionTitle title="Your cards" sub={`Signed by ${dept.head ? dept.head.name.split(' ')[0] : 'Finance'} on the ${dept.team} account. Tempo blocks anything over the limit or to a vendor not on the list.`} action={onHowto && <button className="btn small ghost" onClick={onHowto}>How it works</button>} />
+      <ul className="card-list">{cards.map((c) => (
+        <li key={c.id}>
+          <div className="card-chip" style={{ ['--pot' as any]: dept.color }}><span>{c.label}</span><b>{c.left !== null ? money(Math.round(c.left)) : '—'}</b><small>left of {money(c.cap)} a {c.period}</small></div>
+          <div className="card-meta"><span>{c.vendors.join(' · ')}</span><small>Issued by {c.issuedBy}{c.device ? ' · Face ID on this phone' : ''}</small>{c.receipt && <a className="rec" href={c.receipt} target="_blank" rel="noreferrer">Record</a>}</div>
+        </li>
+      ))}</ul>
     </section>
   )
 }
 
-function KpiStack({ items }: { items: [string, string][] }) {
-  return <div className="kpi-stack">{items.map(([label, value]) => <div key={label}><small>{label}</small><b>{value}</b></div>)}</div>
+function PageIntro({ title, text, action }: { title: string; text: string; action?: ReactNode }) {
+  return <section className="page-intro"><div><h1>{title}</h1><p>{text}</p></div>{action}</section>
+}
+
+/** One line telling each person what they control and who gave it to them. */
+function AuthorityCard({ s, viewer, setTask }: { s: State; viewer: Viewer; setTask: (task: Task) => void }) {
+  const depts = s.controls.departments
+  const me = s.people.find((p) => p.id === viewer)
+  const dept = depts.find((d) => d.id === me?.team)
+  const limit = money(s.company.financeApprovalThreshold)
+  const copy: Record<Viewer, { title: string; text: string; link?: string }> = {
+    jordan: { title: 'You hold the treasury', text: `${plural(depts.length, 'department', 'departments')}, ${depts.filter((d) => d.head).length} with a head. A head can spend only what you put in their department, and you can take their key back at any time.`, link: s.controls.treasury.link },
+    ava: { title: `You hold the ${dept?.team ?? ''} head key`, text: `Finance gave it to you on the ${dept?.team ?? ''} account. Use it to issue cards, approve requests and pay contractors. Anything over ${limit} goes to Finance.`, link: dept?.head?.receipt },
+    sam: { title: `Your ${dept?.team ?? ''} card`, text: `${dept ? money(dept.perPersonCap) : ''} a month at ${dept?.vendors.length ?? 0} approved vendors, issued by ${dept?.head?.name.split(' ')[0] ?? 'Finance'}. Anything else waits for an OK.`, link: dept?.cards.find((c) => c.personId === viewer)?.receipt },
+    mateo: { title: `Paid by ${dept?.team ?? 'Finance'}`, text: `Your invoices are paid from the ${dept?.team ?? 'company'} account by its head or by Finance, usually in seconds.` },
+  }
+  const c = copy[viewer]
+  return (
+    <section className="authority">
+      <span className="authority-icon" aria-hidden><KeyIcon /></span>
+      <div className="grow"><b>{c.title}</b><p>{c.text}</p></div>
+      <div className="authority-links"><button className="plain" onClick={() => setTask('howto')}>How it works</button>{c.link && <a href={c.link} target="_blank" rel="noreferrer">Record</a>}</div>
+    </section>
+  )
+}
+
+function HowItWorks({ s, viewer }: { s: State; viewer: Viewer }) {
+  const limit = money(s.company.financeApprovalThreshold)
+  const levels: { id: Viewer | 'dept'; title: string; text: string }[] = [
+    { id: 'jordan', title: 'Company treasury', text: 'Finance holds it. It funds departments and pays everyone on payday in one payment.' },
+    { id: 'dept', title: 'Department account', text: 'Every department has its own account. Its balance is its budget. Finance can add money or pull it back.' },
+    { id: 'ava', title: 'Head key', text: 'Finance gives the head a key on the department account. The head issues cards, approves requests and pays contractors, never more than the department holds.' },
+    { id: 'sam', title: 'Cards', text: 'The head signs each card with a monthly limit and a list of approved vendors. People pay from their phone.' },
+  ]
+  return (
+    <div className="howto">
+      <p className="lede">Each level gets its own key on Tempo, and each key can only do what the level above allowed. Tempo rejects everything else, so the rules hold even if Teampot is down.</p>
+      <ol className="ladder">{levels.map((l) => <li key={l.id} className={l.id === viewer ? 'you' : ''}><b>{l.title}{l.id === viewer && <em>You</em>}</b><span>{l.text}</span></li>)}</ol>
+      <div className="enforced">
+        <div><h3>Tempo enforces</h3><ul><li>Monthly limit on every card</li><li>Approved vendors only</li><li>Only a head key can issue cards</li><li>A revoked key stops working at once</li></ul></div>
+        <div><h3>Teampot enforces</h3><ul><li>Payments over {limit} need Finance</li><li>No approving your own request</li><li>Who can see whose pay</li></ul></div>
+      </div>
+      <p className="muted small">Demo note: department roots and demo keys are held by the Teampot server. People who join by invite use Face ID on their own phone, so their card never leaves the device.</p>
+      <a className="btn ghost" href={s.controls.treasury.link} target="_blank" rel="noreferrer">See the company account on Tempo</a>
+    </div>
+  )
+}
+
+function DepartmentCard({ s, d, mode, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { d: State['controls']['departments'][number]; mode: 'finance' | 'head' }) {
+  const [amount, setAmount] = useState('500')
+  const team = s.people.filter((p) => p.team === d.id && p.role !== 'contractor')
+  const [nextHead, setNextHead] = useState(d.head?.personId ?? team[0]?.id ?? '')
+  return (
+    <section className="panel dept-card" style={{ ['--pot' as any]: d.color }}>
+      <header className="dept-top">
+        <div><h2>{d.team}</h2><a href={d.link} target="_blank" rel="noreferrer">Department account on Tempo</a></div>
+        <div className="dept-bal"><small>Balance</small><b>{money(d.balance ?? 0)}</b></div>
+      </header>
+      <div className="dept-level">
+        <small className="level-label">Head key</small>
+        {d.head
+          ? <div className="level-row"><Avatar name={d.head.name} /><span className="grow"><b>{d.head.name}</b><small>Admin key from Finance{d.head.since ? ` · ${ago(d.head.since)}` : ''} · can issue cards, approve and pay</small></span>{d.head.receipt && <a className="rec" href={d.head.receipt} target="_blank" rel="noreferrer">Record</a>}</div>
+          : <div className="level-row"><span className="grow"><b>No head yet</b><small>Finance runs this department directly.</small></span></div>}
+        {mode === 'finance' && team.length > 0 && (
+          <div className="inline-form">
+            <select aria-label={`Head of ${d.team}`} value={nextHead} onChange={(e) => setNextHead(e.target.value)}>{team.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+            <button className="btn small ghost" disabled={!!busy || !nextHead || nextHead === d.head?.personId} onClick={() => run('head' + d.id, () => api.appointHead(d.id, nextHead), (r: any) => toast({ text: `${s.people.find((p) => p.id === nextHead)?.name.split(' ')[0]} now holds the ${d.team} head key`, tone: 'good', receipt: r.receipt }))}>{busy === 'head' + d.id ? 'Signing…' : d.head ? 'Hand over key' : 'Make head'}</button>
+          </div>
+        )}
+      </div>
+      <div className="dept-level">
+        <small className="level-label">Cards · {money(d.perPersonCap)} a month each at {d.vendors.length} vendors</small>
+        {d.cards.length ? <ul className="rows">{d.cards.map((c) => <li key={c.id}><Avatar name={c.name} small /><span className="grow"><b>{c.name.split(' ')[0]} · {c.label}</b><small>{money(c.cap)}/{c.period} · issued by {c.issuedBy}{c.device ? ' · Face ID' : ''}</small></span><span className="num small">{c.left !== null ? `${money(Math.round(c.left))} left` : ''}</span>{c.receipt && <a className="rec" href={c.receipt} target="_blank" rel="noreferrer">Record</a>}</li>)}</ul> : <Empty text="No cards yet." />}
+      </div>
+      {mode === 'finance' && (
+        <div className="dept-level">
+          <small className="level-label">Budget · moves real money between the treasury and this account</small>
+          <div className="inline-form">
+            <div className="money-in"><span>$</span><input aria-label={`Amount for ${d.team}`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div>
+            <button className="btn small primary" disabled={!!busy || !Number(amount)} onClick={() => run('fund' + d.id, () => api.fundPot(d.id, Number(amount)), (r: any) => toast({ text: `${money(Number(amount))} sent to ${d.team}`, tone: 'good', receipt: r.receipt }))}>Add money</button>
+            <button className="btn small ghost" disabled={!!busy || !Number(amount)} onClick={() => run('return' + d.id, () => api.returnPot(d.id, Number(amount)), (r: any) => toast({ text: `${money(Number(amount))} back from ${d.team}`, tone: 'good', receipt: r.receipt }))}>Pull back</button>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function TopUps({ s, items, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { items: State['topups'] }) {
+  return <ul className="rows">{items.map((t) => {
+    const dept = s.pots.find((p) => p.id === t.potId)
+    const who = s.people.find((p) => p.id === t.requestedBy)
+    return <li key={t.id}><span className="grow"><b>{dept?.team} wants {money(t.amount)} more</b><small>{who?.name.split(' ')[0]} · {t.note} · {ago(t.at)}</small></span><button className="btn small ghost" disabled={!!busy} onClick={() => run('t' + t.id, () => api.decideTopup(t.id, 'decline'), () => toast({ text: 'Top-up declined', tone: 'good' }))}>Decline</button><button className="btn small primary" disabled={!!busy} onClick={() => run('t' + t.id, () => api.decideTopup(t.id, 'fund'), (r: any) => toast({ text: `${dept?.team} funded ${money(t.amount)}`, tone: 'good', receipt: r.tx ? `https://explore.testnet.tempo.xyz/tx/${r.tx}` : undefined }))}>Fund</button></li>
+  })}</ul>
+}
+
+function SectionTitle({ title, sub, action }: { title: string; sub?: string; action?: ReactNode }) {
+  return <div className="section-title"><div><h2>{title}</h2>{sub && <p>{sub}</p>}</div>{action}</div>
 }
 
 function MoneyParts({ value }: { value: number }) {
@@ -423,11 +519,7 @@ function MoneyParts({ value }: { value: number }) {
 }
 
 function Directory({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'>) {
-  return <ul className="rows">{s.people.filter((p) => p.role !== 'contractor').map((p) => <li key={p.id}><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title} · {p.team || 'Finance'}</small></span>{p.salary && <span className="num">{money(p.salary)}</span>}{p.role !== 'admin' && <button className="btn small ghost" disabled={!!busy} onClick={() => run('remove' + p.id, () => api.removePerson(p.id), () => toast({ text: `${p.name.split(' ')[0]} removed`, tone: 'good' }))}>Remove</button>}</li>)}</ul>
-}
-
-function RuleSummary({ pot }: { pot: State['pots'][number] }) {
-  return <div className="rule-summary"><div><small>Member limit</small><b>{money(pot.perPersonCap)}</b></div><div><small>Budget</small><b>{money(pot.budget)}</b></div><div><small>Approved vendors</small><b>{pot.vendors.length}</b></div><div className="vendors">{pot.vendors.map((v) => <span key={v} className="chip">{v}</span>)}</div></div>
+  return <ul className="rows">{s.people.filter((p) => p.role !== 'contractor').map((p) => <li key={p.id}><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title} · {p.team || 'Finance'}</small></span>{p.salary && <span className="num">{money(p.salary)}</span>}{p.role !== 'admin' && p.id !== s.auth?.personId && (s.auth?.role === 'admin' || p.role !== 'lead') && <button className="btn small ghost" disabled={!!busy} onClick={() => run('remove' + p.id, () => api.removePerson(p.id), () => toast({ text: `${p.name.split(' ')[0]} removed`, tone: 'good' }))}>Remove</button>}</li>)}</ul>
 }
 
 function PaydayTask({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'>) {
@@ -461,17 +553,6 @@ function InvoiceComposer({ busy, run, toast, me }: Pick<Ctx, 's' | 'busy' | 'run
       <label>Amount<div className="money-in"><span>$</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} required /></div></label>
       <button className="btn primary" disabled={!!busy || !Number(amount)}>{busy === 'inv' ? 'Sending...' : `Send invoice · ${money(Number(amount) || 0)}`}</button>
     </form>
-  )
-}
-
-function KeepCard({ s, me, pay }: { s: State; me: Person; pay?: State['paydayRuns'][number] }) {
-  return (
-    <section className="card flat keep-card">
-      <div className="card-h"><h3>Keep</h3><span className="pill">Cash</span></div>
-      <b className="big-money">{money(me.balance)}</b>
-      <p className="muted">{pay ? `${money(me.salary || 0)} gross landed in ${(pay.ms / 1000).toFixed(1)}s.` : `Next payday is ${s.nextPayday}.`}</p>
-      {pay && <a href={`https://explore.testnet.tempo.xyz/tx/${pay.tx}`} target="_blank" rel="noreferrer">View payslip</a>}
-    </section>
   )
 }
 
@@ -596,9 +677,11 @@ function Wallet({ s, me, busy, run, toast, onDone }: Pick<Ctx, 's' | 'busy' | 'r
       )}
       {me.passkeyNeedsRefresh && <p className="hint">Your department list changed. Turn Face ID on again before the next device payment.</p>}
       <form className="form" onSubmit={(e) => { e.preventDefault(); setConfirm(true) }}>
-        <label>Pay<select value={vendorId} onChange={(e) => setVendorId(e.target.value)}><optgroup label="Approved for your department">{s.vendors.filter((v) => pot.vendorIds.includes(v.id)).map((v) => <option key={v.id} value={v.id}>{v.name} · {v.category}</option>)}</optgroup><optgroup label="Others (needs your lead's OK)">{s.vendors.filter((v) => !pot.vendorIds.includes(v.id)).map((v) => <option key={v.id} value={v.id}>{v.name} · {v.category}</option>)}</optgroup></select></label>
+        <label>Pay<select value={vendorId} onChange={(e) => setVendorId(e.target.value)}><optgroup label="Approved for your department">{s.vendors.filter((v) => pot.vendorIds.includes(v.id)).map((v) => <option key={v.id} value={v.id}>{v.name} · {v.category}</option>)}</optgroup><optgroup label="Not on your card (needs an OK)">{s.vendors.filter((v) => !pot.vendorIds.includes(v.id)).map((v) => <option key={v.id} value={v.id}>{v.name} · {v.category}</option>)}</optgroup></select></label>
         <div className="two"><label>Amount<div className="money-in"><span>$</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} required /></div></label><label>For<input placeholder={vendor.category} value={note} onChange={(e) => setNote(e.target.value)} maxLength={24} /></label></div>
-        {!onList && <p className="hint">{vendor.name} isn't on the {pot.team} list. It will wait for your lead's OK.</p>}
+        {onList
+          ? <p className="hint quiet">Paid from the {pot.team} account with your card. Tempo checks your limit and the vendor list.</p>
+          : <p className="hint">{vendor.name} isn't on the {pot.team} list, so Tempo will refuse the card. It goes to {s.controls.departments.find((d) => d.id === pot.id)?.head?.name.split(' ')[0] ?? 'Finance'} to approve instead.</p>}
         <button className="btn primary" disabled={!!busy || !Number(amount)}>Pay {money(Number(amount) || 0)}</button>
       </form>
       {confirm && <ConfirmSheet title={`Pay ${vendor.name}?`} amount={money(Number(amount))} detail={`${pot.team}${note ? ` · ${note}` : ''}`} busy={busy === 'spend'} actionText={viaDevice ? 'Confirm with Face ID' : 'Confirm payment'} onCancel={() => setConfirm(false)} onConfirm={pay} face />}
@@ -635,7 +718,7 @@ function Approvals({ s, items, busy, run, toast, approverId }: Pick<Ctx, 's' | '
     return (
       <li key={h.id} className="held">
         <Avatar name={p.name} />
-        <span className="grow"><b>{p.name.split(' ')[0]} → {v.name} · {money(h.amount)}</b><small>{h.reason === 'new-vendor' ? `New vendor for ${s.pots.find((x) => x.id === h.potId)?.team}` : 'Over monthly limit'} · {h.note} · {ago(h.at)}</small></span>
+        <span className="grow"><b>{p.name.split(' ')[0]} → {v.name} · {money(h.amount)}</b><small>{h.reason === 'new-vendor' ? `Not on the ${s.pots.find((x) => x.id === h.potId)?.team} vendor list` : h.reason === 'finance-rule' ? `Over the ${money(s.company.financeApprovalThreshold)} Finance limit` : 'Over their monthly limit'} · {h.note} · {ago(h.at)}</small></span>
         <button className="btn small ghost" disabled={!!busy} onClick={() => run('d' + h.id, () => api.decide(h.id, 'return', approverId), () => toast({ text: 'Returned. Nothing was paid.', tone: 'good' }))}>Return</button>
         {h.reason === 'new-vendor' && <button className="btn small ghost" disabled={!!busy} onClick={() => run('a' + h.id, () => api.decide(h.id, 'approve-add', approverId), (r: any) => toast({ text: `Approved and added · ${v.name}`, tone: 'good', receipt: r.tx ? `https://explore.testnet.tempo.xyz/tx/${r.tx}` : undefined }))}>Approve + add</button>}
         <button className="btn small primary" disabled={!!busy} onClick={() => run('d' + h.id, () => api.decide(h.id, 'approve', approverId), (r: any) => toast({ text: `Approved · ${v.name} paid ${money(h.amount)}`, tone: 'good', receipt: r.tx ? `https://explore.testnet.tempo.xyz/tx/${r.tx}` : undefined }))}>{busy === 'd' + h.id ? '…' : 'Approve'}</button>
@@ -673,92 +756,74 @@ function Invoices({ s, busy, run, toast, items, canPay }: Pick<Ctx, 's' | 'busy'
   )
 }
 
-function PotCard({ s, potId, big }: { s: State; potId: string; big?: boolean }) {
+function CardRules({ s, potId, busy, run, toast, onDone }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { potId: string; onDone?: () => void }) {
   const pot = s.pots.find((p) => p.id === potId)!
-  const members = s.people.filter((p) => p.team === potId)
-  const cap = pot.perPersonCap * members.length
-  const left = Math.max(0, members.reduce((a, m) => a + (m.pot?.left ?? 0), 0) - pot.approved)
-  const budgetRatio = pot.budget ? Math.max(0, Math.min(1, pot.balance / pot.budget)) : 0
+  const [cap, setCap] = useState(String(pot.perPersonCap))
+  const [vendorIds, setVendorIds] = useState<string[]>(pot.vendorIds)
+  const toggle = (id: string) => setVendorIds((xs) => xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id])
+  const signer = s.controls.departments.find((d) => d.id === potId)?.head?.name.split(' ')[0]
   return (
-    <div className={`pot ${big ? 'big' : ''}`} style={{ ['--pot' as any]: pot.color }}>
-      <div className="pot-top"><b>{pot.team}</b><span className="muted">{money(Math.round(pot.balance))} funded · {money(Math.round(left))} member room</span></div>
-      <FillMark ratio={budgetRatio} color={pot.color} small />
-      <Bar used={cap - left} cap={cap} color={pot.color} />
-      <ul className="members">{members.map((m) => <li key={m.id}><Avatar name={m.name} small /><span className="grow">{m.name.split(' ')[0]}</span><span className="muted">{money(Math.round(m.pot?.left ?? 0))} / {money(pot.perPersonCap)}</span></li>)}</ul>
-      {pot.approved > 0 && <small className="muted">Includes {money(pot.approved)} approved by the lead</small>}
-      <div className="vendors">{pot.vendors.map((v) => <span key={v} className="chip">{v}</span>)}</div>
-    </div>
+    <form className="form" onSubmit={(e) => { e.preventDefault(); run('rules', () => api.updatePot(potId, { perPersonCap: Number(cap), vendorIds }), (r: any) => { toast({ text: `${plural(r.reissued, 'card', 'cards')} re-issued with the new rules`, tone: 'good' }); onDone?.() }) }}>
+      <p className="hint">Saving signs new cards for everyone in {pot.team}{signer ? ` with ${signer}'s head key` : ''}. Tempo enforces the new rules on the next payment.</p>
+      <label>Monthly limit per person<div className="money-in"><span>$</span><input inputMode="decimal" value={cap} onChange={(e) => setCap(e.target.value.replace(/[^\d.]/g, ''))} /></div></label>
+      <fieldset className="check-grid"><legend>Approved vendors</legend>{s.vendors.map((v) => <label key={v.id} className="check"><input type="checkbox" checked={vendorIds.includes(v.id)} onChange={() => toggle(v.id)} />{v.name}</label>)}</fieldset>
+      <button className="btn primary" disabled={!!busy || !Number(cap) || !vendorIds.length}>{busy === 'rules' ? 'Signing cards…' : 'Save and re-issue cards'}</button>
+    </form>
   )
 }
 
-function QuarterClose({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'>) {
-  const [potId, setPotId] = useState(s.pots[0]?.id ?? '')
-  const [share, setShare] = useState('20')
-  const closes = s.quarterCloses
-  const leaders = [...closes].sort((a, b) => b.savings - a.savings)
+function TopUpRequest({ s, potId, busy, run, toast, onDone }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { potId: string; onDone?: () => void }) {
+  const [amount, setAmount] = useState('500')
+  const [note, setNote] = useState('Team offsite')
+  const pot = s.pots.find((p) => p.id === potId)!
   return (
-    <div className="split-block">
-      <form className="form" onSubmit={(e) => { e.preventDefault(); run('close' + potId, () => api.closeQuarter(potId, Number(share)), (r: any) => toast({ text: `Quarter closed · ${money(r.pool)} kudos pool`, tone: 'good', receipt: `https://explore.testnet.tempo.xyz/tx/${r.tx}` })) }}>
-        <div className="two"><label>Department<select value={potId} onChange={(e) => setPotId(e.target.value)}>{s.pots.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label><label>Savings share<input inputMode="numeric" value={share} onChange={(e) => setShare(e.target.value.replace(/[^\d.]/g, ''))} /></label></div>
-        <button className="btn primary" disabled={!!busy}>Close quarter</button>
-      </form>
-      <div className="leaderboard">
-        {leaders[0] && <div className="quarter-moment"><span className="burst" /><FillMark ratio={1} small /><div><b>{money(leaders[0].pool)} kudos split</b><small>{money(leaders[0].perPerson, true)} each from {s.pots.find((p) => p.id === leaders[0].potId)?.team}</small></div></div>}
-        {leaders.length ? leaders.map((c, i) => <div key={c.id} className="rank"><b>#{i + 1} {s.pots.find((p) => p.id === c.potId)?.team}</b><span>{money(c.savings)} saved</span></div>) : <Empty text="Close a quarter to start the leaderboard." />}
-      </div>
-    </div>
+    <form className="form" onSubmit={(e) => { e.preventDefault(); run('topup', () => api.topupRequest(potId, Number(amount), note), () => { toast({ text: 'Sent to Finance', tone: 'good' }); onDone?.() }) }}>
+      <p className="hint">Only Finance can move money into {pot.team}. They'll see this on their home screen.</p>
+      <div className="two"><label>Amount<div className="money-in"><span>$</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div></label><label>What for<input value={note} maxLength={80} onChange={(e) => setNote(e.target.value)} /></label></div>
+      <button className="btn primary" disabled={!!busy || !Number(amount)}>Send request</button>
+    </form>
   )
 }
 
-function Kudos({ s, me, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { me: Person }) {
-  const mates = s.people.filter((p) => p.team === me.team && p.id !== me.id)
-  const left = s.kudosCredits.filter((c) => c.personId === me.id).reduce((a, c) => a + c.left, 0)
-  const [to, setTo] = useState(mates[0]?.id ?? '')
-  const [amount, setAmount] = useState('5')
-  const [note, setNote] = useState('Tiny miracle, huge help')
-  if (!left) return <Empty text="No kudos share yet. Close the quarter first." />
-  return <form className="form compact-form" onSubmit={(e) => { e.preventDefault(); run('kudos', () => api.kudos({ fromPersonId: me.id, toPersonId: to, amount: Number(amount), note }), () => toast({ text: 'Kudos sent', tone: 'good' })) }}><span className="muted">{money(left, true)} left to award</span><div className="three"><label>Teammate<select value={to} onChange={(e) => setTo(e.target.value)}>{mates.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label>Amount<div className="money-in"><span>$</span><input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div></label><label>Note<input value={note} onChange={(e) => setNote(e.target.value)} /></label></div><button className="btn primary" disabled={!!busy || !to}>Send kudos</button></form>
+function InvitePerson({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'>) {
+  const isFinance = s.auth?.role === 'admin'
+  const myTeam = s.people.find((p) => p.id === s.auth?.personId)?.team
+  const teams = isFinance ? s.pots : s.pots.filter((p) => p.id === myTeam)
+  const [name, setName] = useState('Nora Patel')
+  const [title, setTitle] = useState('Brand Designer')
+  const [team, setTeam] = useState(teams[0]?.id ?? '')
+  const [role, setRole] = useState<'employee' | 'contractor'>('employee')
+  const [salary, setSalary] = useState('3600')
+  const [link, setLink] = useState('')
+  return (
+    <form className="form" onSubmit={(e) => { e.preventDefault(); run('invite', () => api.invite({ name, role, title, team, salary: isFinance && role === 'employee' ? Number(salary) : undefined }), (r: any) => { setLink(`${location.origin}${r.inviteLink}`); toast({ text: 'Invite link ready', tone: 'good' }) }) }}>
+      <p className="hint">They open the link, turn on Face ID, and their phone becomes their {role === 'employee' ? 'card' : 'invoice inbox'}. {role === 'employee' ? 'The card is signed by the department head.' : ''}</p>
+      <div className="two"><label>Name<input value={name} onChange={(e) => setName(e.target.value)} /></label><label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} /></label></div>
+      <div className="two"><label>Department<select value={team} onChange={(e) => setTeam(e.target.value)}>{teams.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label><label>Role<select value={role} onChange={(e) => setRole(e.target.value as 'employee' | 'contractor')}><option value="employee">Employee</option><option value="contractor">Contractor</option></select></label></div>
+      {isFinance && role === 'employee' && <label>Monthly salary<div className="money-in"><span>$</span><input inputMode="decimal" value={salary} onChange={(e) => setSalary(e.target.value.replace(/[^\d.]/g, ''))} /></div></label>}
+      {link && <p className="hint">Share this link: {link}</p>}
+      <button className="btn primary" disabled={!!busy || !name || !team}>Create invite</button>
+    </form>
+  )
 }
 
-function AdminTools({ s, busy, run, toast, mode = 'all' }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { mode?: 'all' | 'pots' | 'people' }) {
+function CompanyRules({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'>) {
+  const [threshold, setThreshold] = useState(String(s.company.financeApprovalThreshold))
   const [vendorName, setVendorName] = useState('Canva')
   const [vendorCat, setVendorCat] = useState('Design')
-  const [potId, setPotId] = useState(s.pots[0]?.id ?? '')
-  const pot = s.pots.find((p) => p.id === potId) ?? s.pots[0]
-  const [cap, setCap] = useState(String(pot?.perPersonCap ?? 0))
-  const [budget, setBudget] = useState(String(pot?.budget ?? 0))
-  const [threshold, setThreshold] = useState(String(s.company.financeApprovalThreshold ?? 1000))
-  const [moveAmount, setMoveAmount] = useState('250')
-  const [vendorIds, setVendorIds] = useState<string[]>(pot?.vendorIds ?? [])
-  const [personName, setPersonName] = useState('Nora Patel')
-  const [personTitle, setPersonTitle] = useState('Brand Designer')
-  const [personTeam, setPersonTeam] = useState(s.pots[0]?.id ?? '')
-  const [inviteLink, setInviteLink] = useState('')
-  const [perkPerson, setPerkPerson] = useState(s.people.find((p) => p.role !== 'contractor' && p.role !== 'admin')?.id ?? '')
-  useEffect(() => { const p = s.pots.find((x) => x.id === potId); if (p) { setCap(String(p.perPersonCap)); setBudget(String(p.budget)); setVendorIds(p.vendorIds) } }, [potId, s.pots])
-  const toggleVendor = (id: string) => setVendorIds((xs) => xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id])
   return (
-    <div className="admin-stack">
-      {mode !== 'people' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('vendor', () => api.vendor({ name: vendorName, category: vendorCat }), () => toast({ text: 'Vendor added', tone: 'good' })) }}>
-        <h3>Add vendor</h3><div className="two"><label>Name<input value={vendorName} onChange={(e) => setVendorName(e.target.value)} /></label><label>Category<input value={vendorCat} onChange={(e) => setVendorCat(e.target.value)} /></label></div><button className="btn ghost" disabled={!!busy}>Add vendor</button>
-      </form>}
-      {mode !== 'people' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('pot', () => api.updatePot(potId, { perPersonCap: Number(cap), budget: Number(budget), vendorIds }), (r: any) => toast({ text: `Updating department cards · ${r.reissued} refreshed`, tone: 'good' })) }}>
-        <h3>Edit department</h3><div className="two"><label>Department<select value={potId} onChange={(e) => setPotId(e.target.value)}>{s.pots.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label><label>Member limit<div className="money-in"><span>$</span><input value={cap} onChange={(e) => setCap(e.target.value.replace(/[^\d.]/g, ''))} /></div></label></div><label>Budget frame<div className="money-in"><span>$</span><input value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^\d.]/g, ''))} /></div></label><div className="check-grid">{s.vendors.map((v) => <label key={v.id} className="check"><input type="checkbox" checked={vendorIds.includes(v.id)} onChange={() => toggleVendor(v.id)} />{v.name}</label>)}</div><button className="btn primary" disabled={!!busy}>Save department</button>
-      </form>}
-      {mode !== 'people' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('rule', () => api.financeRule(Number(threshold)), () => toast({ text: 'Finance rule saved', tone: 'good' })) }}>
-        <h3>Finance rule</h3><label>Finance reviews payments over<div className="money-in"><span>$</span><input inputMode="decimal" value={threshold} onChange={(e) => setThreshold(e.target.value.replace(/[^\d.]/g, ''))} /></div></label><button className="btn ghost" disabled={!!busy || !Number(threshold)}>Save rule</button>
-      </form>}
-      {mode !== 'people' && <form className="form mini" onSubmit={(e) => e.preventDefault()}>
-        <h3>Move budget</h3><div className="two"><label>Amount<div className="money-in"><span>$</span><input inputMode="decimal" value={moveAmount} onChange={(e) => setMoveAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div></label><label>Department<select value={potId} onChange={(e) => setPotId(e.target.value)}>{s.pots.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label></div>
-        <div className="two"><button type="button" className="btn ghost" disabled={!!busy || !Number(moveAmount)} onClick={() => run('fund' + potId, () => s.auth?.role === 'admin' ? api.fundPot(potId, Number(moveAmount)) : api.topupRequest(potId, Number(moveAmount)), (r: any) => toast({ text: s.auth?.role === 'admin' ? `Funded ${s.pots.find((p) => p.id === potId)?.team}` : 'Top-up sent to Finance', tone: 'good', receipt: r.receipt }))}>{s.auth?.role === 'admin' ? 'Fund' : 'Request top-up'}</button><button type="button" className="btn ghost" disabled={!!busy || !Number(moveAmount)} onClick={() => run('return' + potId, () => api.returnPot(potId, Number(moveAmount)), (r: any) => toast({ text: `Returned from ${s.pots.find((p) => p.id === potId)?.team}`, tone: 'good', receipt: r.receipt }))}>Return</button></div>
-      </form>}
-      {mode !== 'pots' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); run('invite', () => api.invite({ name: personName, role: 'employee', title: personTitle, team: personTeam, salary: 3600 }), (r: any) => { setInviteLink(`${location.origin}${r.inviteLink}`); toast({ text: 'Invite link ready', tone: 'good' }) }) }}>
-        <h3>Invite person</h3><div className="two"><label>Name<input value={personName} onChange={(e) => setPersonName(e.target.value)} /></label><label>Department<select value={personTeam} onChange={(e) => setPersonTeam(e.target.value)}>{s.pots.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label></div><label>Title<input value={personTitle} onChange={(e) => setPersonTitle(e.target.value)} /></label>{inviteLink && <p className="hint">{inviteLink}</p>}<button className="btn ghost" disabled={!!busy}>Create invite</button>
-      </form>}
-      {mode !== 'people' && <form className="form mini" onSubmit={(e) => { e.preventDefault(); const ue = s.vendors.find((v) => v.name === 'Uber Eats')?.id ?? s.vendors[0].id; run('perk-new', () => api.perk({ personId: perkPerson, name: 'Snack dash', cap: 25, periodLabel: 'day', vendorIds: [ue] }), () => toast({ text: 'Perk added', tone: 'good' })) }}>
-        <h3>Add perk</h3><label>Person<select value={perkPerson} onChange={(e) => setPerkPerson(e.target.value)}>{s.people.filter((p) => p.role !== 'contractor' && p.role !== 'admin').map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><button className="btn ghost" disabled={!!busy}>Add daily snack perk</button>
-      </form>}
-    </div>
+    <section className="panel">
+      <SectionTitle title="Company rules" sub="Rules Teampot checks before anything reaches Tempo." />
+      <form className="inline-form" onSubmit={(e) => { e.preventDefault(); run('rule', () => api.financeRule(Number(threshold)), () => toast({ text: 'Finance limit saved', tone: 'good' })) }}>
+        <label className="grow">Payments over this need Finance<div className="money-in"><span>$</span><input inputMode="decimal" value={threshold} onChange={(e) => setThreshold(e.target.value.replace(/[^\d.]/g, ''))} /></div></label>
+        <button className="btn small ghost" disabled={!!busy || !Number(threshold)}>Save</button>
+      </form>
+      <form className="inline-form" onSubmit={(e) => { e.preventDefault(); run('vendor', () => api.vendor({ name: vendorName, category: vendorCat }), () => toast({ text: `${vendorName} added. Heads can now put it on their cards.`, tone: 'good' })) }}>
+        <label className="grow">New vendor<input value={vendorName} onChange={(e) => setVendorName(e.target.value)} /></label>
+        <label className="grow">Category<input value={vendorCat} onChange={(e) => setVendorCat(e.target.value)} /></label>
+        <button className="btn small ghost" disabled={!!busy || !vendorName}>Add</button>
+      </form>
+    </section>
   )
 }
 
@@ -831,32 +896,6 @@ function ConfirmSheet({ title, amount, detail, actionText, busy, onCancel, onCon
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 const Bar = ({ used, cap, color }: { used: number; cap: number; color: string }) => <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={cap} aria-valuenow={Math.round(used)}><i style={{ width: `${cap ? Math.min(100, Math.max(0, (used / cap) * 100)) : 0}%`, background: color }} /></div>
-const Kpi = ({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'warn' }) => <div className={`kpi ${tone || ''}`}><small>{label}</small><b>{value}</b>{sub && <span className="muted">{sub}</span>}</div>
-function OrgMap({ s, activePotId }: { s: State; activePotId?: string }) {
-  return (
-    <div className="org-map" aria-label="Company organization map">
-      <div className="org-company">
-        <FillMark ratio={0.9} />
-        <div><b>{s.company.name}</b><small>{activePotId ? 'Finance sets the frame' : `Company account · ${money(s.company.balance)}`}</small></div>
-      </div>
-      <div className="org-lines" />
-      <div className="org-depts">
-        {s.pots.map((p) => {
-          const ratio = p.budget ? Math.max(0, Math.min(1, p.balance / p.budget)) : 0
-          const people = s.people.filter((x) => x.team === p.id)
-          const waiting = s.held.filter((h) => h.potId === p.id && h.status === 'held').length
-          return (
-            <button key={p.id} className={`org-node ${activePotId === p.id ? 'active' : ''} ${waiting ? 'waiting' : ''}`} type="button">
-              <FillMark ratio={ratio} color={p.color} small />
-              <span className="grow"><b>{p.team}</b><small>{money(Math.round(p.balance))} left · {plural(people.length, 'person', 'people')}</small></span>
-              {waiting > 0 && <span className="pill">{waiting}</span>}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 const Empty = ({ text }: { text: string }) => <div className="empty"><FillMark ratio={0.2} small /><p>{text}</p></div>
 const Avatar = ({ name, small }: { name: string; small?: boolean }) => {
   const hue = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360
@@ -886,4 +925,5 @@ function FillMark({ ratio, color = '#E8552D', small, tiny }: { ratio: number; co
     </svg>
   )
 }
+const KeyIcon = () => <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="8" cy="15" r="4" /><path d="m11 12 9-9M17 6l3 3M14 9l2 2" /></svg>
 const FaceIcon = () => <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 9v1M15 9v1M12 9v4h-1M9 16c1.5 1.2 4.5 1.2 6 0" /></svg>

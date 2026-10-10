@@ -126,5 +126,23 @@ assert(after.paydayRuns.length > 0, 'payday history missing')
 assert(after.quarterCloses.length > 0, 'quarter close history missing')
 assert(after.invoices.some((i) => i.status === 'declined'), 'declined invoice missing')
 
+// Delegation on Tempo: treasury → department account → head admin key → member cards.
+await post('/auth/demo', { personId: 'jordan' })
+let ctl = (await get('/state')).controls
+const design = ctl.departments.find((d) => d.id === 'design')
+assert(design.head?.personId === 'ava' && design.head.tx, 'Design head key missing')
+assert(design.cards.find((c) => c.personId === 'sam' && c.kind === 'member')?.issuedBy === 'Ava Chen', "Sam's card was not signed by the head key")
+out.appoint = await post('/pots/eng/head', { personId: 'priya' })
+assert(out.appoint.tx, 'appoint head failed')
+ctl = (await get('/state')).controls
+assert(ctl.departments.find((d) => d.id === 'eng').head?.personId === 'priya', 'Priya is not Engineering head')
+await post('/auth/demo', { personId: 'ava' })
+out.leadBudget = await post('/pots/design/update', { budget: 999999 }).then(() => 'ALLOWED', (e) => e.message)
+assert(/403/.test(out.leadBudget), 'a head changed their own budget')
+out.topup = await post('/pots/design/topup-request', { amount: 25, note: 'e2e top-up' })
+await post('/auth/demo', { personId: 'jordan' })
+out.topupFund = await post(`/topups/${out.topup.id}/fund`)
+assert(out.topupFund.status === 'funded' && out.topupFund.tx, 'top-up funding failed')
+
 for (const [k, val] of Object.entries(out)) console.log(k.padEnd(14), short(val))
 console.log('e2e ok')

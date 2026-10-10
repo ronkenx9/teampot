@@ -7,7 +7,7 @@ export type Pot = { id: string; approved: number; team: string; perPersonCap: nu
 export type Vendor = { id: string; name: string; category: string }
 export type Perk = { id: string; personId: string; name: string; cap: number; periodLabel: 'day' | 'month' | 'year'; vendorIds: string[]; vendors: string[]; color: string; left: number | null; resetsAt: number | null }
 export type Activity = { id: string; at: number; kind: string; title: string; detail: string; amount?: number; who?: string; potId?: string; perkId?: string; receipt?: string; memoLabel?: string }
-export type Held = { id: string; at: number; personId: string; potId: string; vendorId: string; amount: number; note: string; reason: 'new-vendor' | 'over-limit'; status: 'held' | 'approved' | 'returned'; tx?: string }
+export type Held = { id: string; at: number; personId: string; potId: string; vendorId: string; amount: number; note: string; reason: 'new-vendor' | 'over-limit' | 'finance-rule'; status: 'held' | 'approved' | 'returned'; tx?: string; signedBy?: string }
 export type Invoice = { id: string; number: string; at: number; contractorId: string; amount: number; description: string; status: 'submitted' | 'paid' | 'declined'; paidMs?: number; tx?: string; declineReason?: string }
 export type PaydayRun = { id: string; at: number; date: string; tx: string; total: number; count: number; ms: number; lines: { personId: string; gross: number; memo: string }[] }
 export type QuarterClose = { id: string; at: number; potId: string; savings: number; sharePct: number; pool: number; perPerson: number; tx: string; memberIds: string[] }
@@ -21,6 +21,14 @@ export type Investment = {
   positions: { stockId: StockId; shares: number; avgCost: number; cost: number; value: number; gain: number }[]
   trades: { id: string; at: number; personId: string; stockId: StockId; side: 'buy' | 'sell'; cashAmount: number; shares: number; price: number; tx: string; source: 'payday' | 'manual'; receipt: string }[]
 }
+export type Card = { id: string; kind: 'member' | 'perk'; personId: string; name: string; label: string; cap: number; period: string; left: number | null; vendors: string[]; device: boolean; issuedBy: string; tx?: string; receipt?: string }
+export type DepartmentControl = {
+  id: string; team: string; color: string; account: string; link: string; balance: number | null; budget: number; perPersonCap: number; vendors: string[]; rootHolder: string
+  head: { personId: string; name: string; since: number | null; tx?: string; receipt?: string } | null
+  cards: Card[]
+}
+export type Controls = { treasury: { name: string; account: string; link: string; balance: number | null; holder: string }; departments: DepartmentControl[] }
+export type TopUp = { id: string; at: number; potId: string; amount: number; note: string; requestedBy: string; status: 'requested' | 'funded' | 'declined'; tx?: string }
 export type EarnEntry = { personId: string; balance: number; mode: 'simulated' | 'real'; depositTx?: string; reason?: string; updatedAt: number }
 export type State = {
   auth?: { personId: string; role: Person['role']; demo: boolean }
@@ -29,6 +37,7 @@ export type State = {
   paydayRuns: PaydayRun[]; quarterCloses: QuarterClose[]; kudosCredits: KudosCredit[]; kudosAwards: KudosAward[]
   stocks: Stock[]; investments: Investment[]; earnEntries: EarnEntry[]
   simulatedEarnings: { label: string; amount: number; note: string }; seeded: boolean
+  controls: Controls; topups: TopUp[]
 }
 
 const requestId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -65,7 +74,9 @@ export const api = {
   pot: (b: { team: string; perPersonCap: number; budget?: number; vendorIds: string[]; color?: string }) => post('/api/pots', b),
   updatePot: (id: string, b: Partial<{ team: string; perPersonCap: number; budget: number; vendorIds: string[]; color: string }>) => post(`/api/pots/${id}/update`, b),
   fundPot: (id: string, amount: number) => post(`/api/pots/${id}/fund`, { amount, requestId: requestId(`fund-${id}`) }),
-  topupRequest: (id: string, amount: number) => post(`/api/pots/${id}/topup-request`, { amount, requestId: requestId(`topup-${id}`) }),
+  topupRequest: (id: string, amount: number, note?: string) => post(`/api/pots/${id}/topup-request`, { amount, note }),
+  decideTopup: (id: string, action: 'fund' | 'decline') => post(`/api/topups/${id}/${action}`),
+  appointHead: (potId: string, personId: string) => post(`/api/pots/${potId}/head`, { personId }),
   returnPot: (id: string, amount: number) => post(`/api/pots/${id}/return`, { amount, requestId: requestId(`return-${id}`) }),
   perk: (b: { personId: string; name: string; cap: number; periodLabel: 'day' | 'month' | 'year'; vendorIds: string[]; color?: string }) => post('/api/perks', b),
   closeQuarter: (potId: string, sharePct: number) => post(`/api/pots/${potId}/close`, { sharePct, requestId: requestId(`close-${potId}`) }),

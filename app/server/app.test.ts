@@ -11,6 +11,11 @@ vi.mock('./store.js', () => ({
 vi.mock('./tempo.js', () => ({
   TOKEN: '0x20c0000000000000000000000000000000000000',
   EXPLORER: 'https://records.example/',
+  EXPLORER_ACCOUNT: 'https://records.example/account/',
+  accessAccount: vi.fn((_pk: string, parent: any) => ({ address: parent?.address, head: true })),
+  authorizeAdminKey: vi.fn(async () => `0x${'a1'.repeat(32)}`),
+  issueKeyVia: vi.fn(async () => `0x${'2'.repeat(64)}`),
+  revokeKeyVia: vi.fn(async () => `0x${'3'.repeat(64)}`),
   companyAccount: { address: '0x0000000000000000000000000000000000000001' },
   newAddress: vi.fn(() => `0x${Math.random().toString(16).slice(2).padEnd(40, '0').slice(0, 40)}`),
   derivedKeyPk: vi.fn(() => `0x${'1'.repeat(64)}`),
@@ -100,7 +105,10 @@ describe('API validation and guards', () => {
     expect(body.paydayRuns[0].lines).toEqual([{ personId: 'sam', gross: 3600, memo: body.paydayRuns[0].lines[0].memo }])
     expect(body.activity.find((a: any) => a.kind === 'payday')?.amount).toBe(3600)
     expect(dump).not.toContain('16500')
-    expect(dump).not.toContain('Ava Chen')
+    // Sam sees who runs Design (the head who signed the card) but no one else's money.
+    expect(body.controls.departments).toHaveLength(1)
+    expect(body.controls.departments[0].cards.every((c: any) => c.personId === 'sam')).toBe(true)
+    expect(body.controls.treasury.balance).toBeNull()
     expect(dump).not.toContain('Priya Nair')
     expect(dump).not.toContain('Leo Martin')
     expect(dump).not.toContain('4800')
@@ -147,5 +155,68 @@ describe('API validation and guards', () => {
     const financeReturn = await app.request(`/api/held/${body.held.id}/return`, { method: 'POST', body: JSON.stringify({ requestId: 'finance-rule-return-test' }), headers: { 'content-type': 'application/json', cookie: finance } })
     expect(financeReturn.status).toBe(200)
     expect((await financeReturn.json()).status).toBe('returned')
+  })
+
+  const post = (app: any, path: string, cookie: string, body: unknown = {}) =>
+    app.request(path, { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json', cookie } })
+
+  it('keeps the frame with Finance: heads cannot change budgets, salaries, roles or appoint heads', async () => {
+    const { app } = await import('./app.js')
+    const finance = await demoCookie(app)
+    await post(app, '/api/setup', finance)
+    const ava = await demoCookie(app, 'ava')
+    expect((await post(app, '/api/pots/design/update', ava, { budget: 99999 })).status).toBe(403)
+    expect((await post(app, '/api/pots/design/update', ava, { perPersonCap: 99999 })).status).toBe(400)
+    expect((await post(app, '/api/people/sam/update', ava, { salary: 9000 })).status).toBe(403)
+    expect((await post(app, '/api/people/sam/update', ava, { role: 'lead' })).status).toBe(403)
+    expect((await post(app, '/api/people', ava, { name: 'Zed Lin', role: 'lead', title: 'Co-lead', team: 'design' })).status).toBe(403)
+    expect((await post(app, '/api/people', ava, { name: 'Zed Lin', role: 'employee', title: 'Designer', team: 'design', salary: 5000 })).status).toBe(403)
+    expect((await post(app, '/api/pots/design/head', ava, { personId: 'sam' })).status).toBe(403)
+    const ok = await post(app, '/api/pots/design/update', ava, { perPersonCap: 700 })
+    expect(ok.status).toBe(200)
+  })
+
+  it('appoints heads with an admin key and signs member cards with it', async () => {
+    const T: any = await import('./tempo.js')
+    const { app } = await import('./app.js')
+    const finance = await demoCookie(app)
+    await post(app, '/api/setup', finance)
+    expect(T.authorizeAdminKey).toHaveBeenCalled()
+    const state = await (await app.request('/api/state', { headers: { cookie: finance } })).json()
+    const design = state.controls.departments.find((d: any) => d.id === 'design')
+    expect(design.head.personId).toBe('ava')
+    expect(design.head.tx).toMatch(/^0x/)
+    expect(design.cards.find((c: any) => c.personId === 'sam').issuedBy).toBe('Ava Chen')
+    expect(design.cards.find((c: any) => c.personId === 'ava').issuedBy).toBe('Finance')
+  })
+
+  it('routes a head approval through the head key and a Finance approval through the department root', async () => {
+    const T: any = await import('./tempo.js')
+    const { app } = await import('./app.js')
+    const finance = await demoCookie(app)
+    await post(app, '/api/setup', finance)
+    T.spendWithKeyOn.mockRejectedValueOnce(new Error('not on list'))
+    const sam = await demoCookie(app, 'sam')
+    const held = (await (await post(app, '/api/spend', sam, { personId: 'sam', vendorId: 'pixelvault-stock', amount: 45, note: 'x' })).json()).held
+    T.spendWithKeyOn.mockClear()
+    const ava = await demoCookie(app, 'ava')
+    const decided = await (await post(app, `/api/held/${held.id}/approve`, ava, {})).json()
+    expect(decided.signedBy).toMatch(/Ava's head key/)
+    expect(T.spendWithKeyOn).toHaveBeenCalledTimes(1)
+  })
+
+  it('turns a top-up request into a real Finance funding decision', async () => {
+    const T: any = await import('./tempo.js')
+    const { app } = await import('./app.js')
+    const finance = await demoCookie(app)
+    await post(app, '/api/setup', finance)
+    const ava = await demoCookie(app, 'ava')
+    const req = await (await post(app, '/api/pots/design/topup-request', ava, { amount: 500, note: 'Offsite' })).json()
+    expect(req.status).toBe('requested')
+    expect((await post(app, `/api/topups/${req.id}/fund`, ava)).status).toBe(403)
+    T.companyPay.mockClear()
+    const funded = await (await post(app, `/api/topups/${req.id}/fund`, finance)).json()
+    expect(funded.status).toBe('funded')
+    expect(T.companyPay).toHaveBeenCalledTimes(1)
   })
 })

@@ -11,6 +11,8 @@ export type Person = {
   demoKey?: boolean
   keyVersion?: number
   keyTx?: string
+  /** Who signed this person's card: a head's person id, or 'finance' for the department root. */
+  keyIssuer?: string
   passkey?: { id: string; publicKey: `0x${string}`; tx: string; needsRefresh?: boolean }
   country?: string
   removed?: boolean
@@ -60,11 +62,17 @@ export type Pot = {
   fundTx?: string
   returnTx?: string
   rootMode?: 'demo-server-p256' | 'head-passkey-pending'
+  /** Department head holding an admin access key on this department account. */
+  headId?: string
+  headKeyVersion?: number
+  headKeyTx?: string
+  headSince?: number
 }
-export type Perk = { id: string; personId: string; name: string; cap: number; periodLabel: string; periodSec: number; vendorIds: string[]; color: string; keyTx?: string }
+export type Perk = { id: string; personId: string; name: string; cap: number; periodLabel: string; periodSec: number; vendorIds: string[]; color: string; keyTx?: string; keyIssuer?: string }
+export type TopUp = { id: string; at: number; potId: string; amount: number; note: string; requestedBy: string; status: 'requested' | 'funded' | 'declined'; tx?: string; decidedBy?: string }
 export type ActivityKind = 'payday' | 'spend' | 'held' | 'approved' | 'returned' | 'invoice' | 'paid' | 'setup' | 'perk' | 'quarter' | 'kudos' | 'declined' | 'admin' | 'invest' | 'earn'
 export type Activity = { id: string; at: number; kind: ActivityKind; title: string; detail: string; amount?: number; who?: string; tx?: string; potId?: string; perkId?: string; memo?: string }
-export type Held = { id: string; at: number; personId: string; potId: string; vendorId: string; amount: number; note: string; reason: 'new-vendor' | 'over-limit' | 'finance-rule'; status: 'held' | 'approved' | 'returned'; tx?: string }
+export type Held = { id: string; at: number; personId: string; potId: string; vendorId: string; amount: number; note: string; reason: 'new-vendor' | 'over-limit' | 'finance-rule'; status: 'held' | 'approved' | 'returned'; tx?: string; signedBy?: string }
 export type Invoice = { id: string; number: string; at: number; contractorId: string; amount: number; description: string; status: 'submitted' | 'paid' | 'declined'; tx?: string; paidMs?: number; declineReason?: string }
 export type PaydayRun = { id: string; at: number; date: string; tx: string; total: number; count: number; ms: number; lines: { personId: string; gross: number; memo: string }[] }
 export type QuarterClose = { id: string; at: number; potId: string; savings: number; sharePct: number; pool: number; perPerson: number; tx: string; memberIds: string[] }
@@ -91,6 +99,7 @@ export type State = {
   perks: Perk[]
   activity: Activity[]
   held: Held[]
+  topups: TopUp[]
   invoices: Invoice[]
   paydayRuns: PaydayRun[]
   quarterCloses: QuarterClose[]
@@ -139,6 +148,7 @@ export function normalizeState(s: Partial<State> | null, seed: () => State): Sta
     company: { ...(base.company as State['company']), financeApprovalThreshold: (base.company as State['company'])?.financeApprovalThreshold ?? 1000 },
     pots,
     perks: base.perks ?? [],
+    topups: base.topups ?? [],
     paydayRuns: base.paydayRuns ?? [],
     quarterCloses: base.quarterCloses ?? [],
     kudosCredits: base.kudosCredits ?? [],

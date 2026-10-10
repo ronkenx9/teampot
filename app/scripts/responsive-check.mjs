@@ -25,26 +25,36 @@ async function main() {
     return
   }
   const errors = []
+  // Sign in as each role (demo) and visit every tab: no horizontal overflow, no console errors.
+  const tabsFor = { jordan: ['Home', 'Departments', 'Payday', 'Activity'], ava: ['Home', 'Approvals', 'Team', 'Activity'], sam: ['Home', 'Spend', 'Invest', 'Activity'], mateo: ['Home', 'Invoices', 'Activity'] }
   try {
     for (const size of sizes) {
       for (const viewer of viewers) {
-        const page = await browser.newPage({ viewport: size })
+        const ctx = await browser.newContext({ viewport: size, reducedMotion: 'reduce' })
+        const page = await ctx.newPage()
         const logs = []
         page.on('console', (msg) => { if (msg.type() === 'error') logs.push(msg.text()) })
         page.on('pageerror', (err) => logs.push(err.message))
         await page.goto(APP, { waitUntil: 'networkidle' })
-        await page.evaluate((v) => localStorage.setItem('tp-viewer', v), viewer)
+        await page.evaluate(async (v) => { localStorage.setItem('tp-viewer', v); await fetch('/api/auth/demo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ personId: v }) }) }, viewer)
         await page.reload({ waitUntil: 'networkidle' })
-        const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
-        if (overflow || logs.length) errors.push(`${viewer} ${size.width}px overflow=${overflow} logs=${logs.join(' | ')}`)
-        await page.close()
+        await page.locator('.role-layout').waitFor({ timeout: 15000 })
+        const nav = size.width < 900 ? '.bottom-tabs' : '.side-nav nav'
+        for (const tab of tabsFor[viewer]) {
+          await page.locator(`${nav} button`, { hasText: tab }).first().click()
+          await page.waitForTimeout(400)
+          const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
+          if (overflow) errors.push(`${viewer}/${tab} ${size.width}px overflows horizontally`)
+        }
+        if (logs.length) errors.push(`${viewer} ${size.width}px console: ${logs.join(' | ')}`)
+        await ctx.close()
       }
     }
   } finally {
     await browser.close()
   }
   if (errors.length) throw new Error(errors.join('\n'))
-  console.log('Responsive check passed at 375px and 1280px for all views.')
+  console.log('Responsive check passed at 375px and 1280px: every role, every tab, signed in.')
 }
 
 main().catch((e) => {

@@ -16,6 +16,7 @@ const state = (): State => ({
   perks: [],
   activity: [],
   held: [],
+  topups: [],
   invoices: [],
   paydayRuns: [],
   quarterCloses: [],
@@ -108,7 +109,7 @@ describe('personal investing math', () => {
 
 describe('validation helpers and idempotency', () => {
   it('normalizes old states and derives defaults', () => {
-    const s = normalizeState({ epoch: 'x', company: { name: 'Co', address: '0x' }, people: [], vendors: [], pots: [], activity: [], held: [], invoices: [], seeded: true } as any, state)
+    const s = normalizeState({ epoch: 'x', company: { name: 'Co', address: '0x' }, people: [], vendors: [], pots: [], activity: [], held: [], topups: [], invoices: [], seeded: true } as any, state)
     expect(s.perks).toEqual([])
     expect(s.paydayRuns).toEqual([])
     expect(s.processed).toEqual({})

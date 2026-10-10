@@ -42,8 +42,8 @@ async function main() {
     await page.getByRole('button', { name: /Confirm/ }).click()
     await page.getByText(/Held for a sec/).waitFor({ timeout: 12000 })
     await page.locator('.profile-button').click()
-    await page.getByRole('button', { name: /Ava/ }).click()
-    await page.getByRole('button', { name: 'Approvals' }).click()
+    await page.locator('.profile-menu button', { hasText: 'Ava' }).click()
+    await page.locator('.bottom-tabs button', { hasText: 'Approvals' }).click()
     await page.getByRole('button', { name: /Approve \+ add/ }).click()
     await page.getByText(/Approved and added|Approved/).waitFor({ timeout: 12000 })
   } finally {

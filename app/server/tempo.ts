@@ -10,6 +10,7 @@ import { tempoModerato } from 'viem/tempo/chains'
 
 export const TOKEN = '0x20c0000000000000000000000000000000000000' as const // pathUSD, 6 dp
 export const EXPLORER = 'https://explore.testnet.tempo.xyz/tx/'
+export const EXPLORER_ACCOUNT = 'https://explore.testnet.tempo.xyz/address/'
 const chain: any = (tempoModerato as any).extend({ feeToken: TOKEN })
 const mk = (account: any) => createClient({ account, chain, transport: http(), testnet: true } as any) as any
 
@@ -194,3 +195,32 @@ export async function revokeKeyOn(source: any, k: KeyRef) {
 }
 
 export const revokeKey = (k: KeyRef) => revokeKeyOn(companyAccount, k)
+
+/** A server-held P256 access key acting on behalf of `parent` (e.g. a head key on a department account). */
+export const accessAccount = (pk: `0x${string}`, parent: any) => keyAccount(pk, parent)
+
+/** Authorize an ADMIN access key on `parent` (TIP-1049): unrestricted, and able to manage the account's other keys. */
+export async function authorizeAdminKey(parent: any, k: KeyRef) {
+  const r: any = await Actions.accessKey.authorizeSync(mk(parent), { accessKey: keyParam(k, parent), admin: true } as any)
+  return (r.receipt ?? r).transactionHash as string
+}
+
+/** Issue a capped, vendor-scoped key on `parent`, signed by `signer` (the parent's root or one of its admin keys). */
+export async function issueKeyVia(signer: any, parent: any, k: KeyRef, capUsd: number, periodSec: number, vendors: string[], days = 120) {
+  const scopes = vendors.length
+    ? ['transfer(address,uint256)', 'transferWithMemo(address,uint256,bytes32)'].map((selector) => ({ address: TOKEN, selector, recipients: vendors }))
+    : undefined
+  const r: any = await Actions.accessKey.authorizeSync(mk(signer), {
+    accessKey: keyParam(k, parent),
+    expiry: Math.floor(Date.now() / 1000) + days * 86400,
+    limits: [{ token: TOKEN, limit: usd(capUsd), period: periodSec }],
+    scopes,
+  } as any)
+  return (r.receipt ?? r).transactionHash as string
+}
+
+/** Revoke a key on `parent`, signed by `signer` (root or admin key). */
+export async function revokeKeyVia(signer: any, parent: any, k: KeyRef) {
+  const r: any = await Actions.accessKey.revokeSync(mk(signer), { accessKey: keyParam(k, parent) } as any)
+  return (r.receipt ?? r).transactionHash as string
+}

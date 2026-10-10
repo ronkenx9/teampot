@@ -88,3 +88,26 @@ Tempo Moderato chain 42431. Evidence below is from local server `PORT=8790` unle
 - Real on Moderato: personal payday destinations, TIP-20 test asset creation, DEX pair creation, company bid/ask order placement, pay-to-stocks DEX buy, manual DEX sell, and all prior department/payday/passkey flows.
 - App accounting: displayed stock shares, average cost, current value and gain/loss are computed from Teampot trade records and delayed reference prices. DEX inventory is dollar exposure units because Tempo's DEX tick range does not support raw stock prices such as $254 directly.
 - Simulated: Earning remains labelled simulated. Mainnet path is to use real tokenized stocks such as Ondo or xStocks once bridged or issued natively on Tempo, plus a public or app-deployed Earn venue for pathUSD.
+
+## Three-level delegation with admin access keys (TIP-1049), verified 2026-10-10
+
+`scripts/probe-admin-key.ts` against Moderato (fresh accounts each run):
+
+| Step | Result |
+|---|---|
+| Department root authorizes the head key as an **admin** key | ok (`0xa5f4c996…`) |
+| Head key authorizes a member card: $10 a month, one vendor | ok (`0x86fc39d0…`) |
+| Member pays the vendor $4 | ok |
+| Member pays $8 (over the cap) | **rejected by Tempo** |
+| Member pays an unlisted recipient $1 | **rejected by Tempo** |
+| Head pays the unlisted recipient $3 (approval) | ok |
+| Head revokes the member card; the member's next payment | **rejected** (`KeyAlreadyRevoked`) |
+| Department root revokes the head key; the head's next payment | **rejected** (`KeyAlreadyRevoked`) |
+
+In the app (`npm run e2e`, Moderato):
+- Setup authorizes Ava's admin key on the Design account. Sam's card and perks are signed by Ava's key; Ava's own card is signed by Finance.
+- Approvals by a head are paid from the department **with the head key** (activity says "signed by Ava's head key").
+- Finance appoints Priya as Engineering head on Tempo, which re-signs the team's cards.
+- A head changing their own budget gets a 403; a top-up request funded by Finance is a real treasury → department transfer.
+
+Earlier notes said sub-delegation was impossible. That was true before T6; admin keys now provide exactly one level below the head. See `../ARCHITECTURE.md`.

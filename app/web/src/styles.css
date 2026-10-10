@@ -209,3 +209,90 @@ button.feed-row:hover .grow b{text-decoration:underline;text-decoration-thicknes
 .spinner{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spinner{animation-duration:2.4s}}
+/* ---- delegation model UI ---- */
+.hero-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.hero-buttons .btn{width:auto;min-width:120px}
+.btn.on-dark{background:rgba(255,255,255,.12);color:#fff;border:0;text-decoration:none;display:inline-grid;place-items:center;padding:0 18px}
+.wallet-hero .hero-buttons .btn{flex:1;max-width:220px}
+.authority{display:flex;gap:14px;align-items:flex-start;background:#fff;border-radius:22px;padding:16px 18px;box-shadow:0 1px 0 rgba(0,0,0,.04)}
+.authority-icon{width:40px;height:40px;border-radius:12px;background:#FFF1EB;color:#B8401C;display:grid;place-items:center;flex:none}
+.authority b{font-size:17px;display:block}
+.authority p{margin:4px 0 0;color:#48484D;font-size:15px;line-height:1.45}
+.authority-links{display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex:none}
+.authority-links .plain,.authority-links a,a.rec{color:#B8401C;font-weight:650;font-size:14px;text-decoration:none;background:none;border:0;padding:0;cursor:pointer;white-space:nowrap}
+a.rec::after,.authority-links a::after{content:" ↗"}
+.page-intro{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:4px 2px}
+.page-intro h1{margin:0;font-size:34px;letter-spacing:-.01em}
+.page-intro p{margin:6px 0 0;color:#48484D;font-size:16px;line-height:1.45;max-width:620px}
+.dept-card{display:grid;gap:4px;border-top:4px solid var(--pot)}
+.dept-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.dept-top h2{margin:0;font-size:24px}
+.dept-top a{color:#6E6E73;font-size:14px;text-decoration:none}
+.dept-top a::after{content:" ↗"}
+.dept-bal{text-align:right}
+.dept-bal small{display:block;color:#6E6E73;font-size:13px}
+.dept-bal b{font-size:26px;font-weight:800;font-style:italic}
+.dept-level{border-top:1px solid var(--line);padding-top:12px;margin-top:8px;display:grid;gap:8px}
+.level-label{color:#6E6E73;font-size:13px;font-weight:650;text-transform:uppercase;letter-spacing:.04em}
+.level-row{display:flex;align-items:center;gap:12px}
+.level-row .grow small{display:block;color:#6E6E73;font-size:13px}
+.inline-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.inline-form select,.inline-form .money-in{flex:1;min-width:140px}
+.inline-form label.grow{flex:1;min-width:160px}
+.inline-form .btn{width:auto}
+.num.small{font-size:14px;color:#48484D;font-weight:600}
+.dept-rows li{align-items:center}
+.dept-dot{width:12px;height:12px;border-radius:50%;flex:none}
+.card-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.card-list li{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:14px;align-items:center}
+.card-chip{background:linear-gradient(135deg,#1C1C1E,#3A3A3C);color:#fff;border-radius:16px;padding:14px 16px;display:grid;gap:2px;position:relative;overflow:hidden;aspect-ratio:1.586/1;align-content:end}
+.card-chip::before{content:"";position:absolute;top:14px;left:16px;width:28px;height:6px;border-radius:3px;background:var(--pot)}
+.card-chip span{font-size:13px;color:#D6D6DA}
+.card-chip b{font-size:26px;font-weight:800;font-style:italic}
+.card-chip small{color:#AEAEB2;font-size:12px}
+.card-meta{display:grid;gap:4px;min-width:0}
+.card-meta span{font-size:15px;color:#1C1C1E}
+.card-meta small{color:#6E6E73;font-size:13px}
+.howto{display:grid;gap:16px}
+.howto .lede{margin:0;font-size:17px;line-height:1.5;color:#1C1C1E}
+.ladder{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:lvl}
+.ladder li{position:relative;padding:12px 14px 12px 48px;border-radius:16px;counter-increment:lvl}
+.ladder li::before{content:counter(lvl);position:absolute;left:12px;top:12px;width:24px;height:24px;border-radius:50%;background:#F2F2F5;color:#3A3A3C;font-size:13px;font-weight:700;display:grid;place-items:center}
+.ladder li:not(:last-child)::after{content:"";position:absolute;left:23px;top:38px;bottom:-12px;width:2px;background:#E5E5EA}
+.ladder li b{display:flex;gap:8px;align-items:center;font-size:16px}
+.ladder li b em{font-style:normal;font-size:12px;background:var(--clay);color:#fff;border-radius:999px;padding:2px 8px}
+.ladder li span{display:block;color:#48484D;font-size:14px;line-height:1.45;margin-top:2px}
+.ladder li.you{background:#FFF4EF}
+.ladder li.you::before{background:var(--clay);color:#fff}
+.enforced{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.enforced>div{background:#F5F5F7;border-radius:16px;padding:12px 14px}
+.enforced h3{margin:0 0 6px;font-size:15px}
+.enforced ul{margin:0;padding-left:18px;color:#48484D;font-size:14px;line-height:1.6}
+.muted.small{font-size:13px;line-height:1.45}
+.hint.quiet{background:none;padding:0;color:#6E6E73}
+fieldset.check-grid{border:0;padding:0;margin:0}
+fieldset.check-grid legend{font-weight:650;margin-bottom:6px;color:#3A3A3C}
+@media (max-width:560px){
+  .authority{flex-wrap:wrap}
+  .authority-links{flex-direction:row;width:100%;justify-content:flex-start;gap:16px;padding-left:54px}
+  .page-intro{flex-direction:column}
+  .page-intro h1{font-size:28px}
+  .card-list li{grid-template-columns:1fr}
+  .card-chip{max-width:320px}
+  .enforced{grid-template-columns:1fr}
+  .dept-bal b{font-size:22px}
+  .hero-buttons .btn{flex:1}
+}
+.dept-card,.dept-level,.howto,.panel{grid-template-columns:minmax(0,1fr)}.level-row .grow,.rows .grow{min-width:0}.level-row .grow small,.rows .grow small{overflow-wrap:anywhere}
+.dept-card .rows .grow small,.level-row .grow small{white-space:normal;overflow:visible;text-overflow:clip}
+.dept-card .rows li{flex-wrap:nowrap;align-items:center}
+@media (max-width:560px){
+  .card-list li{grid-template-columns:132px minmax(0,1fr);gap:12px;align-items:center}
+  .card-chip{aspect-ratio:auto;min-height:84px;padding:12px;border-radius:14px}
+  .card-chip::before{top:10px;left:12px;width:20px;height:5px}
+  .card-chip b{font-size:20px}
+  .card-chip span,.card-chip small{font-size:11px}
+  .card-meta span{font-size:14px}
+  .dept-card .rows .num.small{font-size:13px}
+}
+@media (max-width:560px){.card-chip{padding-top:24px}}
