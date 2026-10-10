@@ -191,7 +191,7 @@ function RolePickerSheet({ title, busy, onCancel, onPick }: { title: string; bus
         <div className="role-grid">
           {VIEWERS.map((v) => (
             <button key={v.id} className="role-card" disabled={!!busy} onClick={() => onPick(v.id)}>
-              <span className="role-avatar"><UserGlyph /></span>
+              <span className="role-avatar"><Pfp id={v.id} /></span>
               <span><b>{v.full}</b><small>{v.sub}</small><em>{v.do}</em></span>
             </button>
           ))}
@@ -233,11 +233,11 @@ function RoleFrame({ s, viewer, active, setActive, profileOpen, setProfileOpen, 
       <div className="role-page">
         <header className="gl-top">
           <div className="profile">
-            <button className="gl-avatar profile-button" aria-expanded={profileOpen} aria-label={`${person.full}, switch role`} onClick={() => setProfileOpen(!profileOpen)}><UserGlyph /></button>
+            <button className="gl-avatar profile-button" aria-expanded={profileOpen} aria-label={`${person.full}, switch role`} onClick={() => setProfileOpen(!profileOpen)}><Pfp id={viewer} /></button>
             {profileOpen && (
               <div className="profile-menu">
                 <p>Switch demo role</p>
-                {VIEWERS.map((v) => <button key={v.id} className={viewer === v.id ? 'on' : ''} onClick={() => switchDemo(v.id)}><span className="role-avatar small"><UserGlyph /></span><span><b>{v.label}</b><small>{v.sub}</small></span></button>)}
+                {VIEWERS.map((v) => <button key={v.id} className={viewer === v.id ? 'on' : ''} onClick={() => switchDemo(v.id)}><span className="role-avatar small"><Pfp id={v.id} /></span><span><b>{v.label}</b><small>{v.sub}</small></span></button>)}
                 <button className="signin-row" disabled={!!busy || s.auth?.demo === false} onClick={() => realSignIn(viewer)}><FaceIcon /> Sign in with Face ID</button>
               </div>
             )}
@@ -994,10 +994,13 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const Bar = ({ used, cap, color }: { used: number; cap: number; color: string }) => <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={cap} aria-valuenow={Math.round(used)}><i style={{ width: `${cap ? Math.min(100, Math.max(0, (used / cap) * 100)) : 0}%`, background: color }} /></div>
 const Empty = ({ text }: { text: string }) => <p className="empty">{text}</p>
 /** Generic profile picture: head and shoulders, clipped to the circle. */
+const PFP: Record<string, string> = { sam: '/pfp/sam.webp', ava: '/pfp/ava.webp', jordan: '/pfp/jordan.webp', mateo: '/pfp/mateo.webp' }
+/** Profile picture for the four demo people; everyone else gets the generic glyph. */
+const Pfp = ({ id }: { id: string }) => PFP[id] ? <img className="pfp" src={PFP[id]} alt="" width="64" height="64" /> : <UserGlyph />
 const UserGlyph = () => <svg className="user-glyph" viewBox="0 0 24 24" aria-hidden><circle cx="12" cy="9" r="4.2" fill="currentColor" /><path d="M3.5 22.5c.8-4.6 4.3-7.3 8.5-7.3s7.7 2.7 8.5 7.3" fill="currentColor" /></svg>
 const Avatar = ({ name, small }: { name: string; small?: boolean }) => {
   const hue = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360
-  return <span className={`av ${small ? 'sm' : ''}`} style={{ background: `hsl(${hue} 70% 88%)`, color: `hsl(${hue} 50% 30%)` }} aria-hidden><UserGlyph /></span>
+  return <span className={`av ${small ? 'sm' : ''}`} style={{ background: `hsl(${hue} 70% 88%)`, color: `hsl(${hue} 50% 30%)` }} aria-hidden><Pfp id={name.split(' ')[0].toLowerCase()} /></span>
 }
 function Shell({ children, compact, app }: { children: ReactNode; compact?: boolean; app?: boolean }) { return <div className={`app ${compact ? 'compact' : ''} ${app ? 'app-shell' : ''}`}>{children}</div> }
 function Skeleton() { return <div className="grid skeleton"><section className="sk span12" /><section className="sk span7" /><section className="sk span5" /><section className="sk span6" /><section className="sk span6" /></div> }
