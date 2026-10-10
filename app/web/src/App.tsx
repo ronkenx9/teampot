@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api, ago, money, resetDate, type Activity, type Card, type Held, type Invoice, type Person, type State, type StockId } from './api'
 import { createInvitePasskey, enrollPasskey, passkeysSupported, payWithPasskey, signInPasskey } from './passkey'
-import { Glow, NextCard, Seg, SegBar, Tile, dotMoney, IconCard, IconCash, IconChart, IconClock, IconKey, IconPeople, Check } from './glide'
+import { Vault, NextCard, Seg, SegBar, Tile, IconCard, IconCash, IconChart, IconClock, IconKey, IconPeople, Check } from './glide'
 
 type Viewer = 'jordan' | 'ava' | 'sam' | 'mateo'
 const VIEWERS: { id: Viewer; label: string; full: string; sub: string; avatar: string; do: string }[] = [
@@ -318,7 +318,8 @@ function Finance({ s, busy, run, toast, openReceipt, active, setTask, setActive 
   const staff = s.people.filter((p) => p.salary).length
   return (
     <div className="surface">
-      <Glow tone="deep" label="Company treasury" value={dotMoney(s.company.balance)} sub={lastPayday ? `Last payday ${ago(lastPayday.at)}` : 'No payday yet'} top={<span className="pill-live">On Tempo</span>} />
+      <Vault label="Company treasury" amount={s.company.balance} sub={lastPayday ? `Last payday ${ago(lastPayday.at)} · next ${s.nextPayday}` : `Next payday ${s.nextPayday}`} top={<span className="pill-live dark">On Tempo</span>}
+        actions={<><button className="vbtn" onClick={() => setTask('payday')}>Review payday</button><a className="vbtn glass" href={s.controls.treasury.link} target="_blank" rel="noreferrer">Public record</a></>} />
       <div className="tiles">
         <Tile tone="lav" icon={<IconPeople />} value={String(depts.length)} label="Departments" />
         <Tile tone="sage" icon={<IconKey />} value={String(depts.filter((d) => d.head).length)} label="Head keys" />
@@ -360,7 +361,8 @@ function Lead({ s, busy, run, toast, openReceipt, me, active, setTask }: Ctx & {
   const firstVendor = first ? s.vendors.find((v) => v.id === first.vendorId) : undefined
   return (
     <div className="surface">
-      <Glow tone="dusk" label={`${dept?.team ?? ''} account`} value={dotMoney(dept?.balance ?? 0)} sub={waiting.length ? `${plural(waiting.length, 'request', 'requests')} waiting for you` : 'Nothing waiting'} top={<span className="pill-lime">Head key</span>} />
+      <Vault label={`${dept?.team ?? ''} account`} amount={dept?.balance ?? 0} accent={dept?.color} sub={waiting.length ? `${plural(waiting.length, 'request', 'requests')} waiting for you` : 'Nothing waiting'} top={<span className="pill-lime">Head key</span>}
+        actions={<>{waiting.length > 0 && <button className="vbtn" onClick={() => document.getElementById('lead-approvals')?.scrollIntoView({ behavior: 'smooth' })}>Review</button>}<button className={`vbtn ${waiting.length ? 'glass' : ''}`} onClick={() => setTask('rules')}>Edit rules</button></>} />
       <div className="tiles">
         <Tile tone="peach" icon={<IconClock />} value={String(waiting.length)} label="Waiting" />
         <Tile tone="lav" icon={<IconCard />} value={String(dept?.cards.length ?? 0)} label="Cards signed" />
@@ -390,7 +392,7 @@ function Contractor({ s, busy, run, toast, me, active, setTask }: Ctx & { me: Pe
   const paid = mine.filter((i) => i.status === 'paid').reduce((a, i) => a + i.amount, 0)
   return (
     <div className="surface">
-      <Glow tone="swim" label="Paid to you" value={dotMoney(paid)} sub={mine.length ? plural(mine.length, 'invoice', 'invoices') : 'No invoices yet'} />
+      <Vault label="Paid to you" amount={paid} sub={mine.length ? plural(mine.length, 'invoice', 'invoices') : 'No invoices yet'} actions={<button className="vbtn" onClick={() => setTask('invoice')}>Send an invoice</button>} />
       <NextCard eyebrow={`Paid by ${s.pots.find((p) => p.id === me.team)?.team ?? 'Finance'}`} title="Send an invoice" chips={['Paid in seconds', 'Public record']} action={{ label: 'Send an invoice', onClick: () => setTask('invoice') }} tone="sky" />
       <AuthorityCard s={s} viewer="mateo" setTask={setTask} />
       <section className="panel"><SectionTitle title="Invoices" sub="Your team's head or Finance pays them." /><Invoices s={s} busy={busy} run={run} toast={toast} items={mine} /></section>
@@ -411,9 +413,10 @@ function MoneyHome({ s, me, openReceipt, setTask }: Pick<Ctx, 's' | 'openReceipt
   const left = card?.left ?? 0
   return (
     <div className="money-home surface-stack">
-      <Glow tone="swim" label={view === 'all' ? 'Your money' : `${dept?.team ?? ''} card left`} value={dotMoney(view === 'all' ? total : left)}
-        sub={view === 'all' ? (pay ? `Payday landed ${ago(pay.at)}` : `Next payday ${s.nextPayday}`) : `of ${money(card?.cap ?? 0)} this month`}
-        top={<Seg label="Show" options={[{ id: 'all', label: 'Money' }, { id: 'card', label: 'Card' }]} value={view} onChange={setView} />} />
+      <Vault label={view === 'all' ? 'Your money' : `${dept?.team ?? ''} card · left this month`} amount={view === 'all' ? total : left} accent={dept?.color}
+        sub={view === 'all' ? (pay ? `Payday landed ${ago(pay.at)}` : `Next payday ${s.nextPayday}`) : `of ${money(card?.cap ?? 0)} · signed by ${card?.issuedBy.split(' ')[0] ?? 'Finance'}`}
+        top={<Seg label="Show" options={[{ id: 'all', label: 'Total' }, { id: 'card', label: 'Card' }]} value={view} onChange={setView} />}
+        actions={<><button className="vbtn" onClick={() => setTask('pay')}>Pay</button><button className="vbtn glass" onClick={() => setTask('invest')}>Invest</button></>} />
       <div className="tiles">
         <Tile tone="lav" icon={<IconCash />} value={money(me.balance)} label="Cash" />
         <Tile tone="sage" icon={<IconChart />} value={money(invested)} label="Invested" />
@@ -429,7 +432,7 @@ function InvestGlow({ s, me }: { s: State; me: Person }) {
   const inv = s.investments.find((x) => x.personId === me.id)
   const invested = inv?.positions.reduce((a, p) => a + p.value, 0) ?? 0
   const gain = inv?.positions.reduce((a, p) => a + p.gain, 0) ?? 0
-  return <Glow tone="ember" label="Invested" value={dotMoney(invested)} sub={invested ? `${gain >= 0 ? '+' : '−'}${money(Math.abs(gain), true)} since you bought` : 'Nothing invested yet'} top={<span className="pill-live">Delayed prices</span>} />
+  return <Vault label="Invested" amount={invested} sub={invested ? <span className={gain >= 0 ? 'up' : 'down'}>{gain >= 0 ? '+' : '−'}{money(Math.abs(gain), true)} since you bought</span> : 'Nothing invested yet'} top={<span className="pill-live dark">Delayed prices</span>} />
 }
 
 /** Small illustrations for the "up next" cards. */

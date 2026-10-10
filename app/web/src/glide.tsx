@@ -1,6 +1,6 @@
 // Visual primitives for the app, modeled on the "glide" reference: dot-matrix numerals on soft
 // gradient cards, pastel stat tiles, mono labels, segmented bars and a sliding segmented control.
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 /* 5x7 dot font. Narrow glyphs (comma, period, colon) use fewer columns. */
@@ -148,3 +148,39 @@ export const IconCard = () => <svg viewBox="0 0 24 24" width="16" height="16" fi
 export const IconKey = () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="8" cy="15" r="4" /><path d="m11 12 9-9M17 6l3 3" /></svg>
 export const IconPeople = () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><circle cx="9" cy="8" r="3" /><path d="M3 19c1-3 3-5 6-5s5 2 6 5M16 5a3 3 0 0 1 0 6M18 14c2 1 3 3 3 5" /></svg>
 export const IconClock = () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>
+
+/** Odometer-style amount: each digit rolls to its new value; cents are dimmed. */
+export function RollingMoney({ value }: { value: number }) {
+  const text = value.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const [whole, cents] = text.split('.')
+  const roll = (str: string, cls = '') => str.split('').map((ch, i) => /\d/.test(ch)
+    ? <span key={`${cls}${str.length - i}`} className={`roll ${cls}`} aria-hidden><span className="roll-col" style={{ transform: `translateY(-${Number(ch) * 10}%)` }}>{'0123456789'.split('').map((d) => <span key={d}>{d}</span>)}</span></span>
+    : <span key={`${cls}s${str.length - i}`} className={`roll-sym ${cls}`} aria-hidden>{ch}</span>)
+  return <span className="rolling" role="text" aria-label={text}>{roll(whole)}<span className="roll-cents">{roll(`.${cents}`, 'c')}</span></span>
+}
+
+/** Premium black money card: pointer-following light, slight tilt, rolling amount, actions inside. */
+export function Vault({ label, amount, sub, top, actions, accent }: { label: string; amount: number; sub?: ReactNode; top?: ReactNode; actions?: ReactNode; accent?: string }) {
+  const ref = useRef<HTMLElement | null>(null)
+  const move = (e: React.PointerEvent) => {
+    const el = ref.current
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const r = el.getBoundingClientRect()
+    const x = (e.clientX - r.left) / r.width
+    const y = (e.clientY - r.top) / r.height
+    el.style.setProperty('--mx', `${x * 100}%`)
+    el.style.setProperty('--my', `${y * 100}%`)
+    el.style.setProperty('--rx', `${(0.5 - y) * 5}deg`)
+    el.style.setProperty('--ry', `${(x - 0.5) * 7}deg`)
+  }
+  const leave = () => { const el = ref.current; if (!el) return; el.style.setProperty('--rx', '0deg'); el.style.setProperty('--ry', '0deg') }
+  const long = Math.abs(amount) >= 1_000_000 ? 'xl' : Math.abs(amount) >= 100_000 ? 'lg' : ''
+  return (
+    <section ref={ref} className={`vault ${long}`} onPointerMove={move} onPointerLeave={leave} style={accent ? { ['--accent' as any]: accent } : undefined}>
+      <div className="vault-top"><span className="vault-label">{label}</span>{top}</div>
+      <p className="vault-amt"><RollingMoney value={amount} /></p>
+      {sub && <p className="vault-sub" key={String(sub)}>{sub}</p>}
+      {actions && <div className="vault-actions">{actions}</div>}
+    </section>
+  )
+}

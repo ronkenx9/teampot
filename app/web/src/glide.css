@@ -170,3 +170,45 @@
 .sheet .flow .amount-input{display:flex;flex-direction:row;align-items:baseline;gap:4px}
 .sheet .flow .amount-input input{color:#0B0B0C;font-size:56px;font-weight:400;letter-spacing:-.05em;min-height:0;background:none;padding:0;border:0}
 .app-shell .segmented button{font-size:13px}
+
+/* ---- premium black money card ---- */
+.vault{--mx:70%;--my:20%;--rx:0deg;--ry:0deg;--accent:#E8552D;position:relative;isolation:isolate;overflow:hidden;container-type:inline-size;
+  border-radius:30px;padding:22px 22px 20px;color:#fff;display:grid;gap:6px;
+  background:linear-gradient(160deg,#1C1C1F 0%,#0B0B0C 45%,#050506 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 0 0 1px rgba(255,255,255,.06),0 24px 60px rgba(11,11,12,.22);
+  transform:perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));transition:transform .35s var(--ease);will-change:transform}
+.vault::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(420px circle at var(--mx) var(--my),rgba(255,255,255,.13),transparent 45%);transition:background .2s}
+.vault::after{content:"";position:absolute;left:22px;right:22px;top:0;height:1px;z-index:-1;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent)}
+.vault-top{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:32px}
+.vault-label{font:500 11px/1.3 "Geist Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.55)}
+.vault-amt{margin:18px 0 0;font-size:clamp(40px,15cqi,68px);font-weight:400;letter-spacing:-.05em;line-height:1;white-space:nowrap}
+.vault.lg .vault-amt{font-size:clamp(34px,12cqi,58px)}
+.vault.xl .vault-amt{font-size:clamp(30px,10.5cqi,52px)}
+.vault-sub{margin:4px 0 0;font-size:14px;color:rgba(255,255,255,.55);animation:blur-in .5s var(--ease) both}
+.vault-sub .up{color:#7BE3A8}.vault-sub .down{color:#FF8A80}
+.vault-actions{display:flex;gap:8px;margin-top:18px}
+.vbtn{all:unset;box-sizing:border-box;cursor:pointer;flex:1;text-align:center;height:48px;line-height:48px;border-radius:999px;background:#fff;color:#0B0B0C;font-size:15px;font-weight:500;position:relative;overflow:hidden;transition:transform .2s var(--ease),background .2s}
+.vbtn.glass{background:rgba(255,255,255,.1);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);backdrop-filter:blur(12px)}
+.vbtn:active{transform:scale(.97)}
+.vbtn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.vbtn::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.45) 50%,transparent 70%);transform:translateX(-120%)}
+.vbtn.glass::after{background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.18) 50%,transparent 70%)}
+.vbtn:hover::after{transform:translateX(120%);transition:transform .8s var(--ease)}
+.vault .seg{background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);min-width:150px}
+.vault .seg button{color:rgba(255,255,255,.6);padding:7px 12px}
+.vault .seg button.on{color:#0B0B0C}
+.vault .pill-live.dark{background:rgba(255,255,255,.1);color:#fff}
+/* odometer digits */
+.rolling{display:inline-flex;align-items:baseline}
+.roll{display:inline-block;height:1em;line-height:1;overflow:hidden;vertical-align:baseline}
+.roll-col{display:flex;flex-direction:column;transition:transform 1s cubic-bezier(.2,.9,.1,1)}
+.roll-col span{height:1em;line-height:1}
+.roll-sym{display:inline-block;line-height:1}
+.roll-cents{color:rgba(255,255,255,.4);font-size:.5em;letter-spacing:-.02em;margin-left:2px;display:inline-flex;align-items:baseline}
+.roll-cents .roll{height:1em}
+@media (prefers-reduced-motion:reduce){.vault{transform:none!important;transition:none}.roll-col{transition:none}}
+.rolling{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.roll{width:.6em;text-align:center}
+.roll-col span{display:block;text-align:center}
+.roll-sym{letter-spacing:-.04em}
+.roll-cents .roll{width:.62em}
