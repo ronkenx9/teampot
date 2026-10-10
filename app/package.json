@@ -10,6 +10,7 @@
     "start": "tsx server/local.ts",
     "e2e": "node scripts/e2e.mjs",
     "e2e:passkey": "tsx scripts/e2e-passkey.ts",
+    "journey": "node scripts/journey-check.mjs",
     "check:banned": "node scripts/check-banned-ui.mjs",
     "responsive": "node scripts/responsive-check.mjs",
     "landing": "node scripts/landing-check.mjs"

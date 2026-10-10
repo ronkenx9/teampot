@@ -88,7 +88,10 @@ export const ago = (t: number) => {
   const s = Math.max(1, Math.round((Date.now() - t) / 1000))
   if (s < 60) return `${s}s ago`
   if (s < 3600) return `${Math.round(s / 60)}m ago`
-  return `${Math.round(s / 3600)}h ago`
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`
+  const d = Math.round(s / 86400)
+  if (d < 14) return d === 1 ? 'yesterday' : `${d} days ago`
+  return new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 export const resetDate = (unix: number | null) =>
   unix ? new Date(unix * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'soon'

@@ -617,6 +617,20 @@ app.post('/api/setup', async (c) => {
     log({ kind: 'perk', title: `${person(p.personId).name.split(' ')[0]} got ${p.name}`, detail: `$${p.cap}/${p.periodLabel} at ${p.vendorIds.map((v) => vendor(v).name).join(', ')}`, tx, who: p.personId, perkId: p.id, memo: `perk:${p.name}` })
   }
   await setupStocks()
+  // The stock demo company starts with last month's payday already paid, so homes open with real money.
+  if (!setup.departments?.length && !S.paydayRuns.length) {
+    const staff = S.people.filter((x) => x.salary)
+    const d = new Date(); d.setUTCMonth(d.getUTCMonth() - 1)
+    const date = d.toISOString().slice(0, 10)
+    try {
+      const r = await T.payday(staff.map((x) => ({ to: x.address, amount: x.salary!, note: `payday ${date}` })))
+      const total = staff.reduce((sum, x) => sum + x.salary!, 0)
+      S.paydayRuns.unshift({ id: uid(), at: d.getTime(), date, tx: r.tx, total, count: staff.length, ms: r.ms, lines: staff.map((x) => ({ personId: x.id, gross: x.salary!, memo: `payday ${date}` })) })
+      log({ kind: 'payday', title: `Payday's in the pot`, detail: `${staff.length} people paid in ${(r.ms / 1000).toFixed(1)}s`, amount: total, tx: r.tx, memo: `payday:${date}` })
+    } catch (e) {
+      console.warn('seed payday skipped', (e as Error).message)
+    }
+  }
   S.seeded = true
   const session = createSession('jordan', true)
   setSessionCookie(c, session.id, 2 * DAY_MS / 1000)

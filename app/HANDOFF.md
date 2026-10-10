@@ -154,3 +154,24 @@
 - A non-restricted browser should still run the Playwright visual checks for the new Money home.
 - Earning is simulated until there is a public pathUSD earning pool or a fully configured app-deployed Earn stack.
 - Real-world stock mainnet path needs live tokenized stock issuers on or bridged to Tempo; pass 6A uses clearly labelled test assets only.
+
+## Redesign: Apple-Style Role App
+- First screen: `/app` no longer auto-enters demo mode. With no session it shows the full-bleed black Teampot front door, 3D chrome mark (`/mark3d.webp`), "Try the demo", and a quiet Face ID sign-in path. Try the demo opens the four-role sheet requested in `REDESIGN_BRIEF.md`.
+- Navigation: the four-name pill row is gone. Role switching lives in the avatar/profile menu. Phone uses bottom tabs; desktop uses a slim left sidebar. Tabs are role-specific: Sam Home/Spend/Invest/Activity, Ava Home/Approvals/Team/Activity, Jordan Home/Payday/Teams/Activity, Mateo Home/Invoices/Activity.
+- Home screens: Sam now gets the wallet-inspired balance hero, Pay/Face ID/Invest action cluster, team-card tile, pay sparkline tile and grouped Recent list. Ava gets a requests-first hero, team budget/rules cards and plain-language empty states. Jordan gets company balance, company map, waiting summary and department Fill cards. Mateo gets paid-to-you, one Send invoice action and invoice status rows.
+- Tasks as sheets: Pay, Invest, Team rules, Payday review, Send invoice, Invite person and related admin actions open as bottom/center sheets instead of becoming tabs. Money-moving confirmation sheets keep Face ID as the final action where applicable.
+- Explain-as-you-go: each role home has a dismissible localStorage-backed tip card with a one-sentence demo suggestion. Section headers include plain subtitles, and empty states explain why a list is empty.
+- Visual system: app screens now use Apple #F5F5F7, white rounded panels, hairline grouped rows, Clay only for primary/action state, Inter Tight hierarchy, large italic money, outline icons, safe-area bottom tabs, reduced-motion handling, and the locked 3D mark welcome.
+- Mechanical design review: `node /Users/gadgetplug/.agents/skills/impeccable/scripts/detect.mjs --json app/web/src/App.tsx app/web/src/styles.css app/web/index.html` passes with `[]`. The build keeps the design contract comment in `web/dist/index.html`.
+
+## Redesign Gate Results
+- Typecheck: PASS, `npm run typecheck`.
+- Unit tests: PASS, `npm test` (4 files, 23 tests).
+- Build: PASS, `npm run build`.
+- Banned words: PASS, `npm run check:banned`.
+- Responsive: PASS fallback, `BASE=http://localhost:8790 npm run responsive`; HTTP smoke loaded `/app`, but Chromium launch is blocked by the sandbox.
+- Landing: PASS fallback, `BASE=http://localhost:8790 npm run landing`; HTTP smoke for `/`, `/app`, invite route, manifest and OG asset passes, but Chromium launch is blocked by the sandbox.
+- Journey check: PASS fallback, `BASE=http://localhost:8790 npm run journey`; the new script exists and HTTP smoke passed, but browser automation cannot launch here.
+- E2E: BLOCKED by external testnet funding, not app code. `BASE=http://localhost:8790 npm run e2e` failed during `/setup` because the configured operator had `736008776` micros available and needed `3600000000` micros for the first Design funding transfer.
+- Passkey E2E: BLOCKED by external testnet funding, not app code. `BASE=http://localhost:8790 npm run e2e:passkey` failed when the Ava account had no gas balance for passkey enrollment.
+- Browser visual review: BLOCKED by sandbox. Chromium fails with `bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer... Permission denied (1100)`, so screenshots and pixel/overflow inspection need a non-restricted browser environment.
