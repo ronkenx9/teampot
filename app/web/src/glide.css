@@ -212,3 +212,14 @@
 .roll-col span{display:block;text-align:center}
 .roll-sym{letter-spacing:-.04em}
 .roll-cents .roll{width:.62em}
+/* generic profile pictures */
+.user-glyph{width:62%;height:62%;display:block;margin-top:18%;opacity:.85}
+.av,.role-avatar,.gl-avatar{overflow:hidden;display:grid!important;place-items:center;align-content:end}
+.av .user-glyph,.role-avatar .user-glyph,.gl-avatar .user-glyph{margin-top:22%}
+.gl-avatar{color:#5B7B8C}
+.role-avatar{color:#6E7781;background:#E3E7EB}
+.av,.role-avatar,.gl-avatar{place-items:end center!important;align-content:normal}
+.av .user-glyph,.role-avatar .user-glyph,.gl-avatar .user-glyph{width:80%;height:80%;margin:0 0 -8% 0;opacity:.9}
+.app-shell .gl-avatar{background:#D3E4EE}
+.app-shell .gl-avatar .user-glyph{width:34px!important;height:34px!important;margin-bottom:-4px}
+.role-avatar .user-glyph{width:78%!important;height:78%!important}
