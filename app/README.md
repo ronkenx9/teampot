@@ -1,52 +1,84 @@
-# Teampot
+# Teampot app
 
-**Live demo: https://teampot.vercel.app/app** (Tempo Moderato testnet, test money)
+Server, web app and website for Teampot. Overview and screenshots: [../README.md](../README.md). Permission model: [../ARCHITECTURE.md](../ARCHITECTURE.md). Evidence: [VERIFIED.md](VERIFIED.md).
 
-Every team runs its own money. Teampot runs payday, funded department accounts, perks, kudos from savings, and contractor pay for everyone a company works with.
+Live: https://teampot.vercel.app (`/` website, `/app` app, `/tour` guided tour). Tempo Moderato testnet, test money.
 
 ## Features
-- Finance dashboard: org map, department funding/returns, payday preview/confirm, next payday date, history, people management, vendor management, CSV export, receipt detail sheet.
-- Sign-in: public Demo mode is visible; real users sign in with Face ID / Touch ID passkeys and receive an HTTP-only session cookie.
-- Invites: Finance or a department head sends a one-time link; the new person sets up Face ID and lands in their department wallet.
-- Departments: Finance funds each department account. Department roots issue per-person limits and approved vendor lists enforced by Tempo access keys.
-- Finance rule: payments over the company threshold become Finance-only decisions.
-- Approve and add: a lead can pay a held vendor from the department account and add it to the department list; demo keys rotate and department cards are re-issued.
-- Perks: per-person allowances such as Lunch and Learning, each issued from the person's department account as its own access key.
-- Quarter close: computes real remaining limits, pays a kudos pool from the department account, records a leaderboard, and lets teammates award kudos.
-- Contractor portal: invoice list, paid-in-seconds badge, and decline-with-reason.
-- Face ID: browser passkeys become a person's spending key; the server records only verified receipts.
-- Money home: every employee and contractor sees total balance, Spend, Keep, Earning, Invest, and recent activity.
-- Pay-to-stocks: each person can send a payday percentage into AAPL/NVDA/SPY test stock exposure; manual Buy/Sell uses Tempo's DEX.
-- Mobile app shell: installable PWA manifest, cached first paint, and an offline page.
-- Earned while unspent: shown only as a clearly labelled simulated card.
 
-## Run Locally
-1. `cp .env.example .env` and set `OPERATOR_PK` to a funded Moderato testnet key.
-2. `npm install && (cd web && npm install)`
-3. `npm run build`
-4. `PORT=8790 npx tsx server/local.ts`
-5. Open `http://localhost:8790` for the landing page or `http://localhost:8790/app` for the live demo.
+**Finance (Jordan)**
+- Company treasury, payday review and confirm (one batch payment with memos), payday history.
+- Departments: each a Tempo account. Add money or pull it back (real transfers), appoint or change the head (admin access key), see every card with who signed it and its public record.
+- Top-up requests from heads, Finance-limit approvals, contractor invoices, people and salaries, vendors, CSV export.
 
-Use the visible **Demo mode** switcher inside `/app` to move between Finance (Jordan), a department head (Ava), an employee (Sam), and a contractor (Mateo). Click **Fund departments** once after a reset. Invite links open under `/app/invite/:token`. The setup API also accepts a fresh-company payload with `companyName`, `departments`, and `invites` for non-demo starts.
+**Department head (Ava)**
+- Holds an admin key on the department account (TIP-1049).
+- Signs the team's cards (monthly limit and vendor list), approves held payments with the head key ("Approve + add" puts the vendor on every card), pays team contractors, asks Finance for more budget, invites employees and contractors.
+
+**Employee (Sam)**
+- Money home: total, cash, invested, card left; the card signed by the head.
+- Pay with the card (vendor chips, Face ID); off-card payments are refused by Tempo and become a request to the head.
+- Invest: buy and sell test stock tokens on Tempo's stablecoin exchange, or send a share of every payday automatically.
+- Perks (e.g. Lunch, Learning) as separate cards. Earning is labelled Simulated.
+
+**Contractor (Mateo)**
+- Send invoices, see paid-in-seconds and declined-with-reason.
+
+**Everyone**
+- Face ID passkeys as card keys; invite links set up Face ID on the person's own phone.
+- Every action links to its record on the Tempo explorer. No tokens, chains or addresses in the UI (`npm run check:banned`).
+
+## Run locally
+
+```bash
+cp .env.example .env            # OPERATOR_PK = a funded Moderato testnet key
+npm install && (cd web && npm install)
+npm run build
+PORT=8790 npx tsx server/local.ts
+```
+
+Open `http://localhost:8790`. The first visit to `/app` shows "Try the demo"; pick a person. To start over: `POST /api/reset` (send `x-reset-token` if `RESET_TOKEN` is set), then `POST /api/setup`.
+
+Low on test money? Moderato's faucet RPC tops up an address:
+
+```bash
+curl -s -X POST https://rpc.moderato.tempo.xyz -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tempo_fundAddress","params":["0xYOUR_ADDRESS"]}'
+```
+
+## Environment
+
+| Variable | Use |
+|---|---|
+| `OPERATOR_PK` | Testnet key for the company treasury. Department and demo keys are derived from it. Never commit it. |
+| `RESET_TOKEN` | Required header for `/api/reset` in production |
+| `SESSION_SECRET` | Signs session cookies (falls back to a hash of `OPERATOR_PK`) |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_*`) | Upstash Redis state with atomic writes. Without them, state lives in memory and `data/state.json`. |
+| `DEMO_MODE=off` | Turns off demo sign-in |
 
 ## Test
-From `app/`:
 
 ```bash
 npm run typecheck
-npm test
-npm run build
-BASE=http://localhost:8790 npm run e2e
+npm test                                     # unit tests, chain layer mocked
+BASE=http://localhost:8790 npm run e2e       # every flow against Moderato
 BASE=http://localhost:8790 npm run e2e:passkey
-npm run check:banned
-BASE=http://localhost:8790 npm run responsive
+BASE=http://localhost:8790 npm run journey   # Sam is held, Ava approves (browser)
+BASE=http://localhost:8790 npm run responsive  # every role, every tab, 375px and 1280px
 BASE=http://localhost:8790 npm run landing
+npm run check:banned
+npx tsx scripts/probe-admin-key.ts           # head admin key delegation probe
 ```
 
-`npm run responsive` and `npm run landing` use Playwright when it can launch. In this sandbox Chromium is blocked by macOS Mach-port permissions, so both scripts fall back to HTTP smoke checks and document the manual browser fallback.
+Browser checks need Playwright's Chromium: `PLAYWRIGHT_BROWSERS_PATH=$PWD/.cache/ms-playwright npx playwright install chromium`.
 
 ## Deploy
-Deployment is handled separately by the owner. Do not deploy from this workspace. Required production env vars remain `OPERATOR_PK`, `RESET_TOKEN`, and optionally `BLOB_READ_WRITE_TOKEN` for Vercel Blob state.
 
-## What Is Real
-See [VERIFIED.md](VERIFIED.md). Payday, department funding, department-issued spends/perks, approve-and-add re-issues, quarter close pool payments, kudos awards, department returns, contractor payments, Face ID receipt verification, TIP-20 test stock issuance, DEX setup, pay-to-stocks buys, and manual sells have Moderato evidence. Earning is simulated until a public pathUSD earning pool is available.
+Vercel project rooted at `app/` (`vercel.json`: Hono API at `/api`, the Vite build for everything else, fluid compute). Set the environment variables above, then `vercel deploy --prod`.
+
+## Layout
+
+```
+server/   app.ts (API + permission rules), tempo.ts (Tempo calls), domain.ts (pure logic), store.ts (Redis/memory)
+web/src/  App.tsx (app), glide.tsx (UI primitives), Landing.tsx (website), Tour.tsx (guided tour)
+scripts/  e2e, passkey e2e, journey, responsive, landing, banned-words, admin-key probe
+```
