@@ -149,7 +149,7 @@ function LiveStage() {
   return (
     <section className="lp-stage" ref={ref} aria-label="Try Teampot live">
       <div className="lp-roles" role="tablist" aria-label="Choose a role">
-        {ROLES.map((r) => <button key={r.id} role="tab" aria-selected={r.id === role} className={r.id === role ? 'on' : ''} onClick={() => pick(r.id)}><img className="lp-pfp" src={`/pfp/${r.id}.webp`} alt="" width="36" height="36" /><span className="lp-role-text"><b>{r.name}</b><span>{r.role}</span></span></button>)}
+        {ROLES.map((r) => <button key={r.id} role="tab" aria-selected={r.id === role} className={r.id === role ? 'on' : ''} onClick={() => pick(r.id)}><b>{r.name}</b><span>{r.role}</span></button>)}
       </div>
       <figure>
         <button className="lp-side left" onClick={() => pick(left.id)} aria-label={`Switch to ${left.name}, ${left.role}`}><img src={left.shot} width="780" height="1688" alt="" loading="lazy" /></button>
