@@ -296,3 +296,201 @@ fieldset.check-grid legend{font-weight:650;margin-bottom:6px;color:#3A3A3C}
   .dept-card .rows .num.small{font-size:13px}
 }
 @media (max-width:560px){.card-chip{padding-top:24px}}
+
+/* ==========================================================================
+   Tempo system (brand/TEMPO_CASE_STUDY.md). Last layer: one weight, upright,
+   monochrome chrome, white radius-32 surfaces, black pills.
+   ========================================================================== */
+:root{--ink:#000;--ground:#F5F5F5;--text2:rgba(0,0,0,.56);--text3:rgba(0,0,0,.4);--hair:rgba(0,0,0,.08);--rule:rgba(0,0,0,.16);--fill:rgba(0,0,0,.04);--muted:rgba(0,0,0,.56);--line:rgba(0,0,0,.08);--paper:#F5F5F5;--soft:rgba(0,0,0,.04)}
+html,body{background:var(--ground);color:#000;font:500 15px/1.4 "Inter Tight",system-ui,sans-serif}
+.app-shell,.role-page{background:var(--ground)}
+/* one voice: no italics, no heavy weights */
+.app-shell *{font-style:normal}
+.app-shell b,.app-shell strong,.app-shell h1,.app-shell h2,.app-shell h3{font-weight:500}
+.app-shell h1{letter-spacing:-.03em}
+.app-shell h2{font-size:20px;letter-spacing:-.02em;line-height:1.15}
+.app-shell h3{font-size:16px;letter-spacing:-.01em}
+.app-shell a{color:#000;font-weight:500}
+.muted,.app-shell small{color:var(--text2)}
+/* surfaces */
+.app-shell .panel,.app-shell .card,.app-shell .authority,.app-shell .tip-card{background:#fff;border:0;border-radius:28px;box-shadow:none;padding:24px}
+.app-shell .card.flat{padding:24px}
+.section-title{margin-bottom:16px}
+.section-title h2{font-size:20px}
+.section-title p{color:var(--text2);font-size:14px;margin:4px 0 0;line-height:1.4}
+/* heroes: white mock card like Tempo's "$12,504.61" */
+.app-shell .balance-hero,.app-shell .balance-hero.dark,.app-shell .balance-hero.warm,.app-shell .wallet-hero{background:#fff;color:#000;border-radius:32px;box-shadow:none;padding:28px}
+.app-shell .balance-hero span,.app-shell .wallet-hero span,.app-shell .wallet-topline span{color:var(--text2);font-size:14px}
+.app-shell .balance-hero.dark span,.app-shell .balance-hero.dark em,.app-shell .balance-hero.warm span,.app-shell .balance-hero.warm em{color:var(--text2)}
+.app-shell .balance-hero b,.app-shell .wallet-hero b{font-weight:400;letter-spacing:-.045em;line-height:1;font-size:clamp(2.5rem,7vw,4rem)}
+.app-shell .wallet-hero b span{font-size:.5em;color:var(--text3);letter-spacing:-.02em}
+.app-shell .balance-hero em,.app-shell .wallet-hero small{color:var(--text2);font-size:14px}
+.app-shell .balance-hero.warm{box-shadow:inset 0 0 0 2px #E8552D}
+/* buttons: black pill primary, 4% fill secondary */
+.app-shell .btn{border-radius:999px;min-height:44px;padding:0 24px;font-size:14px;font-weight:500;border:0;box-shadow:none}
+.app-shell .btn.small{min-height:36px;padding:0 16px;font-size:13px}
+.app-shell .btn.primary,.app-shell .btn.primary.clay{background:#000;color:#F5F5F5}
+.app-shell .btn.ghost,.app-shell .btn.on-dark{background:var(--fill);color:#000}
+.app-shell .btn:hover:not(:disabled){opacity:.86}
+.app-shell .btn:disabled{opacity:.4}
+.app-shell .plain{color:#000;font-weight:500}
+.app-shell a.rec,.app-shell .authority-links a,.app-shell .authority-links .plain{color:var(--text2);font-weight:500;font-size:13px}
+.app-shell a.rec:hover,.app-shell .authority-links a:hover{color:#000}
+/* eyebrow labels */
+.app-shell .level-label,.app-shell .card-chip span,.app-shell .dept-bal small{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)}
+/* rows */
+.app-shell .rows li,.app-shell .feed-row{border-bottom:1px solid var(--hair)}
+.app-shell .feed li{border-bottom:0}
+.app-shell .rows li:last-child,.app-shell .feed li:last-child .feed-row{border-bottom:0}
+.app-shell .feed-row .grow b,.app-shell .rows .grow b{font-weight:500;font-size:15px}
+.app-shell .feed-row .num,.app-shell .num{font-weight:500;letter-spacing:-.01em}
+.app-shell .feed .dot{border-radius:999px;background:var(--fill);color:#000}
+.app-shell .feed .k-payday .dot,.app-shell .feed .k-paid .dot,.app-shell .feed .k-approved .dot{background:#E6F4EC;color:#1F7A4E}
+.app-shell .feed .k-held .dot{background:#FDF1E4;color:#9A5A00}
+.app-shell .feed-row .chev{stroke:rgba(0,0,0,.25)}
+/* authority card */
+.app-shell .authority{padding:20px 22px;gap:14px}
+.app-shell .authority b{font-size:16px}
+.app-shell .authority p{color:var(--text2);font-size:14px}
+.app-shell .authority-icon{background:var(--fill);color:#000;border-radius:999px}
+/* department card */
+.app-shell .dept-card{border-top:0;position:relative}
+.app-shell .dept-card::before{content:"";position:absolute;left:24px;top:0;width:32px;height:3px;border-radius:0 0 3px 3px;background:var(--pot)}
+.app-shell .dept-top h2{font-size:26px;letter-spacing:-.03em}
+.app-shell .dept-top a{color:var(--text2)}
+.app-shell .dept-bal b{font-weight:400;letter-spacing:-.04em;font-size:30px}
+.app-shell .dept-level{border-top:1px solid var(--hair)}
+/* page intro (Tempo section heading) */
+.app-shell .page-intro h1{font-size:36px;font-weight:500;letter-spacing:-.03em;line-height:1.05}
+.app-shell .page-intro p{color:var(--text2);font-size:15px}
+/* cards (payment cards) */
+.app-shell .card-chip{background:#000;border-radius:20px}
+.app-shell .card-chip b{font-weight:400;letter-spacing:-.04em}
+.app-shell .card-chip span{color:rgba(255,255,255,.5)}
+.app-shell .card-chip small{color:rgba(255,255,255,.5)}
+.app-shell .card-meta span{font-weight:500}
+/* forms */
+.app-shell .form label,.app-shell .inline-form label{font-size:13px;color:var(--text2);font-weight:500;display:grid;gap:6px}
+.app-shell input,.app-shell select{background:var(--fill);border:0;border-radius:14px;min-height:44px;padding:0 14px;color:#000;font-weight:500}
+.app-shell .money-in{background:var(--fill);border:0;border-radius:14px}
+.app-shell .money-in input{background:transparent}
+.app-shell .hint{background:var(--fill);color:var(--text2);border-radius:14px;padding:10px 12px;font-size:13px}
+.app-shell .hint.quiet{background:none;padding:0}
+.app-shell .check{font-weight:500}
+.app-shell .segmented{background:var(--fill);border-radius:999px}
+.app-shell .segmented button{border-radius:999px;font-weight:500}
+.app-shell .segmented button.on{box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.app-shell .pill{background:var(--fill);color:#000;font-weight:500;font-size:12px}
+.app-shell .pill.good,.app-shell .gain{background:#E6F4EC;color:#1F7A4E!important;font-weight:500}
+.app-shell .chip{background:var(--fill);color:#000;border-radius:999px;font-weight:500}
+.app-shell .bar{background:rgba(0,0,0,.06);height:6px}
+.app-shell .stock-row{background:var(--fill);border:0;border-radius:16px}
+/* top bar */
+.app-shell .app-top b{font-weight:500;letter-spacing:-.02em}
+.app-shell .profile-button{box-shadow:none;background:#fff;font-weight:500}
+.app-shell .role-avatar{font-weight:500}
+/* navigation: Tempo's floating blurred pill */
+.app-shell .bottom-tabs{left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));border:0;border-radius:28px;background:rgba(225,225,225,.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:4px}
+.app-shell .bottom-tabs button,.app-shell .side-nav button{color:var(--text2);font-weight:500;border-radius:24px;min-height:52px}
+.app-shell .bottom-tabs button.on,.app-shell .side-nav button.on{color:#000;background:#fff}
+.app-shell .side-nav{background:var(--ground);border-right:0}
+.app-shell .side-nav nav{background:rgba(225,225,225,.6);border-radius:28px;padding:4px;gap:2px}
+/* sheets */
+.sheet-card{border-radius:32px 32px 0 0}
+.sheet-card .sheet-head h2{font-weight:500;letter-spacing:-.02em}
+.sheet-card .sheet-head .plain{color:#000;font-weight:500}
+.sheet-card .btn{border-radius:999px;font-weight:500}
+.sheet-card .btn.primary{background:#000;color:#F5F5F5}
+.sheet-card .btn.ghost{background:var(--fill);color:#000;border:0}
+.sheet-card .sheet-amt{font-weight:400;font-style:normal;letter-spacing:-.04em}
+@media (min-width:900px){.sheet-card{border-radius:32px}}
+/* how it works ladder */
+.ladder li.you{background:var(--fill)}
+.ladder li.you::before{background:#000}
+.ladder li b em{background:#000}
+.ladder li b{font-weight:500}
+/* toasts */
+.toast{border-radius:20px;background:#000;font-weight:500}
+.toast a{color:#fff;text-decoration:underline}
+/* empty state: quiet */
+.app-shell .empty{color:var(--text2)}
+.app-shell .empty .fill-mark{opacity:.5}
+@media (max-width:560px){
+  .app-shell .panel,.app-shell .card,.app-shell .authority{border-radius:24px;padding:18px}
+  .app-shell .balance-hero,.app-shell .wallet-hero{border-radius:28px;padding:22px}
+  .app-shell .page-intro h1{font-size:30px}
+  .app{padding-bottom:110px}
+}
+.app-shell *,.welcome *,.sheet *{font-style:normal!important}
+.app-shell .enroll,.sheet .enroll{background:var(--fill);color:#000;border-radius:18px;padding:14px 16px}.app-shell .enroll small,.sheet .enroll small{color:var(--text2)}.app-shell .enroll b,.sheet .enroll b{font-weight:500}
+/* ---- app upgrade pass (Tempo components) ---- */
+.app-shell .eyebrow,.app-shell p.eyebrow{display:block;margin:0;font-size:10px;line-height:16px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)}
+.app-shell .app-top{height:auto;padding:8px 0 12px;align-items:flex-end}
+.app-shell .app-top b{font-size:26px;letter-spacing:-.03em;line-height:1.1}
+.app-shell p.empty{margin:4px 0;color:var(--text2);font-size:14px;text-align:left}
+/* wallet cards */
+.wcards{list-style:none;margin:0;padding:0;display:grid;gap:18px}
+.wcards li{display:grid;gap:10px}
+.wcard{position:relative;background:#000;color:#fff;border-radius:22px;padding:18px 20px;display:grid;gap:18px;min-height:150px;overflow:hidden;max-width:420px}
+.wcard::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 90% at 100% 0%,rgba(255,255,255,.12),transparent 55%);pointer-events:none}
+.wcard-top{display:flex;align-items:center;gap:10px;font-size:13px}
+.wcard-stripe{width:22px;height:5px;border-radius:3px;background:var(--pot)}
+.wcard-label{color:#fff}
+.wcard-issuer{margin-left:auto;color:rgba(255,255,255,.5);font-size:12px}
+.wcard-amt{display:grid;gap:2px;margin-top:auto}
+.wcard-amt b{font-size:34px;font-weight:400;letter-spacing:-.045em;line-height:1}
+.wcard-amt small{color:rgba(255,255,255,.55);font-size:13px}
+.wcard-bar{height:3px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden}
+.wcard-bar i{display:block;height:100%;background:#fff;border-radius:2px}
+.wcard-vendors{margin:0;display:flex;gap:12px;align-items:baseline;justify-content:space-between;font-size:13px;color:var(--text2)}
+.wcard-vendors span{min-width:0}
+.sheet .wcard{max-width:none}
+.reset-note{display:block;margin:-4px 0 4px;font-size:13px}
+/* department cards */
+.app-shell .dept-top{align-items:flex-start}
+.app-shell .dept-top h2{margin:2px 0}
+.app-shell .dept-top a{font-size:13px;color:var(--text2)}
+.app-shell .dept-bal{display:grid;justify-items:end;gap:8px}
+.app-shell .dept-bal b{font-size:34px}
+.dept-drawer{background:var(--fill);border-radius:18px;padding:14px;display:grid;gap:10px;margin-top:6px}
+.dept-drawer p{margin:0}
+.app-shell .dept-level{gap:10px;padding-top:16px;margin-top:12px}
+.avatar-empty{width:36px;height:36px;border-radius:50%;border:1.5px dashed rgba(0,0,0,.2);flex:none}
+.card-rows li{gap:12px}
+.card-left{display:grid;justify-items:end;text-align:right;flex:none}
+.card-left b{font-weight:500;font-size:15px;letter-spacing:-.01em}
+.card-left small{font-size:12px;color:var(--text2)}
+.app-shell a.rec.icon{width:28px;height:28px;border-radius:50%;background:var(--fill);display:grid;place-items:center;font-size:13px;flex:none}
+.app-shell a.rec.icon::after{content:none}
+/* desktop: real sidebar like Tempo's nav items */
+.side-brand{display:flex;align-items:center;gap:8px;padding:6px 12px 18px}
+.side-brand b{font-size:17px;font-weight:500;letter-spacing:-.03em}
+@media (min-width:900px){
+  .app-shell .role-layout{grid-template-columns:232px minmax(0,1fr)}
+  .app-shell .side-nav{width:232px;align-items:stretch;padding:24px 16px}
+  .app-shell .side-nav nav{display:grid;gap:2px;background:none;padding:0}
+  .app-shell .side-nav button{display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:44px;padding:0 14px;border-radius:14px;font-size:14px}
+  .app-shell .side-nav button span{font-size:14px}
+  .app-shell .side-nav button svg{width:20px;height:20px}
+  .app-shell .side-nav button.on{background:#fff}
+  .app-shell .role-page main,.app-shell .app-top{max-width:960px;margin-left:auto;margin-right:auto;width:100%}
+  .app-shell .role-page{padding:16px 40px 60px}
+}
+@media (max-width:899px){.side-brand{display:none}}
+@media (max-width:560px){.wcard-amt b{font-size:30px}.app-shell .dept-bal b{font-size:26px}.app-shell .app-top b{font-size:22px}}
+.wcards{grid-auto-flow:column;grid-auto-columns:minmax(260px,82%);overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;margin:0 -24px;padding-left:24px;padding-right:24px;scroll-padding-left:24px;scrollbar-width:none}
+.wcards::-webkit-scrollbar{display:none}
+.wcards li{scroll-snap-align:start}
+.wcard{max-width:none}
+@media (max-width:560px){.wcards{margin:0 -18px;padding-left:18px;padding-right:18px;scroll-padding-left:18px}}
+@media (min-width:900px){.wcards{grid-auto-flow:row;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));overflow:visible;margin:0;padding:0}}
+.sheet .wcards{margin:0}
+.requests{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.request{background:var(--fill);border-radius:20px;padding:14px;display:grid;gap:12px}
+.request-top{display:flex;align-items:center;gap:12px;min-width:0}
+.request-top .grow{min-width:0}
+.request-top b{display:block;font-weight:500;font-size:15px}
+.request-top small{display:block;color:var(--text2);font-size:13px}
+.request-amt{font-size:20px;font-weight:400;letter-spacing:-.03em;flex:none}
+.request-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.request .btn.ghost{background:#fff}

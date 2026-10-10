@@ -887,7 +887,7 @@ function hold(x: Person, v: Vendor, pt: Pot, amount: number, note: string, force
   const reason = forcedReason ?? holdReason(pt, v.id)
   const h: Held = { id: uid(), at: Date.now(), personId: x.id, potId: pt.id, vendorId: v.id, amount, note: note || v.category, reason, status: 'held' }
   S.held.unshift(h)
-  log({ kind: 'held', title: `Held for approval: ${v.name}`, detail: reason === 'new-vendor' ? `${v.name} needs a lead's OK` : reason === 'finance-rule' ? `Payments over $${S.company.financeApprovalThreshold} need Finance` : `Over ${x.name.split(' ')[0]}'s monthly limit`, amount, who: x.id, potId: pt.id, memo: `${pt.id}:held` })
+  log({ kind: 'held', title: `Held for approval: ${v.name}`, detail: reason === 'new-vendor' ? `Not on the card · waiting for the head` : reason === 'finance-rule' ? `Payments over $${S.company.financeApprovalThreshold} need Finance` : `Over ${x.name.split(' ')[0]}'s monthly limit`, amount, who: x.id, potId: pt.id, memo: `${pt.id}:held` })
   return h
 }
 

@@ -30,7 +30,7 @@ async function main() {
       page.on('console', (msg) => { if (msg.type() === 'error') logs.push(msg.text()) })
       page.on('pageerror', (err) => logs.push(err.message))
       await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
-      await page.getByRole('link', { name: 'Open the live demo' }).click()
+      await page.getByRole('link', { name: 'Try the live demo' }).first().click()
       await page.waitForURL(`${BASE}/app`)
       await page.waitForLoadState('networkidle')
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
