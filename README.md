@@ -35,10 +35,10 @@ Teampot puts the guardrails on Tempo itself. Finance sets the frame, teams decid
 ## How it works: every level gets its own key
 
 ```
-Company treasury      Finance holds it. Funds departments, runs payday in one payment.
-  └ Department account  One Tempo account per team. Its balance is the budget.
-      └ Head key        Finance gives the head an admin key (TIP-1049): issue cards, approve, pay contractors.
-          └ Cards       Signed by the head: a monthly limit and approved vendors. People pay with Face ID.
+Company treasury        Finance: funds departments, runs payday
+  └ Department account  one per team; its balance is the budget
+      └ Head key        admin key from Finance (TIP-1049)
+          └ Cards       signed by the head: limit + vendor list
 ```
 
 - **Pay from your phone.** Sam pays Figma with his Design card. Tempo checks the monthly limit and the vendor list.
