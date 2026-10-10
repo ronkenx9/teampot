@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import './landing.css'
 
@@ -15,6 +15,7 @@ export default function Landing() {
         <nav className="lp-nav" aria-label="Teampot">
           <a className="lp-brand" href="/" aria-label="Teampot home"><PotMark size={18} /><span>teampot</span></a>
           <ul>
+            <li><a href="/tour">Tour</a></li>
             <li><a href="#product">Product</a></li>
             <li><a href="#keys">How it works</a></li>
             <li><a href={ARCH}>Architecture</a></li>
@@ -30,7 +31,7 @@ export default function Landing() {
           <p>Your pay, your team's budget and your perks land in one app on Tempo. Spend it, hold it or invest it, while every team runs its own money.</p>
           <div className="lp-actions">
             <a className="lp-btn dark" href="/app">Try the live demo</a>
-            <a className="lp-btn light" href="#keys">How it works</a>
+            <a className="lp-btn light" href="/tour">Take the tour</a>
           </div>
         </section>
 
@@ -48,7 +49,7 @@ export default function Landing() {
           <figure>
             <img src="/shots/m-ava-home.webp" width="780" height="1688" alt="Ava, Design head: department balance and the head key Finance gave her." loading="lazy" />
             <img src="/shots/m-sam-home.webp" width="780" height="1688" alt="Sam's home: his money and the cards Ava signed for him." />
-            <img src="/shots/m-jordan-depts.webp" width="780" height="1688" alt="Jordan in Finance: department accounts, head keys and every card." loading="lazy" />
+            <img src="/shots/m-jordan-home.webp" width="780" height="1688" alt="Jordan in Finance: the company treasury, head keys and payday." loading="lazy" />
           </figure>
           <p>Live screens from the demo. Every number is read from Tempo.</p>
         </section>
@@ -188,32 +189,97 @@ function MockPayday() {
   return <div className="mock"><div className="mock-head"><span>Payday</span><em className="mock-pill green">Landed in 1.2s</em></div><ul className="mock-lines">{lines.map(([n, a]) => <li key={n}><span>{n}</span><b>{a}</b><em>Settled</em></li>)}</ul><div className="mock-total"><span>One payment</span><b>$16,500</b></div></div>
 }
 
-/* --- line art (Tempo style: thin gray strokes, black nodes) --- */
+/* --- line art (Tempo style: thin gray strokes, black nodes), animated --- */
+/** Starts an SVG's animations when it scrolls into view (and draws its paths in). */
+function useInView<T extends Element>() {
+  const ref = useRef<T | null>(null)
+  const [seen, setSeen] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || seen) return
+    if (!('IntersectionObserver' in window)) { setSeen(true); return }
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect() } }, { threshold: 0.3 })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [seen])
+  return [ref, seen] as const
+}
+
 function PayArt() {
-  return <svg viewBox="0 0 320 200" className="lp-art" aria-hidden><rect x="70" y="30" width="180" height="150" rx="14" fill="none" stroke="#D4D4D4" /><rect x="80" y="22" width="160" height="10" rx="5" fill="none" stroke="#E2E2E2" /><text x="88" y="56" className="lp-art-label">PAYDAY</text><path d="M95 140 C 130 80, 190 80, 225 120" fill="none" stroke="#C8C8C8" /><circle cx="95" cy="140" r="3" fill="#fff" stroke="#999" /><rect x="198" y="108" width="52" height="20" rx="6" fill="#000" /><text x="224" y="122" textAnchor="middle" className="lp-art-chip">$3,600</text><line x1="95" y1="160" x2="225" y2="160" stroke="#E5E5E5" /></svg>
-}
-function CardArt() {
-  return <svg viewBox="0 0 320 200" className="lp-art" aria-hidden>{[0, 1, 2].map((i) => <rect key={i} x={70 + i * 8} y={40 + i * 14} width="170" height="104" rx="14" fill={i === 2 ? '#fff' : 'none'} stroke={i === 2 ? '#BDBDBD' : '#E2E2E2'} />)}<rect x="102" y="84" width="22" height="5" rx="2.5" fill="#E8552D" /><text x="102" y="108" className="lp-art-label">DESIGN CARD</text><text x="102" y="134" className="lp-art-big">$600 / month</text><rect x="202" y="152" width="70" height="20" rx="6" fill="#000" /><text x="237" y="166" textAnchor="middle" className="lp-art-chip">4 vendors</text></svg>
-}
-function TreasuryArt() {
-  const ys = [40, 100, 160]
-  return <svg viewBox="0 0 320 200" className="lp-art" aria-hidden>{ys.map((y) => <path key={y} d={`M110 100 C 170 100, 170 ${y}, 230 ${y}`} fill="none" stroke="#CFCFCF" />)}<rect x="40" y="88" width="72" height="24" rx="7" fill="#000" /><text x="76" y="104" textAnchor="middle" className="lp-art-chip">Treasury</text>{['Design', 'Engineering', 'Marketing'].map((t, i) => <g key={t}><rect x="230" y={ys[i] - 11} width="78" height="22" rx="7" fill="#fff" stroke="#D0D0D0" /><text x="269" y={ys[i] + 4} textAnchor="middle" className="lp-art-node">{t}</text></g>)}</svg>
-}
-function KeyTree() {
-  const cards = [60, 110, 160, 210, 260]
+  const [ref, on] = useInView<SVGSVGElement>()
   return (
-    <svg viewBox="0 0 520 320" className="lp-tree" aria-label="Treasury funds department accounts; each head key signs cards">
-      <line x1="30" y1="160" x2="130" y2="160" stroke="#000" strokeWidth="1.5" />
+    <svg ref={ref} viewBox="0 0 320 200" className={`lp-art ${on ? 'in' : ''}`} aria-hidden>
+      <rect x="70" y="30" width="180" height="150" rx="14" fill="#fff" stroke="#D4D4D4" />
+      <rect x="80" y="22" width="160" height="10" rx="5" fill="none" stroke="#E2E2E2" />
+      <text x="88" y="56" className="lp-art-label">PAYDAY</text>
+      <path id="pay-arc" className="draw" pathLength={1} d="M95 140 C 130 80, 190 80, 225 120" fill="none" stroke="#C8C8C8" />
+      <circle cx="95" cy="140" r="3" fill="#fff" stroke="#999" />
+      {on && <circle r="3.5" fill="#000"><animateMotion dur="2.4s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;.55;1" calcMode="linear"><mpath href="#pay-arc" /></animateMotion><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;.55;.6;1" dur="2.4s" repeatCount="indefinite" /></circle>}
+      <g className="pop"><rect x="198" y="108" width="52" height="20" rx="6" fill="#000" /><text x="224" y="122" textAnchor="middle" className="lp-art-chip">$3,600</text></g>
+      <line x1="95" y1="160" x2="225" y2="160" stroke="#E5E5E5" />
+      <text x="95" y="174" className="lp-art-label">LANDED IN ~1S</text>
+    </svg>
+  )
+}
+
+function CardArt() {
+  const [ref, on] = useInView<SVGSVGElement>()
+  return (
+    <svg ref={ref} viewBox="0 0 320 200" className={`lp-art ${on ? 'in' : ''}`} aria-hidden>
+      <rect x="70" y="40" width="170" height="104" rx="14" fill="none" stroke="#E6E6E6" />
+      <rect x="78" y="54" width="170" height="104" rx="14" fill="none" stroke="#E0E0E0" />
+      <g className="deal">
+        <rect x="86" y="68" width="170" height="104" rx="14" fill="#fff" stroke="#BDBDBD" />
+        <rect x="102" y="84" width="22" height="5" rx="2.5" fill="#E8552D" />
+        <text x="102" y="106" className="lp-art-label">DESIGN CARD · SIGNED BY AVA</text>
+        <text x="102" y="132" className="lp-art-big">$600 / month</text>
+        <rect x="102" y="146" width="138" height="4" rx="2" fill="#EEE" />
+        <rect className="fill" x="102" y="146" width="138" height="4" rx="2" fill="#000" />
+      </g>
+      <rect x="202" y="160" width="70" height="20" rx="6" fill="#000" />
+      <text x="237" y="174" textAnchor="middle" className="lp-art-chip">4 vendors</text>
+    </svg>
+  )
+}
+
+function TreasuryArt() {
+  const [ref, on] = useInView<SVGSVGElement>()
+  const ys = [40, 100, 160]
+  return (
+    <svg ref={ref} viewBox="0 0 320 200" className={`lp-art ${on ? 'in' : ''}`} aria-hidden>
+      {ys.map((y, i) => <path key={y} id={`tr-${i}`} className="draw" style={{ ['--d' as any]: `${i * 0.15}s` }} pathLength={1} d={`M112 100 C 170 100, 170 ${y}, 230 ${y}`} fill="none" stroke="#CFCFCF" />)}
+      {on && ys.map((y, i) => <circle key={y} r="3" fill="#000"><animateMotion dur="2.2s" begin={`${0.6 + i * 0.45}s`} repeatCount="indefinite"><mpath href={`#tr-${i}`} /></animateMotion></circle>)}
+      <rect x="40" y="88" width="72" height="24" rx="7" fill="#000" />
+      <text x="76" y="104" textAnchor="middle" className="lp-art-chip">Treasury</text>
+      {['Design', 'Engineering', 'Marketing'].map((t, i) => <g key={t} className="node" style={{ ['--d' as any]: `${0.5 + i * 0.15}s` }}><rect x="230" y={ys[i] - 11} width="78" height="22" rx="7" fill="#fff" stroke="#D0D0D0" /><text x="269" y={ys[i] + 4} textAnchor="middle" className="lp-art-node">{t}</text></g>)}
+    </svg>
+  )
+}
+
+function KeyTree() {
+  const [ref, on] = useInView<SVGSVGElement>()
+  const cards = [60, 110, 160, 210, 260]
+  const depts = [90, 160, 230]
+  return (
+    <svg ref={ref} viewBox="0 0 520 320" className={`lp-tree ${on ? 'in' : ''}`} aria-label="Treasury funds department accounts; each head key signs cards, and Tempo refuses payments outside a card">
+      <path id="kt-root" className="draw" pathLength={1} d="M30 160 L130 160" stroke="#000" strokeWidth="1.5" fill="none" />
       <circle cx="30" cy="160" r="5" fill="#000" />
       <text x="30" y="190" className="lp-art-node" textAnchor="middle">Treasury</text>
-      {[90, 160, 230].map((y, i) => <path key={y} d={`M130 160 C 180 160, 180 ${y}, 230 ${y}`} fill="none" stroke={i === 1 ? '#000' : '#CFCFCF'} strokeWidth={i === 1 ? 1.5 : 1} />)}
-      {[90, 160, 230].map((y, i) => <g key={y}><rect x="230" y={y - 13} width="96" height="26" rx="13" fill={i === 1 ? '#000' : '#fff'} stroke={i === 1 ? '#000' : '#D0D0D0'} /><text x="278" y={y + 4} textAnchor="middle" className={i === 1 ? 'lp-art-chip' : 'lp-art-node'}>{['Marketing', 'Design', 'Engineering'][i]}</text></g>)}
-      <circle cx="356" cy="160" r="5" fill="#fff" stroke="#000" strokeWidth="1.5" />
-      <line x1="326" y1="160" x2="351" y2="160" stroke="#000" strokeWidth="1.5" />
+      {depts.map((y, i) => <path key={y} id={`kt-d${i}`} className="draw" style={{ ['--d' as any]: `${0.3 + i * 0.1}s` }} pathLength={1} d={`M130 160 C 180 160, 180 ${y}, 230 ${y}`} fill="none" stroke={i === 1 ? '#000' : '#CFCFCF'} strokeWidth={i === 1 ? 1.5 : 1} />)}
+      {depts.map((y, i) => <g key={y} className="node" style={{ ['--d' as any]: `${0.6 + i * 0.1}s` }}><rect x="230" y={y - 13} width="96" height="26" rx="13" fill={i === 1 ? '#000' : '#fff'} stroke={i === 1 ? '#000' : '#D0D0D0'} /><text x="278" y={y + 4} textAnchor="middle" className={i === 1 ? 'lp-art-chip' : 'lp-art-node'}>{['Marketing', 'Design', 'Engineering'][i]}</text></g>)}
+      <path className="draw" style={{ ['--d' as any]: '0.9s' }} pathLength={1} d="M326 160 L351 160" stroke="#000" strokeWidth="1.5" fill="none" />
+      <circle cx="356" cy="160" r="5" fill="#fff" stroke="#000" strokeWidth="1.5" className="node" style={{ ['--d' as any]: '1s' }} />
       <text x="356" y="140" className="lp-art-node" textAnchor="middle">Head key</text>
-      {cards.map((y, i) => <path key={y} d={`M361 160 C 400 160, 400 ${y}, 440 ${y}`} fill="none" stroke={i === 2 ? '#000' : '#D6D6D6'} strokeWidth={i === 2 ? 1.5 : 1} />)}
-      {cards.map((y, i) => <rect key={y} x="440" y={y - 9} width="44" height="18" rx="5" fill={i === 2 ? '#000' : '#fff'} stroke={i === 2 ? '#000' : '#D0D0D0'} />)}
+      {cards.map((y, i) => <path key={y} id={`kt-c${i}`} className="draw" style={{ ['--d' as any]: `${1.1 + i * 0.06}s` }} pathLength={1} d={`M361 160 C 400 160, 400 ${y}, 440 ${y}`} fill="none" stroke={i === 2 ? '#000' : '#D6D6D6'} strokeWidth={i === 2 ? 1.5 : 1} />)}
+      {cards.map((y, i) => <rect key={y} className="node" style={{ ['--d' as any]: `${1.3 + i * 0.06}s` }} x="440" y={y - 9} width="44" height="18" rx="5" fill={i === 2 ? '#000' : '#fff'} stroke={i === 2 ? '#000' : '#D0D0D0'} />)}
       <rect x="446" y="158.5" width="10" height="3" rx="1.5" fill="#E8552D" />
+      {/* money flows treasury → Design → head key → card */}
+      <path id="kt-flow" d="M30 160 L130 160 C 180 160, 180 160, 230 160 L326 160 L361 160 C 400 160, 400 160, 440 160" fill="none" stroke="none" />
+      {on && <circle r="4" fill="#E8552D"><animateMotion dur="3s" begin="1.6s" repeatCount="indefinite"><mpath href="#kt-flow" /></animateMotion></circle>}
+      {/* a payment off the card's list: Tempo stops it */}
+      <path id="kt-refuse" d="M361 160 C 400 160, 400 260, 440 260" fill="none" stroke="none" />
+      {on && <g><circle r="3.5" fill="#D93025"><animateMotion dur="3s" begin="2.4s" repeatCount="indefinite" keyPoints="0;.62;.62" keyTimes="0;.5;1" calcMode="linear"><mpath href="#kt-refuse" /></animateMotion><animate attributeName="opacity" begin="2.4s" dur="3s" values="1;1;0;0" keyTimes="0;.62;.75;1" repeatCount="indefinite" /></circle>
+        <g opacity="0"><animate attributeName="opacity" begin="2.4s" dur="3s" values="0;0;1;1;0" keyTimes="0;.5;.55;.8;1" repeatCount="indefinite" /><circle cx="416" cy="232" r="9" fill="#fff" stroke="#D93025" /><path d="M412 228 l8 8 M420 228 l-8 8" stroke="#D93025" strokeWidth="1.6" /><text x="416" y="254" textAnchor="middle" className="lp-art-refuse">Refused by Tempo</text></g></g>}
       <text x="462" y="300" className="lp-art-node" textAnchor="middle">Cards</text>
       <line x1="30" y1="300" x2="490" y2="300" stroke="#E6E6E6" />
     </svg>

@@ -187,3 +187,21 @@
   .lp-foot-note{grid-column:1}
 }
 @media (max-width:720px){.lp-keys .lp-panel{min-height:auto;padding:20px 8px}.lp-card-art{min-height:220px}}
+/* diagram motion */
+.lp-art .draw,.lp-tree .draw{stroke-dasharray:1;stroke-dashoffset:1}
+.lp-art.in .draw,.lp-tree.in .draw{animation:lp-draw .9s cubic-bezier(.6,0,.2,1) var(--d,0s) forwards}
+@keyframes lp-draw{to{stroke-dashoffset:0}}
+.lp-art .node,.lp-tree .node{opacity:0;transform-box:fill-box;transform-origin:center}
+.lp-art.in .node,.lp-tree.in .node{animation:lp-node .5s cubic-bezier(.2,.9,.2,1) var(--d,0s) forwards}
+@keyframes lp-node{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
+.lp-art .pop{transform-box:fill-box;transform-origin:center}
+.lp-art.in .pop{animation:lp-pop 2.4s ease-in-out infinite}
+@keyframes lp-pop{0%,52%{transform:scale(1)}58%{transform:scale(1.14)}70%,100%{transform:scale(1)}}
+.lp-art .deal{transform-box:fill-box}
+.lp-art.in .deal{animation:lp-deal 4.8s cubic-bezier(.2,.9,.2,1) infinite}
+@keyframes lp-deal{0%{transform:translate(-16px,-28px);opacity:0}12%{transform:none;opacity:1}88%{transform:none;opacity:1}100%{transform:translate(10px,6px);opacity:0}}
+.lp-art .fill{transform-box:fill-box;transform-origin:left;transform:scaleX(0)}
+.lp-art.in .fill{animation:lp-fill 4.8s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes lp-fill{0%,15%{transform:scaleX(0)}55%,88%{transform:scaleX(.62)}100%{transform:scaleX(.62)}}
+.lp-art-refuse{font-size:9px;fill:#D93025}
+@media (prefers-reduced-motion:reduce){.lp-art .draw,.lp-tree .draw{stroke-dashoffset:0;animation:none!important}.lp-art .node,.lp-tree .node{opacity:1;animation:none!important}.lp-art .deal,.lp-art .pop,.lp-art .fill{animation:none!important}.lp-art .fill{transform:scaleX(.62)}}

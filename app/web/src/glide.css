@@ -1,0 +1,172 @@
+/* Glide-style system for the app. Fonts: Geist (UI) and Geist Mono (labels, data). */
+.app-shell{--gl-bg:#ECEEF1;--gl-ink:#0B0B0C;--gl-t2:rgba(11,11,12,.55);--gl-t3:rgba(11,11,12,.38);--gl-pale:#D3E4EE;--gl-red:#F0302F;--gl-lime:#D9F65C;
+  --lav:#E4DFF5;--sage:#DCEAD4;--butter:#EDF0C5;--peach:#F8E1D5;--sky:#D9EAF3;--ease:cubic-bezier(.2,.8,.2,1);
+  font-family:"Geist","Inter Tight",system-ui,sans-serif;background:var(--gl-bg)}
+.app-shell,.app-shell .role-page{background:var(--gl-bg)}
+.mono,.app-shell .eyebrow,.app-shell p.eyebrow{font-family:"Geist Mono",ui-monospace,monospace!important;letter-spacing:.02em}
+.eyebrow-mono{margin:0;font-size:11px;text-transform:uppercase;color:var(--gl-t2)}
+
+/* dot-matrix numerals */
+.dotnum{display:block;height:64px;width:auto;max-width:100%;overflow:visible}
+.dotnum circle.on{fill:#fff;animation:dot-in .5s var(--ease) both}
+.dotnum circle.off{fill:rgba(255,255,255,.06)}
+@keyframes dot-in{from{opacity:0;transform:scale(.2);transform-box:fill-box;transform-origin:center}to{opacity:1;transform:none;transform-box:fill-box;transform-origin:center}}
+
+/* gradient hero */
+.glow{position:relative;overflow:hidden;border-radius:30px;padding:22px 22px 14px;color:#fff;display:grid;justify-items:center;gap:10px;text-align:center;isolation:isolate;min-height:250px;align-content:start}
+.glow::before{content:"";position:absolute;inset:-30%;z-index:-2;background:var(--glow-bg);filter:blur(28px);animation:glow-breathe 12s ease-in-out infinite alternate}
+.glow::after{content:"";position:absolute;inset:0;z-index:-1;background-image:radial-gradient(rgba(255,255,255,.22) .7px,transparent .9px);background-size:5px 5px;opacity:.55;mix-blend-mode:overlay}
+.glow-swim{--glow-bg:radial-gradient(40% 42% at 52% 50%,#F0876A 0%,rgba(240,135,106,.75) 40%,rgba(240,135,106,0) 75%),linear-gradient(135deg,#79D5F2 0%,#8FBDEB 45%,#3C6CE4 100%)}
+.glow-ember{--glow-bg:radial-gradient(42% 44% at 50% 50%,#FF6A1F 0%,rgba(255,122,46,.8) 40%,rgba(255,150,70,0) 75%),linear-gradient(135deg,#9CC7EE 0%,#D9B9E6 50%,#8FA9F0 100%)}
+.glow-dusk{--glow-bg:radial-gradient(40% 44% at 50% 52%,#F27C8E 0%,rgba(242,124,142,.75) 40%,rgba(242,124,142,0) 75%),linear-gradient(135deg,#C7B8F5 0%,#9EB7F2 50%,#5B6FE0 100%)}
+.glow-deep{--glow-bg:radial-gradient(40% 44% at 50% 52%,#5FE0C8 0%,rgba(95,224,200,.6) 40%,rgba(95,224,200,0) 75%),linear-gradient(135deg,#2E4BD8 0%,#1F2E8C 55%,#0E1440 100%)}
+@keyframes glow-breathe{from{transform:scale(1) rotate(0deg)}to{transform:scale(1.08) rotate(6deg)}}
+.glow-top{width:100%;display:flex;justify-content:center}
+.glow-label{margin:4px 0 0;font-size:14px;color:rgba(255,255,255,.88)}
+.glow-sub{margin:0;font-size:13px;color:rgba(255,255,255,.8);animation:blur-in .5s var(--ease) both}
+.ruler{width:100%;height:24px;margin-top:6px}
+.ruler line{stroke:rgba(255,255,255,.55);stroke-width:1.2}
+.ruler line.mid{stroke:#fff;stroke-width:2.4}
+
+/* segmented control with sliding thumb */
+.seg{position:relative;display:grid;grid-template-columns:repeat(var(--n),1fr);background:rgba(11,11,12,.07);border-radius:999px;padding:4px;min-width:180px}
+.glow .seg{background:rgba(255,255,255,.22);backdrop-filter:blur(8px)}
+.seg-thumb{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px)/var(--n));border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08);transform:translateX(calc(var(--i)*100%));transition:transform .45s var(--ease)}
+.seg button{all:unset;position:relative;z-index:1;text-align:center;padding:8px 14px;font:500 11px/1 "Geist Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--gl-t2);cursor:pointer;transition:color .3s}
+.glow .seg button{color:rgba(255,255,255,.9)}
+.seg button.on,.glow .seg button.on{color:var(--gl-ink)}
+.seg button:focus-visible{outline:2px solid var(--gl-ink);outline-offset:2px;border-radius:999px}
+
+/* pastel tiles */
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.tile{position:relative;border-radius:24px;padding:14px;min-height:118px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;overflow:hidden}
+.tile-lav{background:var(--lav)}.tile-sage{background:var(--sage)}.tile-butter{background:var(--butter)}.tile-peach{background:var(--peach)}.tile-sky{background:var(--sky)}
+.tile-icon{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:#fff;display:grid;place-items:center;color:var(--gl-ink)}
+.tile b{font-size:22px;font-weight:500;letter-spacing:-.03em;line-height:1.1}
+.tile b small{font-size:12px;color:var(--gl-t2);margin-left:3px;letter-spacing:0}
+.tile-label{font-size:12px;color:var(--gl-t2)}
+.swap{animation:blur-in .45s var(--ease) both}
+
+/* up-next card */
+.next{position:relative;border-radius:28px;padding:20px 20px 0;overflow:hidden;min-height:200px;display:flex;flex-direction:column;gap:6px}
+.next-sky{background:linear-gradient(180deg,#E3EEF4 0%,#D2E6F0 100%)}
+.next-peach{background:linear-gradient(180deg,#FBEDE5 0%,#F6DCCD 100%)}
+.next-lav{background:linear-gradient(180deg,#EEEAFA 0%,#E0D9F6 100%)}
+.next h3{margin:0;font-size:24px;font-weight:500;letter-spacing:-.03em;padding-right:64px}
+.chips-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip-mono{background:#fff;border-radius:999px;padding:7px 12px;font:500 11px/1 "Geist Mono",monospace;letter-spacing:.04em;text-transform:uppercase}
+.round-btn{position:absolute;top:18px;right:18px;width:56px;height:56px;border-radius:50%;border:0;background:var(--gl-ink);color:#fff;display:grid;place-items:center;cursor:pointer;transition:transform .2s var(--ease)}
+.round-btn:active{transform:scale(.92)}
+.round-btn.red{background:var(--gl-red)}
+.next-art{margin-top:auto;height:96px;display:flex;align-items:flex-end;justify-content:center}
+
+/* segmented bar + dot columns */
+.segbar{position:relative;display:grid;grid-template-columns:repeat(12,1fr);gap:4px;height:10px}
+.segbar i{border-radius:999px;background:rgba(11,11,12,.09);animation:seg-in .5s var(--ease) both}
+.segbar i.on{background:var(--gl-ink)}
+.segbar em{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--gl-red);transition:left .6s var(--ease)}
+@keyframes seg-in{from{transform:scaleX(.2);opacity:0}}
+.dotcols{width:100%;height:90px}
+.dotcols .on{fill:var(--gl-ink)}.dotcols .off{fill:rgba(11,11,12,.12)}.dotcols .hi{fill:var(--gl-red)}
+
+/* pills */
+.pill-live{display:inline-flex;align-items:center;gap:6px;background:#fff;border-radius:999px;padding:7px 12px;font:500 11px/1 "Geist Mono",monospace;letter-spacing:.04em;text-transform:uppercase}
+.pill-live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--gl-red);animation:live 1.4s ease-in-out infinite}
+.pill-lime{display:inline-flex;align-items:center;gap:6px;background:var(--gl-lime);border-radius:999px;padding:7px 12px;font:500 11px/1 "Geist Mono",monospace;letter-spacing:.04em;text-transform:uppercase}
+.pill-amber{background:#FFE3B8}
+@keyframes live{50%{opacity:.25}}
+
+/* header (avatar · title · help) */
+.app-shell .gl-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0 14px}
+.gl-avatar{width:44px;height:44px;border-radius:50%;border:0;background:var(--gl-pale);color:#2C4A5A;font:500 14px/1 "Geist Mono",monospace;display:grid;place-items:center;cursor:pointer;flex:none}
+.gl-title{flex:1;min-width:0}
+.gl-title small{display:block;font:500 10px/1.4 "Geist Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--gl-t3)}
+.gl-title b{display:block;font-size:20px;font-weight:500;letter-spacing:-.03em}
+.gl-icon{width:44px;height:44px;border-radius:50%;border:0;background:#fff;display:grid;place-items:center;cursor:pointer;flex:none;color:var(--gl-ink)}
+
+/* screen transitions: blur in, staggered */
+.screen .surface>*:not(.money-home),.screen .surface-stack>*{animation:blur-in .55s var(--ease) both}
+.screen .surface>*:nth-child(2),.screen .surface-stack>*:nth-child(2){animation-delay:.06s}
+.screen .surface>*:nth-child(3),.screen .surface-stack>*:nth-child(3){animation-delay:.12s}
+.screen .surface>*:nth-child(4),.screen .surface-stack>*:nth-child(4){animation-delay:.18s}
+.screen .surface>*:nth-child(n+5),.screen .surface-stack>*:nth-child(n+5){animation-delay:.24s}
+.screen.leaving .surface>*,.screen.leaving .surface-stack>*{animation:blur-out .17s ease-in both}
+@keyframes blur-in{from{opacity:0;filter:blur(10px);transform:translateY(8px)}to{opacity:1;filter:none;transform:none}}
+@keyframes blur-out{to{opacity:0;filter:blur(10px);transform:translateY(-4px)}}
+
+/* buttons: press + light sweep */
+.app-shell .btn,.sheet .btn,.round-btn{position:relative;overflow:hidden}
+.app-shell .btn.primary::after,.sheet .btn.primary::after,.round-btn::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.28) 50%,transparent 70%);transform:translateX(-120%);pointer-events:none}
+.app-shell .btn.primary:hover::after,.sheet .btn.primary:hover::after,.round-btn:hover::after{transform:translateX(120%);transition:transform .7s var(--ease)}
+.app-shell .btn:active,.sheet .btn:active{transform:scale(.97)}
+.app-shell .btn.pale,.sheet .btn.pale{background:var(--gl-pale);color:var(--gl-ink)}
+
+/* tab bar: floating white pill, icons only, pale active circle */
+.app-shell .bottom-tabs{left:50%;right:auto;transform:translateX(-50%);width:auto;display:flex;gap:6px;background:#fff;border-radius:999px;padding:6px;box-shadow:0 10px 30px rgba(11,11,12,.12);backdrop-filter:none}
+.app-shell .bottom-tabs button{width:52px;height:52px;min-height:0;border-radius:50%;padding:0;color:var(--gl-ink);background:transparent;transition:background .3s var(--ease)}
+.app-shell .bottom-tabs button span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.app-shell .bottom-tabs button.on{background:var(--gl-pale);color:var(--gl-ink)}
+.app-shell .bottom-tabs svg{width:22px;height:22px}
+
+/* white cards in this system */
+.app-shell .panel{border-radius:28px}
+.app-shell .section-title h2{font-weight:500}
+
+/* pay flow (full-height sheet) */
+.flow{display:grid;gap:14px}
+.flow-head{display:flex;justify-content:space-between;align-items:center}
+.circle-btn{width:44px;height:44px;border-radius:50%;border:0;background:#fff;display:grid;place-items:center;cursor:pointer;color:var(--gl-ink);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.flow-title{margin:0;font-size:34px;font-weight:500;letter-spacing:-.035em;line-height:1}
+.flow-sub{margin:-6px 0 0;font:500 11px/1.4 "Geist Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--gl-t2)}
+.amount-card{background:#fff;border-radius:24px;padding:16px;display:grid;gap:12px}
+.amount-top{display:flex;justify-content:space-between;align-items:center;font:500 11px/1 "Geist Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--gl-t2)}
+.amount-input{display:flex;align-items:baseline;gap:4px}
+.amount-input span{font-size:40px;font-weight:400;color:var(--gl-t3)}
+.amount-input input{all:unset;width:100%;font-size:56px;font-weight:400;letter-spacing:-.05em;line-height:1}
+.vendor-chips{display:flex;flex-wrap:wrap;gap:8px}
+.vchip{all:unset;cursor:pointer;background:#fff;border-radius:999px;padding:10px 14px;font-size:14px;font-weight:500;transition:background .25s var(--ease),color .25s}
+.vchip.off{background:transparent;box-shadow:inset 0 0 0 1.5px rgba(11,11,12,.16)}
+.vchip.on{background:var(--gl-ink);color:#fff}
+.vchip:focus-visible{outline:2px solid var(--gl-ink);outline-offset:2px}
+.flow-note{margin:0;font-size:13px;color:var(--gl-t2)}
+.flow-note.warn{color:#8A4B00}
+.flow-actions{display:grid;grid-template-columns:1fr 56px;gap:10px;align-items:center;margin-top:4px}
+.flow-actions .btn{min-height:56px;border-radius:999px}
+.flow-actions .round-btn{position:static;width:56px;height:56px}
+
+/* result (PAID / HELD) */
+.stamp{position:relative;border-radius:28px;height:200px;overflow:hidden;display:grid;place-items:center;background:linear-gradient(180deg,#9ED8F2 0%,#5FB3E6 100%)}
+.stamp.held{background:linear-gradient(180deg,#FFD9A8 0%,#F7A86A 100%)}
+.stamp span{font-size:120px;font-weight:600;letter-spacing:-.06em;color:rgba(255,255,255,.85);animation:stamp-in .7s var(--ease) both}
+.stamp::before{content:"";position:absolute;left:0;right:0;top:22px;height:6px;background:repeating-linear-gradient(90deg,#fff 0 18px,transparent 18px 26px,#F0302F 26px 40px,transparent 40px 48px)}
+@keyframes stamp-in{from{opacity:0;transform:scale(1.25);filter:blur(12px)}to{opacity:1;transform:none;filter:none}}
+.receipt-card{background:#fff;border-radius:24px;padding:18px;display:grid;gap:12px}
+.receipt-card .rc-top{display:flex;justify-content:space-between;align-items:center}
+.receipt-card .rc-top b{font-weight:500;font-size:16px}
+.receipt-card .big{font-size:44px;font-weight:400;letter-spacing:-.05em;line-height:1}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kv small{display:block;font:500 10px/1.4 "Geist Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--gl-t3)}
+.kv b{font-weight:500;font-size:15px}
+
+@media (prefers-reduced-motion:reduce){
+  .glow::before,.dotnum circle.on,.screen>*,.swap,.glow-sub,.segbar i,.stamp span,.pill-live::before{animation:none!important}
+  .seg-thumb{transition:none}
+}
+@media (max-width:380px){.tiles{gap:8px}.tile{padding:12px;min-height:108px}.tile b{font-size:19px}}
+@media (min-width:900px){.tiles{gap:14px}.dotnum{height:84px}}
+
+.gl-top .profile{position:relative}
+.gl-top .profile-menu{left:0;right:auto;top:54px}
+.big-cta{width:100%;min-height:56px!important;font-size:15px!important}
+.art-t{font:500 7px "Geist Mono",monospace;fill:#fff;letter-spacing:.08em}
+.sheet .task-card:has(.flow){background:var(--gl-bg,#ECEEF1)}
+.sheet .flow{--gl-bg:#ECEEF1;--gl-ink:#0B0B0C;--gl-t2:rgba(11,11,12,.55);--gl-t3:rgba(11,11,12,.38);--gl-pale:#D3E4EE;--gl-red:#F0302F;--gl-lime:#D9F65C;--ease:cubic-bezier(.2,.8,.2,1);font-family:"Geist","Inter Tight",system-ui,sans-serif}
+.sheet .flow .eyebrow{margin:4px 0 -4px;font:500 10px/1.4 "Geist Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:rgba(11,11,12,.4)}
+.sheet .flow .round-btn:disabled{opacity:.4}
+.sheet .flow .enroll{background:#fff}
+.app-shell .glow .pill-live,.app-shell .glow .pill-lime{box-shadow:none}
+.next>.round-btn{position:absolute;top:18px;right:18px}
+.pill-live,.pill-lime{color:#0B0B0C}
+.sheet .flow .amount-input{display:flex;flex-direction:row;align-items:baseline;gap:4px}
+.sheet .flow .amount-input input{color:#0B0B0C;font-size:56px;font-weight:400;letter-spacing:-.05em;min-height:0;background:none;padding:0;border:0}
+.app-shell .segmented button{font-size:13px}
