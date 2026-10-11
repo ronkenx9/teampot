@@ -4,10 +4,11 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import { PublicKey, Signature, WebAuthnP256 } from 'ox'
 import * as T from './tempo.js'
 import * as Store from './store.js'
+import * as Issuing from './issuing.js'
 import {
   DAY, MONTH, YEAR, applyKudosDebit, applyStockTrade, canAwardKudos, decodeMemoLabel, defaultStocks, holdReason, idempotent, invoiceNumber,
   moneyMemo, nextMonthlyDate, normalizeState, potApprovedTotal, potSavings, roundMoney, slug, splitKudos, stockPosition, uid,
-  type Activity, type AuthChallenge, type Held, type TopUp, type Invite, type Invoice, type Perk, type Person, type Pot, type Session, type State, type StockId, type TestStock, type Vendor,
+  type Activity, type AuthChallenge, type Beneficiary, type Held, type TopUp, type Invite, type Invoice, type Perk, type Person, type Pot, type Session, type State, type StockId, type TestStock, type Vendor,
 } from './domain.js'
 
 const colors = ['#E8552D', '#141414', '#6F6A63', '#B8401C']
@@ -100,7 +101,7 @@ function seedState(): State {
     epoch,
     company: { name: 'Northwind Studio', address: T.companyAccount.address, financeApprovalThreshold: 1000 },
     people, vendors, pots, perks,
-    activity: [], held: [], topups: [], invoices: [], paydayRuns: [], quarterCloses: [], kudosCredits: [], kudosAwards: [],
+    activity: [], held: [], topups: [], beneficiaries: [], invoices: [], paydayRuns: [], quarterCloses: [], kudosCredits: [], kudosAwards: [],
     stocks: defaultStocks(), payElections: [{ personId: 'sam', stockId: 'aapl', percent: 20 }], stockTrades: [], earnEntries: [],
     nextPayday: nextMonthlyDate(), processed: {}, sessions: [], authChallenges: [], invites: [], seeded: false,
   }
@@ -116,6 +117,8 @@ const deptAddress = (potId: string) => T.p256RootAddress(deptRootPk(potId))
 const headKeyPk = (pt: Pot) => T.derivedKeyPk(S.epoch, pt.id, `head:${pt.headId}:${pt.headKeyVersion ?? 0}`)
 /** The head's admin key acting as the department account, or null when the department has no head yet. */
 const headSigner = (pt: Pot) => (pt.headId && pt.headKeyTx ? T.accessAccount(headKeyPk(pt), deptRoot(pt.id)) : null)
+/** Card network settlement account (the issuer's funding account on Tempo, or a derived stand-in). */
+const settlementAccount = () => process.env.ISSUING_SETTLEMENT_ACCOUNT || T.derivedPersonalAddress(S.epoch, 'card-network-settlement')
 /** Everyone on payroll: has a salary and has not been removed. */
 const payrollStaff = () => S.people.filter((x) => x.salary && !x.removed)
 const personalRootPk = (personId: string) => T.derivedPersonalRootPk(S.epoch, personId)
@@ -225,7 +228,9 @@ async function issuePotKey(x: Person) {
   const pt = pot(x.team)
   const parent = deptRoot(pt.id)
   const { signer, issuer } = cardSigner(pt, x)
-  const vendors = pt.vendorIds.map((v) => vendor(v).address)
+  // With a Visa card, the card network's settlement account is one more allowed payee: Tempo still enforces the
+  // monthly limit on every swipe, and the shop-category rule is checked when the issuer asks us to authorize.
+  const vendors = [...pt.vendorIds.map((v) => vendor(v).address), ...(x.visa ? [settlementAccount()] : [])]
   if (x.passkey && !x.demoKey) {
     try {
       const ref = { passkey: x.passkey.publicKey } as T.KeyRef
@@ -479,12 +484,13 @@ async function view(_viewerId: string | null | undefined, actor: Actor) {
     const [limit, balance] = await Promise.all([cachedRemaining(`pot:${x.id}:${x.team}:${x.keyTx ?? ''}`, ref, x.team ? deptRoot(x.team) : T.companyAccount), cachedBalance(x.address)])
     const canSeePrivateMoney = scope.isAdmin || scope.viewer.id === x.id
     return {
-      id: x.id, name: x.name, role: x.role, removed: !!x.removed, hasPasskey: !!x.passkey, passkeyId: x.passkey?.id, passkeyNeedsRefresh: !!x.passkey?.needsRefresh,
+      id: x.id, name: x.name, role: x.role, removed: !!x.removed, agent: !!x.agent, handle: `@${x.id}`, visa: canSeePrivateMoney && x.visa ? { mode: x.visa.mode, last4: x.visa.last4, expMonth: x.visa.expMonth, expYear: x.visa.expYear } : undefined, hasPasskey: !!x.passkey, passkeyId: x.passkey?.id, passkeyNeedsRefresh: !!x.passkey?.needsRefresh,
       title: x.title, team: x.team, salary: canSeePrivateMoney ? x.salary : undefined, country: x.country, balance: canSeePrivateMoney ? balance : 0,
       pot: pt ? { cap: pt.perPersonCap, left: limit?.remaining ?? null, resetsAt: limit?.periodEnd ?? null } : null,
     }
   }))
-  const visiblePerks = scope.isAdmin ? S.perks : S.perks.filter((p) => p.personId === scope.viewer.id)
+  // Finance sees every card; a head sees the cards they signed for their team (people and agents); others their own.
+  const visiblePerks = scope.isAdmin ? S.perks : S.perks.filter((p) => p.personId === scope.viewer.id || (scope.viewer.role === 'lead' && S.people.find((x) => x.id === p.personId)?.team === scope.viewer.team))
   const perks = await Promise.all(visiblePerks.map(async (p) => {
     const owner = person(p.personId)
     const limit = await cachedRemaining(`perk:${p.id}:${p.keyTx ?? ''}`, { pk: perkKeyPk(p.id) }, owner.team ? deptRoot(owner.team) : T.companyAccount)
@@ -529,7 +535,7 @@ async function view(_viewerId: string | null | undefined, actor: Actor) {
           issuedBy: nameOf(x.keyIssuer), tx: x.keyTx, receipt: x.keyTx ? T.EXPLORER + x.keyTx : undefined,
         })),
         ...perks.filter((p) => person(p.personId).team === pt.id).map((p) => ({
-          id: `perk-${p.id}`, kind: 'perk' as const, personId: p.personId, name: person(p.personId).name, label: `${p.name} perk`, cap: p.cap, period: p.periodLabel,
+          id: `perk-${p.id}`, kind: 'perk' as const, personId: p.personId, name: person(p.personId).name, label: person(p.personId).agent ? 'Agent card' : `${p.name} perk`, cap: p.cap, period: p.periodLabel,
           left: p.left, vendors: p.vendors, device: false, issuedBy: nameOf(p.keyIssuer), tx: p.keyTx, receipt: p.keyTx ? T.EXPLORER + p.keyTx : undefined,
         })),
       ]
@@ -543,8 +549,14 @@ async function view(_viewerId: string | null | undefined, actor: Actor) {
       }
     }),
   }
+  const earnByPot = Object.fromEntries(await Promise.all(pots.map(async (pt) => [pt.id, T.earnLive() ? { mode: 'real', balance: await T.earnPosition(deptAddress(pt.id)).catch(() => 0) } : { mode: 'simulated', balance: pt.earn?.balance ?? 0 }] as const)))
   return {
     controls,
+    earn: { live: T.earnLive(), network: T.NETWORK, byPot: earnByPot },
+    issuing: { mode: Issuing.issuerMode() },
+    beneficiaries: S.beneficiaries.filter((b) => b.ownerId === scope.viewer.id),
+    // Names only (no money), so people can send kudos or pick a teammate.
+    teammates: S.people.filter((x) => x.team && x.team === scope.viewer.team && x.id !== scope.viewer.id && !x.removed && !x.agent && x.role !== 'contractor').map((x) => ({ id: x.id, name: x.name })),
     topups: S.topups.filter((t) => scope.isAdmin || (scope.viewer.role === 'lead' && t.potId === scope.viewer.team)),
     auth: { personId: actor.person.id, role: actor.person.role, demo: actor.demo },
     company: { name: S.company.name, balance: scope.isAdmin ? companyBalance : 0, financeApprovalThreshold: S.company.financeApprovalThreshold },
@@ -877,7 +889,7 @@ app.post('/api/spend', async (c) => {
     if (!p.vendorIds.includes(v.id)) return c.json({ error: `${v.name} is not on this perk yet` }, 400)
     let tx: string
     try {
-      tx = await T.spendWithKeyOn(deptRoot(x.team!), { pk: perkKeyPk(p.id) }, v.address, amount, moneyMemo(`perk:${p.name}`))
+      tx = await spendPerkCard(x, p, v, amount)
     } catch {
       // Tempo refused the perk card: over this period's limit (the small network fee counts too).
       return c.json({ error: `That's over your ${p.name} limit for this ${p.periodLabel}. Tempo refused it, so nothing was paid.` }, 400)
@@ -905,6 +917,10 @@ app.post('/api/spend', async (c) => {
     return c.json(out)
   }
 })
+
+/** Pay with a perk-style card (perks and agent cards). Throws when Tempo refuses it. */
+const spendPerkCard = (x: Person, p: Perk, v: Vendor | { address: string }, amount: number, memoText = `perk:${p.name}`) =>
+  T.spendWithKeyOn(deptRoot(x.team!), { pk: perkKeyPk(p.id) }, v.address, amount, moneyMemo(memoText))
 
 function hold(x: Person, v: Vendor, pt: Pot, amount: number, note: string, forcedReason?: Held['reason']) {
   const reason = forcedReason ?? holdReason(pt, v.id)
@@ -971,10 +987,17 @@ app.post('/api/held/:id/:action', async (c) => {
   if (action === 'approve' || action === 'approve-add') {
     const v = vendor(h.vendorId)
     const payer = departmentPayer(pot(h.potId), a)
-    h.tx = await payer.pay(v.address, h.amount, moneyMemo(`${h.potId}:approved`))
+    h.tx = await payer.pay(h.payTo ?? v.address, h.amount, moneyMemo(h.channel === 'visa' ? `visa:${h.merchant ?? v.name}` : `${h.potId}:approved`))
     h.status = 'approved'
     h.signedBy = payer.signedBy
-    if (action === 'approve-add') {
+    const requester = person(h.personId)
+    const agentCard = requester.agent ? S.perks.find((p) => p.personId === requester.id) : undefined
+    if (action === 'approve-add' && agentCard) {
+      // An agent's request: add the vendor to the agent's own card, re-signed by the head key.
+      if (!agentCard.vendorIds.includes(v.id)) agentCard.vendorIds.push(v.id)
+      const tx = await issuePerkKey(agentCard)
+      log({ kind: 'agent', title: `${v.name} added to ${requester.name}`, detail: 'Agent card re-signed', tx, who: requester.id, potId: h.potId, perkId: agentCard.id, memo: `${h.potId}:agent` })
+    } else if (action === 'approve-add') {
       const pt = pot(h.potId)
       if (!pt.vendorIds.includes(v.id)) pt.vendorIds.push(v.id)
       const receipts = await reissueTeamKeys(pt.id)
@@ -1180,7 +1203,8 @@ app.post('/api/pots/:id/close', async (c) => {
   requireFinanceOrHead(a, pt.id)
   const body = await parseBody(c, z.object({ sharePct: z.coerce.number().min(0).max(100).default(20), requestId }))
   if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
-  const members = S.people.filter((p) => p.team === pt.id)
+  // Kudos go to the people on the team: not agents, not removed people.
+  const members = S.people.filter((p) => p.team === pt.id && !p.removed && !p.agent)
   const limits = await Promise.all(members.map((m) => cachedRemaining(`pot:${m.id}:${m.team}:${m.keyTx ?? ''}`, keyRef(m), deptRoot(pt.id))))
   const savings = potSavings(limits.map((l) => l?.remaining ?? 0), potApprovedTotal(S, pt.id))
   const split = splitKudos(savings, body.sharePct, members.map((m) => m.id))
@@ -1272,6 +1296,265 @@ app.get('/api/activity.csv', (c) => {
   for (const a of scopedActivity(scope)) rows.push([new Date(a.at).toISOString(), a.kind, a.title, a.detail, a.amount?.toString() ?? '', a.who ? person(a.who).name : '', a.potId ? pot(a.potId).team : '', a.tx ? T.EXPLORER + a.tx : ''])
   const esc = (s: string) => `"${String(s).replace(/"/g, '""')}"`
   return c.text(rows.map((r) => r.map(esc).join(',')).join('\n'), 200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="teampot-activity.csv"' })
+})
+
+/* ============================== Agent cards ============================== */
+// An AI agent gets its own card on the department account, signed by the head key: a monthly limit and a
+// vendor list that Tempo enforces. The agent pays with an agent key (bearer token); the head can test or remove it.
+async function createAgent(a: Actor, body: { name: string; team: string; purpose: string; cap: number; vendorIds: string[] }) {
+  const pt = pot(body.team)
+  requireFinanceOrHead(a, pt.id)
+  body.vendorIds.forEach((id) => vendor(id))
+  if (body.cap > pt.budget) throw badRequest(`An agent limit can't be more than the ${pt.team} budget`)
+  let id = slug(body.name)
+  if (S.people.some((x) => x.id === id)) id = `${id}-${uid().slice(0, 4)}`
+  const raw = `tpa_${randomBytes(24).toString('base64url')}`
+  const x: Person = { id, name: body.name, role: 'employee', title: body.purpose, team: pt.id, address: T.derivedPersonalAddress(S.epoch, id), demoKey: false, agent: true, agentTokenHash: hashSecret(raw) }
+  S.people.push(x)
+  const card: Perk = { id: `${id}-card`, personId: id, name: 'Agent', cap: roundMoney(body.cap), periodLabel: 'month', periodSec: MONTH, vendorIds: body.vendorIds, color: '#4C8DFF' }
+  S.perks.push(card)
+  const tx = S.seeded ? await issuePerkKey(card) : undefined
+  log({ kind: 'agent', title: `${a.person.name.split(' ')[0]} gave ${x.name} a card`, detail: `$${card.cap}/month · ${card.vendorIds.length} vendors`, tx, who: x.id, potId: pt.id, perkId: card.id, memo: `${pt.id}:agent` })
+  return { person: { id: x.id, name: x.name, title: x.title, team: x.team, agent: true }, card, token: raw, receipt: tx ? T.EXPLORER + tx : undefined }
+}
+
+/** An agent pays a vendor with its own card. Off-card or over-limit becomes a request to the head. */
+async function agentPay(x: Person, body: { vendorId: string; amount: number; note?: string }) {
+  const card = requireOne(S.perks.find((p) => p.personId === x.id), 'Agent card')
+  const v = vendor(body.vendorId)
+  const amount = roundMoney(body.amount)
+  const pt = pot(x.team!)
+  if (amount > S.company.financeApprovalThreshold) return { ok: false, held: hold(x, v, pt, amount, body.note ?? 'Agent purchase', 'finance-rule') }
+  if (!card.vendorIds.includes(v.id)) return { ok: false, held: hold(x, v, pt, amount, body.note ?? 'Agent purchase', 'new-vendor') }
+  try {
+    const tx = await spendPerkCard(x, card, v, amount, `agent:${body.note || v.category}`)
+    log({ kind: 'agent', title: `${x.name} paid ${v.name}`, detail: `${pt.team} agent card · ${body.note || v.category}`, amount, tx, who: x.id, potId: pt.id, perkId: card.id, memo: `agent:${body.note || v.category}` })
+    return { ok: true, tx, receipt: T.EXPLORER + tx }
+  } catch {
+    return { ok: false, held: hold(x, v, pt, amount, body.note ?? 'Agent purchase', 'over-limit') }
+  }
+}
+
+app.post('/api/agents', async (c) => {
+  const a = actorFrom(c)
+  const body = await parseBody(c, z.object({ name: text(60), team: text(40), purpose: text(80), cap: number, vendorIds: z.array(z.string()).min(1) }))
+  return c.json(await createAgent(a, body))
+})
+
+// The agent's own endpoint: Authorization: Bearer <agent key>
+app.post('/api/agent/pay', async (c) => {
+  rateLimit(c, 'agent-pay', 30)
+  const raw = (c.req.header('authorization') ?? '').replace(/^Bearer\s+/i, '')
+  const x = S.people.find((p) => p.agent && !p.removed && p.agentTokenHash && p.agentTokenHash === hashSecret(raw))
+  if (!x) throw authError('Unknown or removed agent key')
+  const body = await parseBody(c, z.object({ vendorId: text(60), amount: number, note: z.string().trim().max(60).optional(), requestId }))
+  if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
+  const out = await agentPay(x, body)
+  if (body.requestId) S.processed[body.requestId] = out
+  return c.json(out)
+})
+
+// Head or Finance runs a test purchase as the agent (for the demo, without handing out the key).
+app.post('/api/agents/:id/test-pay', async (c) => {
+  const a = actorFrom(c)
+  const x = person(c.req.param('id'))
+  if (!x.agent || x.removed) return c.json({ error: 'Not an agent' }, 400)
+  requireFinanceOrHead(a, x.team)
+  const body = await parseBody(c, z.object({ vendorId: text(60), amount: number, note: z.string().trim().max(60).optional() }))
+  return c.json(await agentPay(x, body))
+})
+
+/* ===================== Send money: usernames and saved payees ===================== */
+const handleOf = (x: Person) => `@${x.id}`
+app.get('/api/lookup/:handle', (c) => {
+  actorFrom(c)
+  const id = c.req.param('handle').replace(/^@/, '').toLowerCase()
+  const x = S.people.find((p) => p.id === id && !p.removed && !p.agent)
+  if (!x) return c.json({ error: `No one called @${id} here` }, 404)
+  return c.json({ id: x.id, handle: handleOf(x), name: x.name, title: x.title, team: x.team ? pot(x.team).team : 'Finance' })
+})
+
+app.post('/api/beneficiaries', async (c) => {
+  const a = actorFrom(c)
+  const body = await parseBody(c, z.object({ name: text(60), account: z.string().trim().regex(/^0x[0-9a-fA-F]{40}$/, 'Enter a Tempo account ID (0x followed by 40 characters)') }))
+  const dup = S.beneficiaries.find((b) => b.ownerId === a.person.id && b.account.toLowerCase() === body.account.toLowerCase())
+  if (dup) return c.json(dup)
+  const b: Beneficiary = { id: uid(), ownerId: a.person.id, name: body.name, account: body.account, createdAt: now() }
+  S.beneficiaries.unshift(b)
+  return c.json(b)
+})
+
+app.post('/api/beneficiaries/:id/remove', (c) => {
+  const a = actorFrom(c)
+  const b = requireOne(S.beneficiaries.find((x) => x.id === c.req.param('id') && x.ownerId === a.person.id), 'Saved payee')
+  S.beneficiaries = S.beneficiaries.filter((x) => x.id !== b.id)
+  return c.json({ ok: true })
+})
+
+/** Send your own money (not the team card) to a Teampot user, a saved payee, or a new Tempo account. */
+app.post('/api/transfer', async (c) => {
+  const a = actorFrom(c)
+  const body = await parseBody(c, z.object({
+    handle: z.string().trim().max(40).optional(), beneficiaryId: z.string().optional(),
+    account: z.string().trim().regex(/^0x[0-9a-fA-F]{40}$/).optional(), name: z.string().trim().max(60).optional(), save: z.boolean().optional(),
+    amount: number, note: z.string().trim().max(60).optional().default(''), requestId,
+  }))
+  if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
+  const from = a.person
+  if (from.agent) throw forbidden('Agents pay with their card')
+  let to: { name: string; account: string; personId?: string }
+  if (body.handle) {
+    const x = S.people.find((p) => p.id === body.handle!.replace(/^@/, '').toLowerCase() && !p.removed && !p.agent)
+    if (!x) return c.json({ error: `No one called ${body.handle} here` }, 404)
+    if (x.id === from.id) return c.json({ error: "That's you" }, 400)
+    to = { name: x.name, account: x.address, personId: x.id }
+  } else if (body.beneficiaryId) {
+    const b = requireOne(S.beneficiaries.find((x) => x.id === body.beneficiaryId && x.ownerId === from.id), 'Saved payee')
+    to = { name: b.name, account: b.account }
+  } else if (body.account && body.name) {
+    to = { name: body.name, account: body.account }
+    if (body.save && !S.beneficiaries.some((b) => b.ownerId === from.id && b.account.toLowerCase() === body.account!.toLowerCase())) {
+      S.beneficiaries.unshift({ id: uid(), ownerId: from.id, name: body.name, account: body.account, createdAt: now() })
+    }
+  } else return c.json({ error: 'Pick who to send to' }, 400)
+  const amount = roundMoney(body.amount)
+  const cash = await T.balanceOf(from.address).catch(() => 0)
+  if (amount + 0.01 > cash) return c.json({ error: `You have ${cash.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} in cash` }, 400)
+  const tx = await T.payFrom(personalRoot(from.id), to.account, amount, moneyMemo(`send:${body.note || 'from ' + from.name.split(' ')[0]}`))
+  log({ kind: 'transfer', title: `${from.name.split(' ')[0]} sent ${to.name}`, detail: body.note || 'Sent from Teampot', amount, tx, who: from.id, memo: `send:${body.note || 'transfer'}` })
+  if (to.personId) log({ kind: 'transfer', title: `${from.name.split(' ')[0]} sent you money`, detail: body.note || 'Sent from Teampot', amount, tx, who: to.personId, memo: `send:${body.note || 'transfer'}` })
+  const out = { ok: true, tx, receipt: T.EXPLORER + tx, to: to.name }
+  if (body.requestId) S.processed[body.requestId] = out
+  return c.json(out)
+})
+
+/* ============================ Idle budgets earn ============================ */
+// With TEMPO_EARN_VAULT set (e.g. on mainnet) money really moves into the Earn vault; otherwise it is simulated.
+app.post('/api/pots/:id/earn', async (c) => {
+  const a = actorFrom(c)
+  const pt = pot(c.req.param('id'))
+  requireFinanceOrHead(a, pt.id)
+  const body = await parseBody(c, z.object({ action: z.enum(['deposit', 'withdraw']), amount: number, requestId }))
+  if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
+  const amount = roundMoney(body.amount)
+  const live = T.earnLive()
+  const current = pt.earn ?? { mode: live ? 'real' as const : 'simulated' as const, balance: 0, updatedAt: now() }
+  const deptBalance = await T.balanceOf(deptAddress(pt.id)).catch(() => 0)
+  let tx: string | undefined
+  if (body.action === 'deposit') {
+    if (amount + 0.01 > deptBalance - (live ? 0 : current.balance)) return c.json({ error: `${pt.team} has ${deptBalance.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} free to put to work` }, 400)
+    if (live) tx = await T.earnDeposit(a.person.role === 'lead' ? headSigner(pt) ?? deptRoot(pt.id) : deptRoot(pt.id), amount)
+    current.balance = roundMoney(current.balance + amount)
+  } else {
+    const have = live ? await T.earnPosition(deptAddress(pt.id)) : current.balance
+    if (amount > have + 1e-6) return c.json({ error: `${pt.team} has ${have.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} earning` }, 400)
+    if (live) tx = await T.earnWithdraw(a.person.role === 'lead' ? headSigner(pt) ?? deptRoot(pt.id) : deptRoot(pt.id), amount)
+    current.balance = roundMoney(Math.max(0, current.balance - amount))
+  }
+  pt.earn = { ...current, mode: live ? 'real' : 'simulated', updatedAt: now(), tx }
+  log({ kind: 'earn', title: body.action === 'deposit' ? `${pt.team} put idle budget to work` : `${pt.team} brought budget back`, detail: live ? 'Tempo Earn' : 'Simulated until a Tempo Earn vault is connected', amount, tx, potId: pt.id, memo: `${pt.id}:earn` })
+  const out = { ok: true, mode: pt.earn.mode, balance: pt.earn.balance, tx, receipt: tx ? T.EXPLORER + tx : undefined }
+  if (body.requestId) S.processed[body.requestId] = out
+  return c.json(out)
+})
+
+/* ======================= Visa card (card issuer bridge) ======================= */
+// One card, two rails, one rule set. On Tempo the card is the access key. At a shop the issuer asks us; we check
+// the same card (vendor categories + remaining limit on Tempo) and settle from the department account on Tempo.
+
+async function authorizeCard(x: Person, req: { amount: number; mcc: string; merchant: string }) {
+  if (!x.visa) return { approved: false, reason: 'no_card', message: 'No card issued yet' }
+  if (!x.team) return { approved: false, reason: 'no_department', message: 'Not on a department' }
+  const pt = pot(x.team)
+  const category = Issuing.categoryForMcc(req.mcc)
+  const allowed = new Set(pt.vendorIds.map((v) => vendor(v).category))
+  if (req.amount > S.company.financeApprovalThreshold) return { approved: false, reason: 'needs_finance', category, message: `Over the ${S.company.financeApprovalThreshold.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} Finance limit` }
+  if (!allowed.has(category)) return { approved: false, reason: 'category', category, message: `${category} isn't on the ${pt.team} card` }
+  const ref = keyRef(x)
+  const limit = await T.remainingOn(deptRoot(pt.id), ref ?? { pk: keyPk(x) }).catch(() => null)
+  if (!limit || req.amount + 0.01 > limit.remaining) return { approved: false, reason: 'over_limit', category, message: 'Over the monthly limit' }
+  return { approved: true, reason: 'ok', category, message: 'Approved' }
+}
+
+/** Settle an approved card payment on Tempo, from the department account, with the person's card key when we hold it. */
+async function settleCard(x: Person, amount: number, merchant: string) {
+  const pt = pot(x.team!)
+  const memoText = `visa:${merchant}`
+  if (x.demoKey && !x.passkey) return { tx: await T.spendWithKeyOn(deptRoot(pt.id), { pk: keyPk(x) }, settlementAccount(), amount, moneyMemo(memoText)), via: 'card key' }
+  // Device (Face ID) keys can't be used by the server; the department root settles after the same checks.
+  return { tx: await T.payFrom(deptRoot(pt.id), settlementAccount(), amount, moneyMemo(memoText)), via: 'department' }
+}
+
+async function cardPurchase(x: Person, req: { amount: number; mcc: string; merchant: string }) {
+  const amount = roundMoney(req.amount)
+  const d = await authorizeCard(x, { ...req, amount })
+  const pt = x.team ? pot(x.team) : undefined
+  if (!d.approved) {
+    let held: Held | undefined
+    if (pt && (d.reason === 'category' || d.reason === 'over_limit' || d.reason === 'needs_finance')) {
+      // A decline at the till becomes an "approve once" request, like a held Tempo payment.
+      let v = S.vendors.find((y) => y.name.toLowerCase() === req.merchant.toLowerCase())
+      if (!v) { v = { id: slug(req.merchant), name: req.merchant, category: d.category ?? 'Other', address: settlementAccount() }; S.vendors.push(v) }
+      held = hold(x, v, pt, amount, `Card at ${req.merchant}`, d.reason === 'needs_finance' ? 'finance-rule' : d.reason === 'category' ? 'new-vendor' : 'over-limit')
+      held.channel = 'visa'; held.payTo = settlementAccount(); held.merchant = req.merchant
+    }
+    log({ kind: 'visa', title: `Card declined at ${req.merchant}`, detail: `${d.message}${held ? ' · sent for approval' : ''}`, amount, who: x.id, potId: pt?.id, memo: `visa:${req.merchant}` })
+    return { approved: false, reason: d.reason, message: d.message, held }
+  }
+  const s = await settleCard(x, amount, req.merchant)
+  log({ kind: 'visa', title: `${x.name.split(' ')[0]} paid ${req.merchant} by card`, detail: `${d.category} · settled on Tempo from ${pt!.team}`, amount, tx: s.tx, who: x.id, potId: pt!.id, memo: `visa:${req.merchant}` })
+  return { approved: true, message: 'Approved', tx: s.tx, receipt: T.EXPLORER + s.tx, settledVia: s.via }
+}
+
+app.get('/api/issuing/status', (c) => c.json({ mode: Issuing.issuerMode(), webhook: '/api/issuing/webhook', categories: Issuing.MCC }))
+
+app.post('/api/cards/visa', async (c) => {
+  const a = actorFrom(c)
+  const body = await parseBody(c, z.object({ personId: text(40) }))
+  const x = person(body.personId)
+  if (x.id !== a.person.id) requireFinanceOrHead(a, x.team)
+  if (!x.team || x.role === 'contractor') return c.json({ error: 'Cards are for people on a department' }, 400)
+  if (x.visa) return c.json(x.visa)
+  x.visa = await Issuing.issueVisaCard(x)
+  // Re-sign the person's Tempo card so it can settle card payments (signed by the head key, as before).
+  if (S.seeded && (x.demoKey || x.passkey)) await issuePotKey(x)
+  log({ kind: 'visa', title: `${x.name.split(' ')[0]} got a Visa card`, detail: x.visa.mode === 'stripe' ? `Issued · ending ${x.visa.last4}` : `Simulated until a card issuer is connected · ending ${x.visa.last4}`, who: x.id, potId: x.team, memo: 'visa:issued' })
+  return c.json(x.visa)
+})
+
+// Demo: tap the card at a shop. Runs the exact decision and settlement the issuer webhook runs.
+app.post('/api/issuing/simulate', async (c) => {
+  const a = actorFrom(c)
+  const body = await parseBody(c, z.object({ personId: text(40), merchant: text(60), mcc: z.string().regex(/^\d{4}$/), amount: number }))
+  const x = person(body.personId)
+  requireSelf(a, x.id)
+  return c.json(await cardPurchase(x, body))
+})
+
+// Stripe Issuing webhook: real-time authorization (respond {approved}) and settlement on captured transactions.
+app.post('/api/issuing/webhook', async (c) => {
+  const raw = await c.req.text()
+  const secret = process.env.STRIPE_WEBHOOK_SECRET
+  if (!secret) return c.json({ error: 'Card issuer not connected' }, 503)
+  if (!Issuing.verifyStripeSignature(raw, c.req.header('stripe-signature'), secret)) return c.json({ error: 'Bad signature' }, 400)
+  const event = JSON.parse(raw)
+  const obj = event?.data?.object ?? {}
+  const cardId = obj.card?.id ?? obj.card
+  const x = S.people.find((p) => p.visa?.id === cardId && !p.removed)
+  const mcc = obj.merchant_data?.category_code ?? Issuing.STRIPE_CATEGORY_MCC[obj.merchant_data?.category] ?? '0000'
+  const merchant = obj.merchant_data?.name ?? 'Card purchase'
+  if (event.type === 'issuing_authorization.request') {
+    if (!x) return c.json({ approved: false })
+    const d = await authorizeCard(x, { amount: (obj.pending_request?.amount ?? obj.amount ?? 0) / 100, mcc, merchant })
+    log({ kind: 'visa', title: d.approved ? `${x.name.split(' ')[0]} card approved at ${merchant}` : `Card declined at ${merchant}`, detail: d.message, amount: (obj.pending_request?.amount ?? obj.amount ?? 0) / 100, who: x.id, potId: x.team, memo: `visa:${merchant}` })
+    return c.json({ approved: d.approved }, 200, { 'Stripe-Version': '2024-06-20' })
+  }
+  if (event.type === 'issuing_transaction.created' && x && obj.type === 'capture') {
+    const amount = Math.abs(obj.amount ?? 0) / 100
+    const s = await settleCard(x, amount, merchant)
+    log({ kind: 'visa', title: `${x.name.split(' ')[0]} paid ${merchant} by card`, detail: 'Settled on Tempo', amount, tx: s.tx, who: x.id, potId: x.team, memo: `visa:${merchant}` })
+  }
+  return c.json({ received: true })
 })
 
 app.post('/api/reset', (c) => {

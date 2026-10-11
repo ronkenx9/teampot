@@ -47,6 +47,10 @@ Company treasury        Finance: funds departments, runs payday
 - **Your pay stays in the app.** Hold it in dollars, spend it, or invest part of every payday in test stock tokens on Tempo's stablecoin exchange.
 - **Contractors** send an invoice and are paid in seconds.
 - **Every action links to its public record** on the Tempo explorer.
+- **Agent cards.** A head gives an AI agent its own card; it pays with its agent key, inside limits Tempo enforces.
+- **Send money** to a teammate's @username or a saved payee, from your own pay.
+- **Visa card (issuer-ready).** Tap at a shop: the swipe is checked against the same Tempo card and settled on Tempo. Simulated until Stripe Issuing is plugged in ([ISSUING.md](ISSUING.md)).
+- **Idle budgets earn.** Simulated on testnet; real Tempo Earn once a vault is configured.
 
 The full permission model (who can do what, and whether Tempo or Teampot enforces it) is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -92,6 +96,7 @@ Open `http://localhost:8790` for the website, `/app` for the app and `/tour` for
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Delegation model, permission matrix, honest limits |
 | [app/VERIFIED.md](app/VERIFIED.md) | Every claim with testnet evidence |
 | [STRIPE_FIT.md](STRIPE_FIT.md) | Teampot and the Stripe stablecoin stack |
+| [ISSUING.md](ISSUING.md) | Plugging in Stripe Issuing, Tempo Earn and mainnet |
 | [brand/](brand/) | Logo, design spec, Tempo case study |
 | [submission/](submission/) | Hackathon submission and scripts |
 

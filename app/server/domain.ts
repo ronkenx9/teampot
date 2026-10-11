@@ -16,7 +16,14 @@ export type Person = {
   passkey?: { id: string; publicKey: `0x${string}`; tx: string; needsRefresh?: boolean }
   country?: string
   removed?: boolean
+  /** An AI agent with its own card (a perk-style key signed by the head). */
+  agent?: boolean
+  agentTokenHash?: string
+  /** Visa card from the card issuer (Stripe Issuing), or a simulated one until an issuer is connected. */
+  visa?: { mode: 'simulated' | 'stripe'; id: string; last4: string; expMonth: number; expYear: number; cardholderId?: string; issuedAt: number }
 }
+/** A saved payee: a name and a Tempo account, kept by its owner. */
+export type Beneficiary = { id: string; ownerId: string; name: string; account: string; createdAt: number }
 export type Vendor = { id: string; name: string; category: string; address: string }
 export type TestStock = {
   id: StockId
@@ -67,12 +74,14 @@ export type Pot = {
   headKeyVersion?: number
   headKeyTx?: string
   headSince?: number
+  /** Idle budget put to work in Tempo Earn (real when a vault is configured, simulated otherwise). */
+  earn?: { mode: 'simulated' | 'real'; balance: number; updatedAt: number; tx?: string }
 }
 export type Perk = { id: string; personId: string; name: string; cap: number; periodLabel: string; periodSec: number; vendorIds: string[]; color: string; keyTx?: string; keyIssuer?: string }
 export type TopUp = { id: string; at: number; potId: string; amount: number; note: string; requestedBy: string; status: 'requested' | 'funded' | 'declined'; tx?: string; decidedBy?: string }
-export type ActivityKind = 'payday' | 'spend' | 'held' | 'approved' | 'returned' | 'invoice' | 'paid' | 'setup' | 'perk' | 'quarter' | 'kudos' | 'declined' | 'admin' | 'invest' | 'earn'
+export type ActivityKind = 'payday' | 'spend' | 'held' | 'approved' | 'returned' | 'invoice' | 'paid' | 'setup' | 'perk' | 'quarter' | 'kudos' | 'declined' | 'admin' | 'invest' | 'earn' | 'transfer' | 'agent' | 'visa'
 export type Activity = { id: string; at: number; kind: ActivityKind; title: string; detail: string; amount?: number; who?: string; tx?: string; potId?: string; perkId?: string; memo?: string }
-export type Held = { id: string; at: number; personId: string; potId: string; vendorId: string; amount: number; note: string; reason: 'new-vendor' | 'over-limit' | 'finance-rule'; status: 'held' | 'approved' | 'returned'; tx?: string; signedBy?: string }
+export type Held = { id: string; at: number; personId: string; potId: string; vendorId: string; amount: number; note: string; reason: 'new-vendor' | 'over-limit' | 'finance-rule'; status: 'held' | 'approved' | 'returned'; tx?: string; signedBy?: string; channel?: 'visa'; payTo?: string; merchant?: string }
 export type Invoice = { id: string; number: string; at: number; contractorId: string; amount: number; description: string; status: 'submitted' | 'paid' | 'declined'; tx?: string; paidMs?: number; declineReason?: string }
 export type PaydayRun = { id: string; at: number; date: string; tx: string; total: number; count: number; ms: number; lines: { personId: string; gross: number; memo: string }[] }
 export type QuarterClose = { id: string; at: number; potId: string; savings: number; sharePct: number; pool: number; perPerson: number; tx: string; memberIds: string[] }
@@ -100,6 +109,7 @@ export type State = {
   activity: Activity[]
   held: Held[]
   topups: TopUp[]
+  beneficiaries: Beneficiary[]
   invoices: Invoice[]
   paydayRuns: PaydayRun[]
   quarterCloses: QuarterClose[]
@@ -149,6 +159,7 @@ export function normalizeState(s: Partial<State> | null, seed: () => State): Sta
     pots,
     perks: base.perks ?? [],
     topups: base.topups ?? [],
+    beneficiaries: base.beneficiaries ?? [],
     paydayRuns: base.paydayRuns ?? [],
     quarterCloses: base.quarterCloses ?? [],
     kudosCredits: base.kudosCredits ?? [],

@@ -6,13 +6,16 @@ import { Address, PublicKey } from 'ox'
 import { Tick, TokenId } from 'ox/tempo'
 import { generatePrivateKey } from 'viem/accounts'
 import { Account, Actions, Addresses, createClient } from 'viem/tempo'
-import { tempoModerato } from 'viem/tempo/chains'
+import { tempo as tempoMainnet, tempoModerato } from 'viem/tempo/chains'
 
 export const TOKEN = '0x20c0000000000000000000000000000000000000' as const // pathUSD, 6 dp
-export const EXPLORER = 'https://explore.testnet.tempo.xyz/tx/'
-export const EXPLORER_ACCOUNT = 'https://explore.testnet.tempo.xyz/address/'
-const chain: any = (tempoModerato as any).extend({ feeToken: TOKEN })
-const mk = (account: any) => createClient({ account, chain, transport: http(undefined, { retryCount: 6, retryDelay: 400 }), testnet: true } as any) as any
+/** TEMPO_NETWORK=mainnet switches to Tempo mainnet (real money). Default: Moderato testnet. */
+export const NETWORK: 'mainnet' | 'testnet' = process.env.TEMPO_NETWORK === 'mainnet' ? 'mainnet' : 'testnet'
+const EXPLORER_BASE = process.env.TEMPO_EXPLORER || (NETWORK === 'mainnet' ? 'https://explore.tempo.xyz' : 'https://explore.testnet.tempo.xyz')
+export const EXPLORER = `${EXPLORER_BASE}/tx/`
+export const EXPLORER_ACCOUNT = `${EXPLORER_BASE}/address/`
+const chain: any = ((NETWORK === 'mainnet' ? tempoMainnet : tempoModerato) as any).extend({ feeToken: TOKEN })
+const mk = (account: any) => createClient({ account, chain, transport: http(process.env.TEMPO_RPC || undefined, { retryCount: 6, retryDelay: 400 }), testnet: NETWORK !== 'mainnet' } as any) as any
 
 export const companyAccount = Account.fromSecp256k1(process.env.OPERATOR_PK as `0x${string}`)
 export const company = mk(companyAccount)
@@ -223,4 +226,30 @@ export async function issueKeyVia(signer: any, parent: any, k: KeyRef, capUsd: n
 export async function revokeKeyVia(signer: any, parent: any, k: KeyRef) {
   const r: any = await Actions.accessKey.revokeSync(mk(signer), { accessKey: keyParam(k, parent) } as any)
   return (r.receipt ?? r).transactionHash as string
+}
+
+/* ---- Tempo Earn: idle money in an ERC-4626 vault. Real only when TEMPO_EARN_VAULT is set. ---- */
+export const EARN_VAULT = (process.env.TEMPO_EARN_VAULT || '') as `0x${string}` | ''
+export const earnLive = () => !!EARN_VAULT
+
+/** Deposit `amountUsd` from `source` into the Earn vault. */
+export async function earnDeposit(source: any, amountUsd: number) {
+  if (!EARN_VAULT) throw new Error('No Earn vault configured')
+  // ERC-4626 deposits are priced by the vault's share rate; require at least one share back.
+  const r: any = await Actions.earn.depositSync(mk(source), { vault: EARN_VAULT, assetAmount: usd(amountUsd), shareAmountMin: 1n } as any)
+  return (r.receipt ?? r).transactionHash as string
+}
+
+/** Withdraw exactly `amountUsd` of assets from the Earn vault back to `source`. */
+export async function earnWithdraw(source: any, amountUsd: number) {
+  if (!EARN_VAULT) throw new Error('No Earn vault configured')
+  const r: any = await Actions.earn.withdrawExactSync(mk(source), { vault: EARN_VAULT, assetAmount: usd(amountUsd), shareAmountMax: 2n ** 255n } as any)
+  return (r.receipt ?? r).transactionHash as string
+}
+
+/** Current value of an account's Earn position, in dollars. */
+export async function earnPosition(account: string) {
+  if (!EARN_VAULT) return 0
+  const r: any = await Actions.earn.getPosition(company, { vault: EARN_VAULT, account } as any)
+  return fmt(r.value)
 }

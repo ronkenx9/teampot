@@ -12,6 +12,11 @@ vi.mock('./tempo.js', () => ({
   TOKEN: '0x20c0000000000000000000000000000000000000',
   EXPLORER: 'https://records.example/',
   EXPLORER_ACCOUNT: 'https://records.example/account/',
+  NETWORK: 'testnet',
+  earnLive: vi.fn(() => false),
+  earnPosition: vi.fn(async () => 0),
+  earnDeposit: vi.fn(async () => `0x${'e1'.repeat(32)}`),
+  earnWithdraw: vi.fn(async () => `0x${'e2'.repeat(32)}`),
   accessAccount: vi.fn((_pk: string, parent: any) => ({ address: parent?.address, head: true })),
   authorizeAdminKey: vi.fn(async () => `0x${'a1'.repeat(32)}`),
   issueKeyVia: vi.fn(async () => `0x${'2'.repeat(64)}`),
@@ -251,5 +256,82 @@ describe('API validation and guards', () => {
     const r = await post(app, '/api/invest/trade', sam, { personId: 'sam', stockId: 'aapl', side: 'sell', shares: 5 })
     expect(r.status).toBe(400)
     expect((await r.json()).error).toMatch(/shares to sell/)
+  })
+
+  it('gives an agent its own card: pays on-card vendors, sends the rest to the head', async () => {
+    const { app } = await import('./app.js')
+    const finance = await demoCookie(app)
+    await post(app, '/api/setup', finance)
+    const sam = await demoCookie(app, 'sam')
+    expect((await post(app, '/api/agents', sam, { name: 'Sam Bot', team: 'design', purpose: 'x', cap: 50, vendorIds: ['figma'] })).status).toBe(403)
+    const ava = await demoCookie(app, 'ava')
+    const made = await (await post(app, '/api/agents', ava, { name: 'Design Bot', team: 'design', purpose: 'Buys fonts', cap: 200, vendorIds: ['adobe-fonts'] })).json()
+    expect(made.token).toMatch(/^tpa_/)
+    const pay = (body: unknown, token = made.token) => app.request('/api/agent/pay', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` } })
+    const ok = await (await pay({ vendorId: 'adobe-fonts', amount: 12 })).json()
+    expect(ok.ok).toBe(true)
+    const off = await (await pay({ vendorId: 'aws', amount: 12 })).json()
+    expect(off.ok).toBe(false)
+    expect(off.held.reason).toBe('new-vendor')
+    expect((await pay({ vendorId: 'aws', amount: 1 }, 'tpa_wrong')).status).toBe(401)
+  })
+
+  it('sends your own money by username or to a saved payee', async () => {
+    const { app } = await import('./app.js')
+    const finance = await demoCookie(app)
+    await post(app, '/api/setup', finance)
+    const sam = await demoCookie(app, 'sam')
+    const look = await (await app.request('/api/lookup/@ava', { headers: { cookie: sam } })).json()
+    expect(look.name).toBe('Ava Chen')
+    expect((await app.request('/api/lookup/nobody', { headers: { cookie: sam } })).status).toBe(404)
+    const sent = await (await post(app, '/api/transfer', sam, { handle: '@ava', amount: 5, note: 'Lunch' })).json()
+    expect(sent.ok).toBe(true)
+    expect((await post(app, '/api/transfer', sam, { account: '0x123', name: 'Bad', amount: 5 })).status).toBe(400)
+    const acct = `0x${'ab'.repeat(20)}`
+    expect((await (await post(app, '/api/transfer', sam, { account: acct, name: 'Lena Studio', save: true, amount: 5 })).json()).ok).toBe(true)
+    const state = await (await app.request('/api/state', { headers: { cookie: sam } })).json()
+    expect(state.beneficiaries.map((b: any) => b.name)).toContain('Lena Studio')
+  })
+
+  it('puts idle department budget to work and brings it back (simulated without a vault)', async () => {
+    const { app } = await import('./app.js')
+    const finance = await demoCookie(app)
+    await post(app, '/api/setup', finance)
+    const put = await (await post(app, '/api/pots/design/earn', finance, { action: 'deposit', amount: 100 })).json()
+    expect(put).toMatchObject({ ok: true, mode: 'simulated', balance: 100 })
+    expect((await post(app, '/api/pots/design/earn', finance, { action: 'withdraw', amount: 150 })).status).toBe(400)
+    expect((await (await post(app, '/api/pots/design/earn', finance, { action: 'withdraw', amount: 40 })).json()).balance).toBe(60)
+    const sam = await demoCookie(app, 'sam')
+    expect((await post(app, '/api/pots/design/earn', sam, { action: 'deposit', amount: 10 })).status).toBe(403)
+  })
+
+  it('runs a Visa card through the same Tempo card rules', async () => {
+    const { app } = await import('./app.js')
+    const finance = await demoCookie(app)
+    await post(app, '/api/setup', finance)
+    const sam = await demoCookie(app, 'sam')
+    const card = await (await post(app, '/api/cards/visa', sam, { personId: 'sam' })).json()
+    expect(card.mode).toBe('simulated')
+    expect(card.last4).toMatch(/^\d{4}$/)
+    const ok = await (await post(app, '/api/issuing/simulate', sam, { personId: 'sam', merchant: 'Figma', mcc: '5734', amount: 24 })).json()
+    expect(ok.approved).toBe(true)
+    const no = await (await post(app, '/api/issuing/simulate', sam, { personId: 'sam', merchant: 'Apple Store', mcc: '5732', amount: 24 })).json()
+    expect(no.approved).toBe(false)
+    expect(no.reason).toBe('category')
+    expect(no.held.channel).toBe('visa')
+    expect((await app.request('/api/issuing/webhook', { method: 'POST', body: '{}' })).status).toBe(503)
+  })
+})
+
+describe('card issuer webhook signatures', () => {
+  it('accepts a valid Stripe signature and rejects tampering or stale ones', async () => {
+    const { createHmac } = await import('node:crypto')
+    const { verifyStripeSignature } = await import('./issuing.js')
+    const raw = '{"type":"issuing_authorization.request"}'
+    const t = 1_800_000_000
+    const sig = createHmac('sha256', 'whsec_test').update(`${t}.${raw}`).digest('hex')
+    expect(verifyStripeSignature(raw, `t=${t},v1=${sig}`, 'whsec_test', 300, t + 10)).toBe(true)
+    expect(verifyStripeSignature(raw + ' ', `t=${t},v1=${sig}`, 'whsec_test', 300, t + 10)).toBe(false)
+    expect(verifyStripeSignature(raw, `t=${t},v1=${sig}`, 'whsec_test', 300, t + 1000)).toBe(false)
   })
 })

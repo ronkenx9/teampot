@@ -21,6 +21,13 @@ Live: https://teampot.vercel.app (`/` website, `/app` app, `/tour` guided tour).
 - Invest: buy and sell test stock tokens on Tempo's stablecoin exchange, or send a share of every payday automatically.
 - Perks (e.g. Lunch, Learning) as separate cards. Earning is labelled Simulated.
 
+**New: agents, sending money, Visa card, idle budgets**
+- Agent cards: a head gives an AI agent its own card (limit and vendors, signed by the head key); the agent pays via `POST /api/agent/pay` with its agent key.
+- Send your own money by @username, to a saved payee, or to a new Tempo account (saved on request).
+- Visa card: simulated issuer today; "Tap at a shop" checks the Tempo card and settles on Tempo. Plug in Stripe Issuing per `../ISSUING.md`.
+- Idle budgets earn: simulated on testnet; real Tempo Earn with `TEMPO_EARN_VAULT`.
+- Close the quarter (kudos from savings) and send kudos.
+
 **Contractor (Mateo)**
 - Send invoices, see paid-in-seconds and declined-with-reason.
 
@@ -54,6 +61,8 @@ curl -s -X POST https://rpc.moderato.tempo.xyz -H 'content-type: application/jso
 | `SESSION_SECRET` | Signs session cookies (falls back to a hash of `OPERATOR_PK`) |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_*`) | Upstash Redis state with atomic writes. Without them, state lives in memory and `data/state.json`. |
 | `DEMO_MODE=off` | Turns off demo sign-in |
+| `TEMPO_NETWORK`, `TEMPO_EARN_VAULT`, `TEMPO_RPC`, `TEMPO_EXPLORER` | Mainnet and real Tempo Earn (see `../ISSUING.md`) |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `ISSUING_SETTLEMENT_ACCOUNT`, `ISSUING_BILLING_ADDRESS` | Live Visa cards through Stripe Issuing (see `../ISSUING.md`) |
 
 ## Test
 
@@ -66,6 +75,7 @@ BASE=http://localhost:8790 npm run journey   # Sam is held, Ava approves (browse
 BASE=http://localhost:8790 npm run responsive  # every role, every tab, 375px and 1280px
 BASE=http://localhost:8790 npm run landing
 npm run check:banned
+BASE=http://localhost:8790 npm run audit     # 40-step UI audit, every role, real testnet
 npx tsx scripts/probe-admin-key.ts           # head admin key delegation probe
 ```
 

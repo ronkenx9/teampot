@@ -1,5 +1,5 @@
 export type Person = {
-  id: string; name: string; role: 'admin' | 'lead' | 'employee' | 'contractor'; title: string; removed?: boolean
+  id: string; name: string; role: 'admin' | 'lead' | 'employee' | 'contractor'; title: string; removed?: boolean; agent?: boolean; handle?: string; visa?: { mode: 'simulated' | 'stripe'; last4: string; expMonth: number; expYear: number }
   team?: string; salary?: number; country?: string; balance: number; hasPasskey?: boolean; passkeyNeedsRefresh?: boolean
   pot: { cap: number; left: number | null; resetsAt: number | null } | null
 }
@@ -38,7 +38,12 @@ export type State = {
   stocks: Stock[]; investments: Investment[]; earnEntries: EarnEntry[]
   simulatedEarnings: { label: string; amount: number; note: string }; seeded: boolean
   controls: Controls; topups: TopUp[]
+  earn: { live: boolean; network: 'mainnet' | 'testnet'; byPot: Record<string, { mode: 'real' | 'simulated'; balance: number }> }
+  issuing: { mode: 'stripe' | 'simulated' }
+  beneficiaries: Beneficiary[]
+  teammates: { id: string; name: string }[]
 }
+export type Beneficiary = { id: string; ownerId: string; name: string; account: string; createdAt: number }
 
 const requestId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 const j = async (r: Response) => {
@@ -89,6 +94,15 @@ export const api = {
   recordPasskey: (b: { personId: string; vendorId: string; amount: number; note: string; tx?: string; rejected?: boolean }) =>
     post('/api/passkey/record', { ...b, requestId: requestId('passkey') }),
   payInvoice: (id: string) => post(`/api/invoices/${id}/pay`, { requestId: requestId(`invoice-${id}`) }),
+  createAgent: (b: { name: string; team: string; purpose: string; cap: number; vendorIds: string[] }) => post('/api/agents', b),
+  agentTestPay: (id: string, b: { vendorId: string; amount: number; note?: string }) => post(`/api/agents/${id}/test-pay`, b),
+  lookup: (handle: string) => fetch(`/api/lookup/${encodeURIComponent(handle.replace(/^@/, ''))}`).then(j),
+  saveBeneficiary: (b: { name: string; account: string }) => post('/api/beneficiaries', b),
+  removeBeneficiary: (id: string) => post(`/api/beneficiaries/${id}/remove`),
+  transfer: (b: { handle?: string; beneficiaryId?: string; account?: string; name?: string; save?: boolean; amount: number; note?: string }) => post('/api/transfer', { ...b, requestId: requestId('send') }),
+  potEarn: (id: string, action: 'deposit' | 'withdraw', amount: number) => post(`/api/pots/${id}/earn`, { action, amount, requestId: requestId(`earn-${id}`) }),
+  issueVisa: (personId: string) => post('/api/cards/visa', { personId }),
+  tapCard: (b: { personId: string; merchant: string; mcc: string; amount: number }) => post('/api/issuing/simulate', b),
   receipt: (id: string) => fetch(`/api/receipts/${id}`).then(j),
   activityCsv: () => '/api/activity.csv',
 }

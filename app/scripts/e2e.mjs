@@ -144,5 +144,34 @@ await post('/auth/demo', { personId: 'jordan' })
 out.topupFund = await post(`/topups/${out.topup.id}/fund`)
 assert(out.topupFund.status === 'funded' && out.topupFund.tx, 'top-up funding failed')
 
+// Agent card: Ava gives an agent a card; the agent pays with its own key on Tempo.
+await post('/auth/demo', { personId: 'ava' })
+out.agent = await post('/agents', { name: 'E2E Bot', team: 'design', purpose: 'Buys fonts', cap: 100, vendorIds: [v('Adobe Fonts')] })
+assert(out.agent.token && out.agent.receipt, 'agent card not issued')
+const agentPay = async (body) => (await fetch(B + '/agent/pay', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${out.agent.token}` }, body: JSON.stringify(body) })).json()
+out.agentPay = await agentPay({ vendorId: v('Adobe Fonts'), amount: 7, note: 'Font license' })
+assert(out.agentPay.ok && out.agentPay.tx, 'agent on-card payment failed')
+out.agentOff = await agentPay({ vendorId: v('AWS'), amount: 7 })
+assert(out.agentOff.ok === false && out.agentOff.held, 'agent off-card payment was not held')
+
+// Send money: Sam pays Ava by username, then a new saved payee.
+await post('/auth/demo', { personId: 'sam' })
+out.sendUser = await post('/transfer', { handle: '@ava', amount: 3, note: 'Coffee' })
+assert(out.sendUser.ok && out.sendUser.tx, 'send by username failed')
+out.sendNew = await post('/transfer', { account: '0x' + 'ab'.repeat(20), name: 'E2E Payee', save: true, amount: 2 })
+assert(out.sendNew.ok, 'send to a new payee failed')
+
+// Visa card (simulated issuer): approved tap settles on Tempo; an off-card category is declined and held.
+out.visa = await post('/cards/visa', { personId: 'sam' })
+out.tapOk = await post('/issuing/simulate', { personId: 'sam', merchant: 'Figma', mcc: '5734', amount: 9 })
+assert(out.tapOk.approved && out.tapOk.tx, 'card tap was not settled on Tempo')
+out.tapNo = await post('/issuing/simulate', { personId: 'sam', merchant: 'Apple Store', mcc: '5732', amount: 9 })
+assert(out.tapNo.approved === false && out.tapNo.held, 'off-card tap was not declined and held')
+
+// Idle budget earn (simulated on testnet).
+await post('/auth/demo', { personId: 'jordan' })
+out.earn = await post('/pots/eng/earn', { action: 'deposit', amount: 500 })
+assert(out.earn.ok, 'earn deposit failed')
+
 for (const [k, val] of Object.entries(out)) console.log(k.padEnd(14), short(val))
 console.log('e2e ok')

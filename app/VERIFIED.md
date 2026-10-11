@@ -111,3 +111,20 @@ In the app (`npm run e2e`, Moderato):
 - A head changing their own budget gets a 403; a top-up request funded by Finance is a real treasury → department transfer.
 
 Earlier notes said sub-delegation was impossible. That was true before T6; admin keys now provide exactly one level below the head. See `../ARCHITECTURE.md`.
+
+## Agent cards, sending money, Visa card bridge, idle-budget earn (2026-10-11)
+
+Verified on Moderato by `npm run e2e` and the 40-step `npm run audit`:
+
+| Claim | Evidence |
+|---|---|
+| A head gives an agent its own card (perk-style key signed by the head's admin key); the agent pays with its own agent key | `agentPay` ok, tx `0xdcf881518f0f5ca15e50554f808c06c6d12764ef897db501e9c9ab35d9f024e5` |
+| An agent's off-card purchase is held for the head | `agentOff` → held, reason `new-vendor` |
+| Send your own money by username | `sendUser` to Ava, tx `0xf760bc6dd99f70fd312d39c2928bd85cbb727002050f4daf8009c2bbc3e9dc3b` |
+| Send to a new Tempo account and save the payee | `sendNew` ok; payee listed afterwards |
+| A Visa tap at a software merchant is approved and settled on Tempo with the person's card key | `tapOk`, tx `0x709185bae231958cbcc6713dc748d6d7ebb702b75aadb9c8a4eb54b4ba9b20de` |
+| Tempo refuses the card key paying the settlement account until the card is re-signed with it (CallNotAllowed) | Observed before the fix; issuing a Visa card now re-signs the Tempo card |
+| An off-category tap (Electronics) is declined and becomes an "approve once" request | `tapNo` → reason `category`, held with `channel: visa` |
+| Idle department budget put to work / brought back | Simulated (no testnet Earn vault); real path uses `earn.deposit` / `earn.withdrawExact` when `TEMPO_EARN_VAULT` is set |
+
+Not live: Stripe Issuing (needs an issuer account; see `../ISSUING.md`), Tempo Earn on mainnet (needs `TEMPO_EARN_VAULT` and mainnet funds).
