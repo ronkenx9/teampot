@@ -12,3 +12,7 @@ brand/kit/renders/
 .codex-run/
 app/.cache/
 submission/footage/
+
+# film renders and licensed music stay local
+submission/video/film/out/
+submission/video/film/assets/bgm*.mp3
