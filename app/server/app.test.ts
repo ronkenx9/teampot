@@ -219,4 +219,37 @@ describe('API validation and guards', () => {
     expect(funded.status).toBe('funded')
     expect(T.companyPay).toHaveBeenCalledTimes(1)
   })
+
+  it('pays only people on payroll: removed people are left out', async () => {
+    const T: any = await import('./tempo.js')
+    const { app } = await import('./app.js')
+    const finance = await demoCookie(app)
+    await post(app, '/api/setup', finance)
+    expect((await post(app, '/api/people/leo/remove', finance)).status).toBe(200)
+    T.payday.mockClear()
+    await post(app, '/api/payday', finance, { requestId: 'payroll-removed' })
+    const lines = T.payday.mock.calls[0][0] as { amount: number }[]
+    expect(lines.map((l) => l.amount)).not.toContain(3900)
+    const preview = await (await app.request('/api/payday/preview', { headers: { cookie: finance } })).json()
+    expect(preview.lines.map((l: any) => l.personId)).not.toContain('leo')
+  })
+
+  it("pays invited people into their own account, not a throwaway address", async () => {
+    const T: any = await import('./tempo.js')
+    const { app } = await import('./app.js')
+    const finance = await demoCookie(app)
+    await post(app, '/api/setup', finance)
+    const inv = await (await post(app, '/api/invites', finance, { name: 'Nora Patel', role: 'employee', title: 'Designer', team: 'design', salary: 3000 })).json()
+    expect(inv.person.address).toBe(T.derivedPersonalAddress('x', 'nora-patel'))
+  })
+
+  it('refuses to sell more shares than you hold, with a clear message', async () => {
+    const { app } = await import('./app.js')
+    const finance = await demoCookie(app)
+    await post(app, '/api/setup', finance)
+    const sam = await demoCookie(app, 'sam')
+    const r = await post(app, '/api/invest/trade', sam, { personId: 'sam', stockId: 'aapl', side: 'sell', shares: 5 })
+    expect(r.status).toBe(400)
+    expect((await r.json()).error).toMatch(/shares to sell/)
+  })
 })

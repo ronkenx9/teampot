@@ -22,6 +22,11 @@ const authError = (message = 'Sign in required') => {
   e.status = 401
   return e
 }
+const badRequest = (message: string) => {
+  const e: any = new Error(message)
+  e.status = 400
+  return e
+}
 const forbidden = (message = 'Not allowed') => {
   const e: any = new Error(message)
   e.status = 403
@@ -111,6 +116,8 @@ const deptAddress = (potId: string) => T.p256RootAddress(deptRootPk(potId))
 const headKeyPk = (pt: Pot) => T.derivedKeyPk(S.epoch, pt.id, `head:${pt.headId}:${pt.headKeyVersion ?? 0}`)
 /** The head's admin key acting as the department account, or null when the department has no head yet. */
 const headSigner = (pt: Pot) => (pt.headId && pt.headKeyTx ? T.accessAccount(headKeyPk(pt), deptRoot(pt.id)) : null)
+/** Everyone on payroll: has a salary and has not been removed. */
+const payrollStaff = () => S.people.filter((x) => x.salary && !x.removed)
 const personalRootPk = (personId: string) => T.derivedPersonalRootPk(S.epoch, personId)
 const personalRoot = (personId: string) => T.rootFromPk(personalRootPk(personId))
 const keyRef = (x: Person): T.KeyRef | null => (x.passkey && !x.passkey.needsRefresh ? { passkey: x.passkey.publicKey } : x.demoKey ? { pk: keyPk(x) } : null)
@@ -312,7 +319,10 @@ async function quote(symbol: string): Promise<{ price: number; previous: number;
   if (!Number.isFinite(price) || price <= 0) throw new Error('no price')
   return { price, previous: price - (Number.isFinite(change) ? change : 0), source: 'nasdaq' as const }
 }
-async function refreshStockPrices() {
+let pricesAt = 0
+async function refreshStockPrices(force = false) {
+  if (!force && Date.now() - pricesAt < 60_000) return
+  pricesAt = Date.now()
   await Promise.all(S.stocks.map(async (st) => {
     const fallback = st.lastPrice || defaultStocks().find((x) => x.id === st.id)!.lastPrice
     try {
@@ -374,6 +384,9 @@ function recordStockTrade(args: { personId: string; stockId: StockId; side: 'buy
 
 async function buyStockForPerson(x: Person, st: TestStock, cashAmount: number, source: 'payday' | 'manual') {
   if (!st.tokenAddress) throw new Error(`${st.display} is not ready yet`)
+  if (!(cashAmount > 0)) throw badRequest('Enter an amount to buy')
+  const cash = await T.balanceOf(x.address).catch(() => 0)
+  if (cashAmount * 1.03 > cash) throw badRequest(`You have ${cash.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} in cash. Buy a little less.`)
   const price = st.lastPrice
   const shares = roundMoney(cashAmount / price)
   const tx = await T.dexBuyWithAccount(personalRoot(x.id), st.tokenAddress, roundMoney(cashAmount), roundMoney(cashAmount * 1.03))
@@ -382,6 +395,9 @@ async function buyStockForPerson(x: Person, st: TestStock, cashAmount: number, s
 }
 
 async function sellStockForPerson(x: Person, st: TestStock, shares: number) {
+  const held = stockPosition(S.stockTrades, x.id, st.id, st.lastPrice).shares
+  if (!(shares > 0)) throw badRequest('Enter how many shares to sell')
+  if (shares > held + 1e-9) throw badRequest(`You have ${held} ${st.display} shares to sell.`)
   if (!st.tokenAddress) throw new Error(`${st.display} is not ready yet`)
   const price = st.lastPrice
   const cashAmount = roundMoney(shares * price)
@@ -463,7 +479,7 @@ async function view(_viewerId: string | null | undefined, actor: Actor) {
     const [limit, balance] = await Promise.all([cachedRemaining(`pot:${x.id}:${x.team}:${x.keyTx ?? ''}`, ref, x.team ? deptRoot(x.team) : T.companyAccount), cachedBalance(x.address)])
     const canSeePrivateMoney = scope.isAdmin || scope.viewer.id === x.id
     return {
-      id: x.id, name: x.name, role: x.role, hasPasskey: !!x.passkey, passkeyId: x.passkey?.id, passkeyNeedsRefresh: !!x.passkey?.needsRefresh,
+      id: x.id, name: x.name, role: x.role, removed: !!x.removed, hasPasskey: !!x.passkey, passkeyId: x.passkey?.id, passkeyNeedsRefresh: !!x.passkey?.needsRefresh,
       title: x.title, team: x.team, salary: canSeePrivateMoney ? x.salary : undefined, country: x.country, balance: canSeePrivateMoney ? balance : 0,
       pot: pt ? { cap: pt.perPersonCap, left: limit?.remaining ?? null, resetsAt: limit?.periodEnd ?? null } : null,
     }
@@ -640,7 +656,7 @@ app.get('/api/state', async (c) => {
 })
 app.get('/api/payday/preview', (c) => {
   requireFinance(actorFrom(c))
-  const staff = S.people.filter((x) => x.salary)
+  const staff = payrollStaff()
   return c.json({ date: S.nextPayday, total: staff.reduce((s, x) => s + (x.salary ?? 0), 0), lines: staff.map((x) => ({ personId: x.id, name: x.name, title: x.title, gross: x.salary })) })
 })
 
@@ -662,7 +678,7 @@ app.post('/api/setup', async (c) => {
     for (const d of setup.departments) {
       if (!d.headName) continue
       const pt = pot(slug(d.team))
-      S.people.push({ id: slug(d.headName), name: d.headName, role: 'lead', title: d.headTitle || `${pt.team} Lead`, team: pt.id, salary: undefined, address: T.newAddress(), demoKey: true })
+      S.people.push({ id: slug(d.headName), name: d.headName, role: 'lead', title: d.headTitle || `${pt.team} Lead`, team: pt.id, salary: undefined, address: T.derivedPersonalAddress(S.epoch, slug(d.headName)), demoKey: true })
     }
     S.perks = []
   }
@@ -695,7 +711,7 @@ app.post('/api/setup', async (c) => {
   await setupStocks()
   // The stock demo company starts with last month's payday already paid, so homes open with real money.
   if (!setup.departments?.length && !S.paydayRuns.length) {
-    const staff = S.people.filter((x) => x.salary)
+    const staff = payrollStaff()
     const d = new Date(); d.setUTCMonth(d.getUTCMonth() - 1)
     const date = d.toISOString().slice(0, 10)
     try {
@@ -735,7 +751,8 @@ app.post('/api/invites', async (c) => {
   const body = await parseBody(c, z.object({ name: text(80), role: z.enum(['lead', 'employee', 'contractor']), title: text(80), team: text(40), salary: optionalNumber, country: z.string().optional() }))
   pot(body.team)
   if (!canInviteFor(a, body.role, body.team, body.salary)) throw forbidden('Heads invite employees and contractors to their own team. Finance sets salaries and appoints heads.')
-  const p: Person = { id: slug(body.name), name: body.name, role: body.role, title: body.title, team: body.team, salary: body.salary, country: body.country, address: T.newAddress(), demoKey: false }
+  const p: Person = { id: slug(body.name), name: body.name, role: body.role, title: body.title, team: body.team, salary: body.salary, country: body.country, address: T.derivedPersonalAddress(S.epoch, slug(body.name)), demoKey: false }
+  if (S.people.some((x) => x.id === p.id && !x.removed)) return c.json({ error: `${body.name} is already here` }, 409)
   S.people.push(p)
   const raw = randomBytes(18).toString('base64url')
   const inv: Invite = { token: hashSecret(raw), personId: p.id, createdBy: a.person.id, createdAt: now(), expiresAt: now() + DAY_MS }
@@ -773,7 +790,7 @@ app.post('/api/payday', async (c) => {
   requireFinance(actorFrom(c))
   const body = await parseBody(c, z.object({ requestId }))
   if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
-  const staff = S.people.filter((x) => x.salary)
+  const staff = payrollStaff()
   const date = S.nextPayday || new Date().toISOString().slice(0, 10)
   const r = await T.payday(staff.map((x) => ({ to: x.address, amount: x.salary!, note: `payday ${date}` })))
   const investResults = []
@@ -858,7 +875,13 @@ app.post('/api/spend', async (c) => {
     const p = perk(body.perkId ?? '')
     if (p.personId !== x.id) return c.json({ error: 'That perk belongs to someone else' }, 400)
     if (!p.vendorIds.includes(v.id)) return c.json({ error: `${v.name} is not on this perk yet` }, 400)
-    const tx = await T.spendWithKeyOn(deptRoot(x.team!), { pk: perkKeyPk(p.id) }, v.address, amount, moneyMemo(`perk:${p.name}`))
+    let tx: string
+    try {
+      tx = await T.spendWithKeyOn(deptRoot(x.team!), { pk: perkKeyPk(p.id) }, v.address, amount, moneyMemo(`perk:${p.name}`))
+    } catch {
+      // Tempo refused the perk card: over this period's limit (the small network fee counts too).
+      return c.json({ error: `That's over your ${p.name} limit for this ${p.periodLabel}. Tempo refused it, so nothing was paid.` }, 400)
+    }
     log({ kind: 'spend', title: `${x.name.split(' ')[0]} used ${p.name}`, detail: `${v.name} · ${body.note || v.category}`, amount, tx, who: x.id, perkId: p.id, memo: `perk:${p.name}` })
     const out = { ok: true, tx, receipt: T.EXPLORER + tx }
     if (body.requestId) S.processed[body.requestId] = out
@@ -1017,6 +1040,11 @@ app.post('/api/people/:id/remove', async (c) => {
     pt.headId = undefined; pt.headKeyTx = undefined
   }
   p.removed = true
+  for (const pk of S.perks.filter((x) => x.personId === p.id && x.keyTx)) {
+    await T.revokeKeyVia(cardSigner(pot(p.team!), p).signer, deptRoot(p.team!), { pk: perkKeyPk(pk.id) }).catch(() => {})
+    pk.keyTx = undefined
+  }
+  S.perks = S.perks.filter((x) => x.personId !== p.id)
   S.sessions = S.sessions.filter((s) => s.personId !== p.id)
   log({ kind: 'admin', title: `${p.name} removed`, detail: p.team ? `${pot(p.team).team} access revoked` : 'Access revoked', who: p.id, potId: p.team, memo: 'admin:remove' })
   return c.json({ ok: true, personId: p.id })

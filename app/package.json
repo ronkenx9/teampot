@@ -13,7 +13,8 @@
     "journey": "node scripts/journey-check.mjs",
     "check:banned": "node scripts/check-banned-ui.mjs",
     "responsive": "node scripts/responsive-check.mjs",
-    "landing": "node scripts/landing-check.mjs"
+    "landing": "node scripts/landing-check.mjs",
+    "audit": "node scripts/audit-ui.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.4",

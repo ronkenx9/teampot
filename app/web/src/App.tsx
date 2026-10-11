@@ -314,8 +314,8 @@ function Finance({ s, busy, run, toast, openReceipt, active, setTask, setActive 
   )
   if (active === 'activity') return <div className="surface"><section className="panel"><SectionTitle title="Activity" sub="Every payment, approval and key change, with its public record." action={<a className="btn small ghost" href={api.activityCsv()}>Export CSV</a>} /><Feed s={s} openReceipt={openReceipt} /></section></div>
   const needs = waiting.length + topups.length + openInv.length
-  const payroll = s.people.filter((p) => p.salary).reduce((sum, p) => sum + (p.salary ?? 0), 0)
-  const staff = s.people.filter((p) => p.salary).length
+  const payroll = s.people.filter((p) => p.salary && !p.removed).reduce((sum, p) => sum + (p.salary ?? 0), 0)
+  const staff = s.people.filter((p) => p.salary && !p.removed).length
   return (
     <div className="surface">
       <Vault label="Company treasury" amount={s.company.balance} sub={lastPayday ? `Last payday ${ago(lastPayday.at)} · next ${s.nextPayday}` : `Next payday ${s.nextPayday}`} top={<span className="pill-live dark">On Tempo</span>}
@@ -405,8 +405,7 @@ function MoneyHome({ s, me, openReceipt, setTask }: Pick<Ctx, 's' | 'openReceipt
   const inv = s.investments.find((x) => x.personId === me.id)
   const earned = s.earnEntries.find((x) => x.personId === me.id)
   const invested = inv?.positions.reduce((a, p) => a + p.value, 0) ?? 0
-  const earning = earned?.balance ?? 0
-  const total = me.balance + invested + earning
+  const total = me.balance + invested // simulated earning is not real money, so it is not counted
   const dept = s.controls.departments.find((d) => d.id === me.team)
   const card = dept?.cards.find((c) => c.personId === me.id && c.kind === 'member')
   const [view, setView] = useState<'all' | 'card'>('all')
@@ -591,11 +590,11 @@ function MoneyParts({ value }: { value: number }) {
 }
 
 function Directory({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'>) {
-  return <ul className="rows">{s.people.filter((p) => p.role !== 'contractor').map((p) => <li key={p.id}><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title} · {p.team || 'Finance'}</small></span>{p.salary && <span className="num">{money(p.salary)}</span>}{p.role !== 'admin' && p.id !== s.auth?.personId && (s.auth?.role === 'admin' || p.role !== 'lead') && <button className="btn small ghost" disabled={!!busy} onClick={() => run('remove' + p.id, () => api.removePerson(p.id), () => toast({ text: `${p.name.split(' ')[0]} removed`, tone: 'good' }))}>Remove</button>}</li>)}</ul>
+  return <ul className="rows">{s.people.filter((p) => p.role !== 'contractor' && !p.removed).map((p) => <li key={p.id}><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title} · {p.team || 'Finance'}</small></span>{p.salary && <span className="num">{money(p.salary)}</span>}{p.role !== 'admin' && p.id !== s.auth?.personId && (s.auth?.role === 'admin' || p.role !== 'lead') && <button className="btn small ghost" disabled={!!busy} onClick={() => run('remove' + p.id, () => api.removePerson(p.id), () => toast({ text: `${p.name.split(' ')[0]} removed`, tone: 'good' }))}>Remove</button>}</li>)}</ul>
 }
 
 function PaydayTask({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'>) {
-  const staff = s.people.filter((p) => p.salary)
+  const staff = s.people.filter((p) => p.salary && !p.removed)
   const payroll = staff.reduce((a, p) => a + (p.salary || 0), 0)
   const [confirmPayday, setConfirmPayday] = useState(false)
   const [paydayParty, setPaydayParty] = useState<{ total: number; count: number; receipt?: string } | null>(null)
@@ -789,7 +788,7 @@ function PerkCards({ s, me, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' |
 }
 function PerkCard({ s, perk, me, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { perk: State['perks'][number]; me: Person }) {
   const [vendorId, setVendorId] = useState(perk.vendorIds[0])
-  const [amount, setAmount] = useState(perk.periodLabel === 'day' ? '15' : '120')
+  const [amount, setAmount] = useState(perk.periodLabel === 'day' ? '10' : '100')
   const vendor = s.vendors.find((v) => v.id === vendorId)!
   const left = perk.left ?? perk.cap
   return (

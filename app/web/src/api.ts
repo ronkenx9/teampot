@@ -1,5 +1,5 @@
 export type Person = {
-  id: string; name: string; role: 'admin' | 'lead' | 'employee' | 'contractor'; title: string
+  id: string; name: string; role: 'admin' | 'lead' | 'employee' | 'contractor'; title: string; removed?: boolean
   team?: string; salary?: number; country?: string; balance: number; hasPasskey?: boolean; passkeyNeedsRefresh?: boolean
   pot: { cap: number; left: number | null; resetsAt: number | null } | null
 }
