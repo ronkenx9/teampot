@@ -12,7 +12,7 @@ export const TOKEN = '0x20c0000000000000000000000000000000000000' as const // pa
 export const EXPLORER = 'https://explore.testnet.tempo.xyz/tx/'
 export const EXPLORER_ACCOUNT = 'https://explore.testnet.tempo.xyz/address/'
 const chain: any = (tempoModerato as any).extend({ feeToken: TOKEN })
-const mk = (account: any) => createClient({ account, chain, transport: http(), testnet: true } as any) as any
+const mk = (account: any) => createClient({ account, chain, transport: http(undefined, { retryCount: 6, retryDelay: 400 }), testnet: true } as any) as any
 
 export const companyAccount = Account.fromSecp256k1(process.env.OPERATOR_PK as `0x${string}`)
 export const company = mk(companyAccount)
