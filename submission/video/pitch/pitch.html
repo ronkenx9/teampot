@@ -1,0 +1,256 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@200;300;400;500&family=Geist+Mono:wght@400;500&display=block" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#fff}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;font-family:Geist,system-ui,sans-serif;font-weight:200;color:#0A0A0B;-webkit-font-smoothing:antialiased;background:radial-gradient(80% 70% at 50% 45%,#FFFFFF 0%,#F4F5F7 100%)}
+.abs{position:absolute}
+.mono{font-family:"Geist Mono",monospace;font-weight:400;letter-spacing:.12em;text-transform:uppercase}
+.eb{font:400 18px/1 "Geist Mono",monospace;letter-spacing:.14em;text-transform:uppercase;color:#8A8F95;display:flex;align-items:center;gap:12px}
+.eb i{width:8px;height:8px;border-radius:50%;background:#E8552D;display:inline-block}
+.h{font-weight:200;letter-spacing:-.045em;line-height:1.02;color:#0A0A0B}
+.phone{position:absolute;width:390px;height:844px;border-radius:62px;background:#0A0A0B;padding:12px;box-shadow:0 50px 110px rgba(20,30,50,.22),0 18px 40px rgba(20,30,50,.12),inset 0 0 0 2px #2A2A2C}
+.phone .scr{position:absolute;inset:12px;border-radius:50px;overflow:hidden;background:#ECEEF1}
+.phone .scr img{position:absolute;left:0;right:0;top:46px;width:100%;height:calc(100% - 46px);object-fit:cover;object-position:top}
+.phone .scr::before{content:'9:41';position:absolute;top:15px;left:32px;font:600 16px/1 Geist;color:#0A0A0B;z-index:2}
+.phone .isl{position:absolute;top:22px;left:50%;width:108px;height:30px;margin-left:-54px;border-radius:20px;background:#000;z-index:3}
+.pill{position:absolute;white-space:nowrap;border-radius:999px;padding:16px 26px;font:300 30px/1 Geist;letter-spacing:-.02em;background:#fff;border:1.5px solid rgba(10,10,11,.12);color:#0A0A0B;box-shadow:0 10px 30px rgba(20,30,50,.08)}
+.pill b{font-weight:400;color:#8A8F95;margin-left:10px}
+.pill.dark{background:#0A0A0B;color:#F5F5F5;border-color:#0A0A0B}
+.pill.lime{background:#D9F65C;border-color:#D9F65C}
+.cap{position:absolute;bottom:72px;white-space:nowrap;font:300 46px/1.15 Geist;letter-spacing:-.025em}
+.cap span{transition:none}
+.old{position:absolute;width:390px;height:844px;border-radius:44px;background:#C9CCD1;padding:14px;box-shadow:0 30px 70px rgba(0,0,0,.18)}
+.old .s{position:absolute;inset:14px;border-radius:30px;background:#E9EAEC;overflow:hidden;font-family:Arial,sans-serif}
+</style></head>
+<body><svg width="0" height="0" style="position:absolute"><filter id="mb" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur id="mbb" stdDeviation="0 0"/></filter></svg>
+<div id="stage"></div>
+<script>
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x)),lerp=(a,b,u)=>a+(b-a)*u
+const E={out:u=>1-Math.pow(1-u,3),inC:u=>u*u*u,inOut:u=>u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2,outExpo:u=>u===1?1:1-Math.pow(2,-10*u),inExpo:u=>u===0?0:Math.pow(2,10*u-10),outBack:u=>{const c1=1.5,c3=c1+1;return 1+c3*Math.pow(u-1,3)+c1*Math.pow(u-1,2)}}
+const seg=(t,a,b,e=E.outExpo)=>e(clamp((t-a)/(b-a)))
+const st=document.getElementById('stage')
+const el=(tag,cls,parent=st,html='')=>{const e=document.createElement(tag);if(cls)e.className=cls;if(html)e.innerHTML=html;parent.appendChild(e);return e}
+const css=(e,o)=>{for(const k in o)e.style[k]=o[k]}
+function T(e,{x=0,y=0,s=1,r=0,ry=0,o=1,b=0}={}){e.style.transform=`translate3d(${x}px,${y}px,0) rotateY(${ry}deg) rotate(${r}deg) scale(${s})`;e.style.opacity=o;e.style.filter=b>.05?`blur(${b}px)`:'none'}
+/** visible window with blur-in / blur-out */
+function win(e,t,a,b,{dy=24,blur=14,inD=.5,outD=.3,x=0,s=1}={}){const i=seg(t,a,a+inD),o=1-seg(t,b-outD,b,E.inC);const v=i*o;e.style.display=t>=a-.05&&t<=b+.05?'block':'none';T(e,{x,y:(1-i)*dy-(1-o)*14,o:v,b:(1-i)*blur+(1-o)*blur,s});return v}
+const A='../film/assets/'
+const img=(src,cls='',parent=st)=>{const i=el('img',cls,parent);i.src=src;return i}
+
+/* ------------- data ------------- */
+let ENV=null,WORDS=null
+/* ------------- scenes (built once, driven by seek) ------------- */
+const scenes=[]
+const S=(fn)=>scenes.push(fn)
+const layer=()=>{const l=el('div','abs');css(l,{inset:'0'});return l}
+
+// 1) Name card (with centred picture)
+const nameCard=el('div','abs',st,`<div class="h" style="font-size:64px;text-align:center">Kenn Ronin</div><div class="eb" style="justify-content:center;margin-top:18px"><i></i>Founder · Teampot</div>`);css(nameCard,{left:'0',right:'0',top:'690px'})
+S(t=>win(nameCard,t,.9,7.6))
+
+// 2) National service → the old company app
+const L2=layer()
+const ns=el('div','abs',L2,`<div class="eb"><i></i>National service</div><div class="h" style="font-size:84px;margin-top:26px">I joined a<br>corporation.</div>`);css(ns,{left:'150px',top:'330px'})
+const old=el('div','old',L2,`<div class="s"><div style="height:64px;background:#9AA0A8;color:#fff;font:700 20px Arial;display:flex;align-items:center;padding:0 20px">CompanyApp</div>
+<div style="padding:18px;display:grid;gap:12px">${['Monthly pay','Work expenses','Requests','Approvals','Settings'].map((x,i)=>`<div class="row r${i}" style="height:${i<2?92:58}px;border-radius:8px;background:#D5D8DC;color:#5D636B;font:700 ${i<2?22:17}px Arial;display:flex;align-items:center;padding:0 16px;border:2px solid transparent">${x}</div>`).join('')}
+<div style="height:40px;border-radius:6px;background:#B9BDC3"></div><div style="height:40px;border-radius:6px;background:#B9BDC3;width:70%"></div></div></div>`);css(old,{left:'1020px',top:'118px'})
+const oldTag=el('div','abs',L2,`<div class="eb"><i></i>The app everyone had to download</div>`);css(oldTag,{left:'1020px',top:'990px'})
+const strike=el('div','abs',L2,`<svg width="1920" height="1080"><path d="M140 382 C 260 368, 420 392, 600 372" fill="none" stroke="#E8552D" stroke-width="7" stroke-linecap="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/></svg>`);css(strike,{inset:'0'})
+const bad=el('div','abs',L2,`<div class="h" style="font-size:84px">Inefficient.</div><div class="h" style="font-size:84px;color:#9A9FA6">Badly designed.</div>`);css(bad,{left:'150px',top:'330px'})
+S(t=>{
+  L2.style.display=t>=8.2&&t<27.9?'block':'none'
+  win(ns,t,8.4,22.6)
+  const v=win(old,t,14.4,27.8,{dy:60});old.style.transform+=` rotate(${-3+Math.sin(t*.8)*.6}deg)`
+  win(oldTag,t,15.0,22.6)
+  old.querySelectorAll('.row').forEach((r,i)=>{const on=(i===0&&t>=18.6)||(i===1&&t>=20.7);r.style.borderColor=on?'#E8552D':'transparent';r.style.background=on?'#fff':'#D5D8DC'})
+  win(bad,t,23.0,27.8);strike.querySelector('path').style.strokeDashoffset=1-seg(t,24.4,25.0,E.out);strike.style.display=t>=24&&t<27.8?'block':'none'
+  old.style.filter=t>=23?`grayscale(1) blur(${seg(t,23,24)*1.2}px)`:old.style.filter
+})
+
+// 3) Money leaves the app
+const L3=layer()
+const old2=el('div','old',L3,`<div class="s"><div style="height:64px;background:#9AA0A8;color:#fff;font:700 20px Arial;display:flex;align-items:center;padding:0 20px">CompanyApp</div><div style="padding:30px 22px"><div style="font:700 16px Arial;color:#6B7178">Balance</div><div class="bal" style="font:700 64px Arial;color:#3C4147;margin-top:8px">$350</div></div></div>`);css(old2,{left:'260px',top:'118px'})
+const dest1=el('div','pill',L3,'Other wallet'),dest2=el('div','pill',L3,'Bank account')
+css(dest1,{left:'1150px',top:'330px'});css(dest2,{left:'1150px',top:'610px'})
+const flowSvg=el('div','abs',L3,`<svg width="1920" height="1080">${[[400,1150],[700,1150]].map(([y,x],i)=>`<path id="fl${i}" d="M650 ${470} C 900 470, 950 ${y-30+40}, ${x} ${y-30+40}" fill="none" stroke="rgba(10,10,11,.18)" stroke-width="2" stroke-dasharray="6 10"/>`).join('')}${[0,1,2,3,4,5].map(k=>`<g class="coin" data-k="${k}"><circle r="20" fill="#0A0A0B"/><text y="7" text-anchor="middle" font-family="Geist" font-size="20" fill="#fff">$</text></g>`).join('')}</svg>`);css(flowSvg,{inset:'0'})
+const L3t=el('div','abs',L3,`<div class="eb"><i></i>Every payday</div>`);css(L3t,{left:'260px',top:'72px'})
+S(t=>{
+  L3.style.display=t>=27.7&&t<35.9?'block':'none'
+  win(old2,t,27.8,35.8,{dy:40});win(dest1,t,29.6,35.8);win(dest2,t,31.0,35.8);win(L3t,t,28.2,35.8)
+  const paths=[flowSvg.querySelector('#fl0'),flowSvg.querySelector('#fl1')]
+  flowSvg.querySelectorAll('.coin').forEach((c,k)=>{const p=paths[k%2],len=p.getTotalLength(),t0=30+k*.55,u=clamp((t-t0)/1.1);const pt=p.getPointAtLength(E.inOut(u)*len);c.setAttribute('transform',`translate(${pt.x},${pt.y})`);c.style.opacity=u>0&&u<1?1:0})
+  const left=Math.max(0,350-Math.floor(seg(t,30.2,34.2,E.inOut)*350));old2.querySelector('.bal').textContent='$'+left
+})
+
+// 4) Good enough to stay in → Teampot
+const L4=layer()
+const ph4=el('div','phone',L4,`<div class="isl"></div><div class="scr"><img src="${A}s-sam-home.png"></div>`);css(ph4,{left:'1030px',top:'118px'})
+const L4t=el('div','abs',L4,`<div class="eb"><i></i>If the app was good enough</div><div class="h" style="font-size:84px;margin-top:26px">The money<br>would stay in.</div>`);css(L4t,{left:'150px',top:'330px'})
+const chips4=['Pay','Send','Invest'].map((x,i)=>{const c=el('div','pill',L4,x);css(c,{left:`${150+i*190}px`,top:'640px'});return c})
+S(t=>{
+  L4.style.display=t>=35.6&&t<48.5?'block':'none'
+  win(ph4,t,35.7,48.4,{dy:60});ph4.style.transform+=` rotateY(${-8+Math.sin(t*.7)*2}deg)`
+  win(L4t,t,36.0,48.4)
+  chips4.forEach((c,i)=>win(c,t,42.0+i*.35,48.4,{dy:20}))
+})
+
+// 5) Bureaucracy queue
+const L5=layer()
+const reqs=[['Figma','$45'],['AWS','$120'],['Flights','$890'],['Fonts','$29'],['Laptop','$1,400'],['Stock photos','$45'],['Training','$199'],['Lunch','$32']]
+const rp=reqs.map(([n,a])=>el('div','pill',L5,`${n}<b>${a}</b>`))
+const desks=['HR','Management'].map((d,i)=>{const e=el('div','abs',L5,`<div class="mono" style="font-size:20px;color:#8A8F95">${d}</div>`);css(e,{left:`${560+i*480}px`,top:'700px',width:'360px',height:'100px',borderRadius:'24px',border:'2px dashed rgba(10,10,11,.25)',display:'grid',placeItems:'center'});return e})
+const wait5=el('div','abs mono',L5);css(wait5,{left:'0',right:'0',top:'840px',textAlign:'center',fontSize:'26px',color:'#0A0A0B'})
+const L5t=el('div','abs',L5,`<div class="eb" style="justify-content:center"><i></i>Ask HR. Ask management. Wait.</div>`);css(L5t,{left:'0',right:'0',top:'150px'})
+const words5=el('div','abs',L5,`<div class="h" style="font-size:96px;text-align:center"><span class="w5">People</span> <span style="color:#C3C6CB">·</span> <span class="w5">Time</span> <span style="color:#C3C6CB">·</span> <span class="w5">Bureaucracy</span></div>`);css(words5,{left:'0',right:'0',top:'420px'})
+S(t=>{
+  L5.style.display=t>=48.3&&t<62.4?'block':'none'
+  win(L5t,t,48.5,59.6)
+  rp.forEach((p,i)=>{const t0=49+i*.35,u=seg(t,t0,t0+.9);const fx=i%2?2100:-300,fy=150+(i*97)%500;const tx=220+(i%4)*390,ty=280+Math.floor(i/4)*120;const q=seg(t,54.0+i*.12,55.2+i*.12,E.inOut);const dx=i%2?1220:740;
+    const x=lerp(lerp(fx,tx,u),dx-80,q),y=lerp(lerp(fy,ty,u),728,q);p.style.display=t>=t0-.1&&t<59.8?'block':'none';T(p,{x,y,o:u*(1-q*.85)*(1-seg(t,59.2,59.7)),s:lerp(1,.55,q),b:(1-u)*10})})
+  desks.forEach((d,i)=>{const v=seg(t,51.5+i*.3,52.1+i*.3)*(1-seg(t,59.2,59.7));d.style.opacity=v;d.style.display=v>0?'grid':'none'})
+  const n=Math.floor(seg(t,53.5,57.5,E.out)*63);wait5.textContent=n?`${n} requests waiting`:'';wait5.style.opacity=1-seg(t,59.2,59.7)
+  win(words5,t,59.9,62.3,{dy:30})
+  words5.querySelectorAll('.w5').forEach((w,i)=>{const on=t>=59.9+i*.75;w.style.color=on?'#0A0A0B':'#D6D8DC'})
+})
+
+// 6) The idea: Teampot, the layer in between
+const L6=layer()
+const mark=img('teampot-symbol.svg','abs',L6);css(mark,{left:'640px',top:'420px',width:'170px',height:'170px',objectFit:'contain'})
+const wm=el('div','abs h',L6,'teampot');css(wm,{left:'840px',top:'428px',fontSize:'150px'})
+const layerSvg=el('div','abs',L6,`<svg width="1920" height="1080">
+<text x="420" y="300" text-anchor="middle" font-family="Geist Mono" font-size="20" letter-spacing="3" fill="#8A8F95">PEOPLE</text>
+<text x="1500" y="300" text-anchor="middle" font-family="Geist Mono" font-size="20" letter-spacing="3" fill="#8A8F95">COMPANY MONEY</text>
+${[0,1,2,3].map(i=>`<circle cx="420" cy="${380+i*120}" r="34" fill="#F1F2F4" stroke="#D2D4D8" stroke-width="2"/>`).join('')}
+<rect x="1360" y="390" width="280" height="330" rx="34" fill="#0A0A0B"/><text x="1500" y="568" text-anchor="middle" font-family="Geist" font-weight="300" font-size="40" fill="#F5F5F5">Treasury</text>
+<rect class="lay" x="830" y="330" width="260" height="440" rx="40" fill="#fff" stroke="#E8552D" stroke-width="3"/>
+<text x="960" y="560" text-anchor="middle" font-family="Geist" font-weight="300" font-size="40" fill="#0A0A0B">Teampot</text>
+${[0,1,2,3].map(i=>`<path id="lb${i}" d="M454 ${380+i*120} C 650 ${380+i*120}, 700 550, 830 550 L 1090 550 C 1200 550, 1250 555, 1360 555" fill="none" stroke="rgba(10,10,11,.14)" stroke-width="2" stroke-dasharray="6 10"/>`).join('')}
+${[0,1,2,3].map(i=>`<path class="beam" d="M454 ${380+i*120} C 650 ${380+i*120}, 700 550, 830 550 L 1090 550 C 1200 550, 1250 555, 1360 555" pathLength="1" fill="none" stroke="${['#FF6A3D','#4C8DFF','#2FD08A','#FF6A3D'][i]}" stroke-width="4" stroke-linecap="round" stroke-dasharray=".12 1.3" style="filter:drop-shadow(0 0 6px ${['#FF6A3D','#4C8DFF','#2FD08A','#FF6A3D'][i]})"/>`).join('')}
+</svg>`);css(layerSvg,{inset:'0'})
+const people6=[['sam',380],['ava',500],['jordan',620],['mateo',740]].map(([p,y])=>{const i=img(`${A}${p}.webp`,'abs',L6);css(i,{left:'388px',top:(y-32)+'px',width:'64px',height:'64px',borderRadius:'50%',objectFit:'cover'});return i})
+const L6t=el('div','abs',L6,`<div class="eb" style="justify-content:center"><i></i>The layer in between</div>`);css(L6t,{left:'0',right:'0',top:'840px'})
+S(t=>{
+  L6.style.display=t>=62.1&&t<69.2?'block':'none'
+  win(mark,t,62.3,64.6,{dy:20,s:1});win(wm,t,62.6,64.6,{dy:20})
+  const v=win(layerSvg,t,64.7,69.1,{dy:30});people6.forEach((p,i)=>win(p,t,64.9+i*.12,69.1,{dy:20}))
+  win(L6t,t,65.2,69.1)
+  layerSvg.querySelectorAll('.beam').forEach((b,i)=>{const u=((t-65.3-i*.35)%1.6+1.6)%1.6/1.6;b.style.strokeDashoffset=lerp(.12,-1,E.inOut(u));b.style.opacity=t>65.3+i*.35?1:0})
+  const g=clamp(1-Math.abs(((t-66)%1.6)-.9)/.6);layerSvg.querySelector('.lay').style.filter=t>65.8?`drop-shadow(0 0 ${8+g*18}px rgba(232,85,45,.55))`:'none'
+})
+
+// 7) Permission, requests → approved in a second
+const L7=layer()
+const list7=el('div','abs',L7,['Work','Bureaucracy','Permission','Requests'].map(w=>`<div class="h w7" style="font-size:88px;line-height:1.08;position:relative;display:inline-block">${w}<span class="st7" style="position:absolute;left:-6px;right:-6px;top:52%;height:6px;border-radius:3px;background:#E8552D;transform-origin:left;transform:scaleX(0)"></span></div><br>`).join(''));css(list7,{left:'150px',top:'230px'})
+const card7=el('div','abs',L7,`<div style="width:560px;border-radius:30px;background:#fff;box-shadow:0 30px 80px rgba(20,30,50,.14);padding:30px;display:grid;gap:18px">
+<div style="display:flex;align-items:center;gap:16px"><img src="${A}sam.webp" style="width:64px;height:64px;border-radius:50%"><div><div style="font:400 30px Geist;letter-spacing:-.02em">Sam → PixelVault Stock</div><div class="mono" style="font-size:15px;color:#8A8F95;margin-top:6px">Not on the card · $45</div></div></div>
+<div class="appr" style="display:flex;gap:12px"><div class="pill" style="position:static;font-size:24px;padding:14px 22px">Return</div><div class="pill dark" style="position:static;font-size:24px;padding:14px 22px">Approve</div></div></div>
+<div class="ok pill lime" style="left:120px;top:250px;font:400 26px/1 Geist">Approved · paid in 1.0s</div>`);css(card7,{left:'1050px',top:'330px'})
+S(t=>{
+  L7.style.display=t>=68.9&&t<76.6?'block':'none'
+  win(list7,t,69.0,76.4);list7.querySelectorAll('.w7').forEach((w,i)=>{const a=[69.0,69.8,71.4,73.5][i];w.style.opacity=t>=a?1:.12;w.querySelector('.st7').style.transform=`scaleX(${seg(t,74.6+i*.12,75.0+i*.12,E.out)})`})
+  win(card7,t,72.0,76.4,{dy:40})
+  const ok=card7.querySelector('.ok'),u=seg(t,75.3,75.7,E.outBack);ok.style.opacity=u;ok.style.transform=`scale(${.7+.3*u})`
+  card7.querySelector('.appr').style.opacity=1-seg(t,75.2,75.5)
+})
+
+// 8) Your pay stays in the app
+const L8=layer()
+const ph8=el('div','phone',L8,`<div class="isl"></div><div class="scr"><img src="${A}s-sam-invest.png"></div>`);css(ph8,{left:'1030px',top:'118px'})
+const L8t=el('div','abs',L8,`<div class="eb"><i></i>Your work pay</div><div class="h" style="font-size:84px;margin-top:26px">Invest it.<br>Spend it.<br><span style="color:#9A9FA6">Keep it here.</span></div>`);css(L8t,{left:'150px',top:'280px'})
+S(t=>{
+  L8.style.display=t>=76.1&&t<86.2?'block':'none'
+  win(ph8,t,76.3,86.0,{dy:60});ph8.style.transform+=` rotateY(${-8+Math.sin(t*.7)*2}deg)`
+  win(L8t,t,76.6,86.0)
+  L8t.querySelectorAll('.h')[0].style.opacity=1
+})
+
+// 9) Built on Tempo: speed, Stripe, Visa
+const L9=layer()
+const L9t=el('div','abs',L9,`<div class="eb" style="justify-content:center"><i></i>Why Tempo</div><div class="h" style="font-size:120px;margin-top:28px;text-align:center">Built on Tempo.</div>`);css(L9t,{left:'0',right:'0',top:'250px'})
+const speed=el('div','abs',L9,`<div style="text-align:center"><div class="sp h" style="font-size:150px;font-weight:200;font-variant-numeric:tabular-nums">0.0s</div><div class="mono" style="font-size:18px;color:#8A8F95;margin-top:10px">Payments settle</div></div>`);css(speed,{left:'360px',top:'560px',width:'440px'})
+const part=el('div','abs',L9,`<div style="display:flex;align-items:center;gap:22px;justify-content:center"><div class="pill" style="position:static;font-size:44px;padding:22px 38px">Stripe</div><div class="h" style="font-size:54px;color:#B5B9BF">+</div><div class="pill" style="position:static;font-size:44px;padding:22px 38px;font-style:italic;font-weight:500;color:#1A1F71">Visa</div></div><div class="mono" style="font-size:18px;color:#8A8F95;margin-top:22px;text-align:center">Adoption</div>`);css(part,{left:'940px',top:'600px',width:'640px'})
+S(t=>{
+  L9.style.display=t>=86.0&&t<95.6?'block':'none'
+  win(L9t,t,86.2,95.4)
+  win(speed,t,89.4,95.4);speed.querySelector('.sp').textContent=(1.0*E.out(clamp((t-89.6)/1.2))).toFixed(1)+'s'
+  win(part,t,92.4,95.4,{dy:30})
+})
+
+// 10) Customer #1 (picture comes back to the centre)
+const L10=layer()
+const c10a=el('div','abs',L10,`<div class="h" style="font-size:76px;text-align:center">A problem I'm living with.</div>`);css(c10a,{left:'0',right:'0',top:'150px'})
+const c10b=el('div','abs',L10,`<div class="pill dark" style="position:static;display:inline-block;font-size:34px">Customer #1</div>`);css(c10b,{left:'1180px',top:'350px'})
+const c10c=el('div','abs',L10,`<div class="h" style="font-size:64px;text-align:center">The right people to build it.</div>`);css(c10c,{left:'0',right:'0',top:'800px'})
+S(t=>{
+  L10.style.display=t>=95.9&&t<107.2?'block':'none'
+  win(c10a,t,96.4,102.4);const v=win(c10b,t,100.2,107.0,{dy:20});c10b.style.transform+=` rotate(${-4+Math.sin(t*1.6)*2}deg)`
+  win(c10c,t,102.8,107.0)
+})
+
+// 11) Roadmap glimpse → logo lock-up
+const L11=layer()
+const ideas=['Agent cards','Visa cards','Earn on idle budgets','Global payouts','Pay by username','Stripe Issuing'].map((x,i)=>{const c=el('div','pill',L11,x);css(c,{left:`${[220,780,1250,330,900,1350][i]}px`,top:`${[240,190,280,420,400,470][i]}px`,fontSize:'26px'});return c})
+const lock=el('div','abs',L11,`<div style="display:flex;align-items:center;justify-content:center;gap:30px"><img src="teampot-symbol.svg" style="width:170px;height:170px;object-fit:contain"><div class="h" style="font-size:170px">teampot</div></div><div class="mono" style="font-size:22px;color:#8A8F95;text-align:center;margin-top:18px">teampot.vercel.app · Built on Tempo</div>`);css(lock,{left:'0',right:'0',top:'330px'})
+S(t=>{
+  L11.style.display=t>=107.0?'block':'none'
+  ideas.forEach((c,i)=>{win(c,t,107.2+i*.18,110.2,{dy:20});c.style.transform+=` translateY(${Math.sin(t+i)*6}px)`})
+  win(lock,t,110.0,999,{dy:30,inD:.8})
+})
+
+/* ------------- the speaker: picture + sound rings ------------- */
+const ringSvg=el('div','abs',st,`<svg width="1920" height="1080" style="overflow:visible"><g id="rings"></g></svg>`);css(ringSvg,{inset:'0',pointerEvents:'none'})
+const rings=ringSvg.querySelector('#rings')
+const NR=14;const ripple=[...Array(NR)].map(()=>{const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('fill','none');rings.appendChild(c);return c})
+const halo=[...Array(3)].map((_,i)=>{const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('fill','none');rings.appendChild(c);return c})
+const face=img('pfp.webp','abs');css(face,{left:'0',top:'0',width:'400px',height:'400px',borderRadius:'50%',objectFit:'cover',boxShadow:'0 30px 70px rgba(20,30,50,.22)',transformOrigin:'0 0'})
+const env=t=>{if(!ENV)return 0;const i=Math.floor(t*ENV.fps);return ENV.env[Math.min(ENV.env.length-1,Math.max(0,i))]||0}
+// where the picture sits: centre for intro / "customer #1", corner otherwise
+function speaker(t){
+  const C={x:960,y:420,r:170},K={x:1745,y:905,r:92}
+  const toK=seg(t,7.8,8.7,E.inOut)*(1-seg(t,95.5,96.4,E.inOut))+seg(t,106.9,107.8,E.inOut)
+  const k=clamp(toK);const c10=t>=95.5&&t<107.8
+  const C2=c10?{x:960,y:520,r:180}:C
+  return {x:lerp(C2.x,K.x,k),y:lerp(C2.y,K.y,k),r:lerp(C2.r,K.r,k)}
+}
+function drawSpeaker(t){
+  const p=speaker(t),a=env(t),intro=seg(t,0,.6)
+  css(face,{transform:`translate(${p.x-p.r}px,${p.y-p.r}px) scale(${(2*p.r)/400})`,opacity:intro})
+  halo.forEach((c,i)=>{const rr=p.r+10+i*12+a*(14+i*10);c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);c.setAttribute('r',rr);c.setAttribute('stroke',i===0?'#E8552D':'#0A0A0B');c.setAttribute('stroke-width',i===0?3:1.5);c.setAttribute('opacity',(i===0?.85:.18-i*.04)*intro*(.35+a*.65))})
+  const P=.16 // a ripple every 0.16 s, strength = voice level when it was born
+  ripple.forEach((c,j)=>{const born=Math.floor(t/P)*P-j*P,age=t-born,life=NR*P;const s=env(born);const u=age/life
+    c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);c.setAttribute('r',p.r+14+u*(p.r*.9+60));c.setAttribute('stroke',j%3===0?'#E8552D':'#0A0A0B');c.setAttribute('stroke-width',1.6);c.setAttribute('opacity',(s>.12?s:0)*(1-u)*(j%3===0?.55:.25)*intro)})
+}
+
+/* ------------- captions ------------- */
+const capEl=el('div','cap')
+let CH=[]
+function buildChunks(){CH=[];let cur=[];WORDS.forEach((w,i)=>{cur.push(w);const end=/[.,?!]$/.test(w[2])||cur.length>=7;if(end){CH.push(cur);cur=[]}});if(cur.length)CH.push(cur)}
+function drawCaption(t){
+  const c=CH.find((ch,i)=>t>=ch[0][0]-.05&&t<(CH[i+1]?CH[i+1][0][0]-.05:ch[ch.length-1][1]+.6))
+  if(!c||t>110){capEl.style.opacity=0;return}
+  capEl.innerHTML=c.map(w=>`<span style="color:${t>=w[0]?'#0A0A0B':'rgba(10,10,11,.28)'}">${w[2]}</span>`).join(' ')
+  const corner=speaker(t).r<120
+  capEl.style.opacity=1
+  if(corner){css(capEl,{left:'150px',right:'auto',textAlign:'left',transform:'none'})}else{css(capEl,{left:'50%',right:'auto',textAlign:'center',transform:'translateX(-50%)'})}
+  capEl.style.bottom=(t>=95.5&&t<107.8)?'40px':'72px'
+}
+
+/* ------------- quick whips between big beats ------------- */
+const WH=[[35.7,'left'],[48.4,'up'],[62.2,'left'],[76.3,'left'],[86.1,'up']]
+const cam=document.createElement('div');cam.className='abs';cam.style.inset='0'
+function whip(t){let off=0,bl=0,dir=null
+  for(const [c,d] of WH){if(t>=c-.28&&t<c){dir=d;const n=E.inOut(clamp((t-(c-.28))/.12)),w=E.inC(clamp((t-(c-.16))/.16));off=n*30-w*900;bl=w*60}else if(t>=c&&t<c+.22){dir=d;const w=E.outExpo(clamp((t-c)/.22));off=(1-w)*900;bl=(1-w)*60}}
+  const h=dir==='left';cam.style.transform=dir?(h?`translate3d(${off}px,0,0)`:`translate3d(0,${off}px,0)`):'none'
+  document.getElementById('mbb').setAttribute('stdDeviation',h?`${bl.toFixed(1)} 0`:`0 ${bl.toFixed(1)}`);cam.style.filter=bl>.3?'url(#mb)':'none'}
+
+let built=false
+window.VDUR=114.6
+window.seek=function(t){
+  if(!built){built=true;// scene layers go inside the whip camera; speaker + captions stay fixed on top
+    [...st.children].filter(c=>c!==ringSvg&&c!==face&&c!==capEl).forEach(c=>cam.appendChild(c));st.insertBefore(cam,ringSvg)}
+  scenes.forEach(f=>f(t));whip(t);drawSpeaker(t);drawCaption(t)
+}
+window.ready=Promise.all([document.fonts.ready,fetch('env.json').then(r=>r.json()).then(j=>ENV=j),fetch('words-fixed.json').then(r=>r.json()).then(j=>{WORDS=j;buildChunks()}),...[...document.images].map(i=>i.complete?1:new Promise(r=>{i.onload=r;i.onerror=r}))]).then(()=>{seek(0);return true})
+</script></body></html>
