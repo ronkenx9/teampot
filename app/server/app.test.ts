@@ -6,6 +6,7 @@ const tempoCalls = { payday: 0 }
 vi.mock('./store.js', () => ({
   load: vi.fn(async () => mem.state),
   save: vi.fn(async (s: any) => { mem.state = JSON.parse(JSON.stringify(s)) }),
+  withWriteLock: vi.fn(async (fn: () => Promise<unknown>) => fn()),
 }))
 
 vi.mock('./tempo.js', () => ({

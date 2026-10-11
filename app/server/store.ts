@@ -39,10 +39,11 @@ async function readBlob<T>(): Promise<T | null> {
   return r.ok ? ((await r.json()) as T) : null
 }
 
-export async function load<T>(): Promise<T | null> {
+export async function load<T>(opts: { fresh?: boolean } = {}): Promise<T | null> {
   if (redis) {
     try {
-      if (mem && Date.now() - lastCheck < 2000) return structuredClone(mem)
+      // Reads may reuse a copy checked in the last 2 s; writes (fresh) always check the shared version first.
+      if (!opts.fresh && mem && Date.now() - lastCheck < 2000) return structuredClone(mem)
       const v = Number((await redis.get(VKEY)) ?? 0)
       lastCheck = Date.now()
       if (mem && (mem.version ?? 0) === v) return structuredClone(mem)
@@ -102,3 +103,28 @@ export async function save(state: any, expectedVersion?: number) {
 
 /** Tests and resets: forget the in-memory copy. */
 export function resetMemory() { mem = null }
+
+/**
+ * Serialize writes across all server instances. A write holds a short Redis lock while it reads fresh state,
+ * talks to Tempo and saves, so two instances can never both act on the same version (no lost payments).
+ * Without Redis, one instance is the only writer and the in-process queue already serializes.
+ */
+const LOCK = 'teampot:write-lock'
+const RELEASE = `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end`
+export async function withWriteLock<T>(fn: () => Promise<T>, { ttlMs = 180_000, waitMs = 60_000 } = {}): Promise<T> {
+  if (!redis) return fn()
+  const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const started = Date.now()
+  for (;;) {
+    let got: unknown
+    try { got = await redis.set(LOCK, token, { nx: true, px: ttlMs }) } catch (e) { disableRedis(e); return fn() }
+    if (got === 'OK') break
+    if (Date.now() - started > waitMs) {
+      const e: any = new Error('Teampot is busy finishing another payment. Try again in a moment.')
+      e.status = 503
+      throw e
+    }
+    await new Promise((res) => setTimeout(res, 120 + Math.random() * 120))
+  }
+  try { return await fn() } finally { await redis?.eval(RELEASE, [LOCK], [token]).catch(() => {}) }
+}

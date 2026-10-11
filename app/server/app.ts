@@ -591,13 +591,16 @@ app.onError((e: any, c) => {
 
 let queue: Promise<unknown> = Promise.resolve()
 app.use('/api/*', (c, next) => {
-  const run = queue.then(async () => {
-    S = normalizeState(await Store.load<State>(), seedState)
+  const write = c.req.method === 'POST'
+  const handle = async () => {
+    S = normalizeState(await Store.load<State>({ fresh: write }), seedState)
     const baseVersion = S.version
     cleanEphemeral()
     await next()
-    if (c.req.method === 'POST') { invalidateCache(); S.version = baseVersion + 1; await Store.save(S, baseVersion) }
-  })
+    if (write) { invalidateCache(); S.version = baseVersion + 1; await Store.save(S, baseVersion) }
+  }
+  // Writes take the cross-instance lock so a payment is never made on stale state.
+  const run = queue.then(() => (write ? Store.withWriteLock(handle) : handle()))
   queue = run.catch(() => {})
   return run
 })
