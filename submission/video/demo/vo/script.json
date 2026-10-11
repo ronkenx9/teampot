@@ -1,0 +1,15 @@
+[
+  ["intro",   "This is Teampot. Your pay, your team's budget and your perks, in one app, on Tempo."],
+  ["home",    "Sam is a designer. His pay lands here, and his Design card was signed by Ava, his team's head. Tempo enforces its limit, and its vendors."],
+  ["pay",     "He pays Figma with his card. It settles on Tempo in about a second, with a public record."],
+  ["held",    "If a vendor isn't on the card, Tempo refuses the payment, and it goes to Ava instead."],
+  ["approve", "Ava approves it with her head key, and adds the vendor to everyone's card in one tap."],
+  ["agent",   "Heads can give A I agents a card too, with their own limit and vendors."],
+  ["finance", "Jordan runs Finance. Every department is its own account. He funds it, and hands out the head keys."],
+  ["payday",  "Payday pays the whole company in one payment."],
+  ["send",    "Sam can send money to a teammate by username,"],
+  ["invest",  "put part of his pay into stocks,"],
+  ["visa",    "and tap his card at any shop. Same rules, checked against Tempo."],
+  ["contractor","Contractors send an invoice, and get paid in seconds."],
+  ["outro",   "Teampot. Finance sets the frame. Teams decide. Tempo enforces it."]
+]

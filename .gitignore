@@ -18,3 +18,6 @@ submission/video/film/out/
 submission/video/film/assets/bgm*.mp3
 submission/video/film/assets/sfx/
 submission/video/film/assets/bgm-recall*.wav
+submission/video/demo/build/
+submission/video/demo/clips/
+submission/video/demo/vo/*.wav
