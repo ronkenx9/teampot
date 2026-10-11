@@ -1,0 +1,66 @@
+.wl{--wl-ease:cubic-bezier(.2,.8,.2,1)}
+.wl-main{max-width:1320px;margin:0 auto;padding:110px 24px 40px;display:grid;grid-template-columns:1.05fr 1fr;gap:20px;min-height:calc(100vh - 60px)}
+/* black stage */
+.wl-stage{position:relative;overflow:hidden;border-radius:32px;background:radial-gradient(120% 90% at 70% 20%,#26262A 0%,#0B0B0C 55%,#000 100%);color:#F5F5F5;min-height:620px;display:flex;align-items:flex-end;padding:44px;isolation:isolate}
+.wl-beams{position:absolute;inset:0;width:100%;height:100%;z-index:-1}
+.wl-beam{stroke-dasharray:.14 1.3;stroke-dashoffset:.14;filter:drop-shadow(0 0 4px var(--c)) drop-shadow(0 0 10px var(--c));animation:wl-beam 3.6s cubic-bezier(.45,0,.25,1) infinite;opacity:0}
+@keyframes wl-beam{0%{stroke-dashoffset:.14;opacity:0}8%{opacity:1}60%{stroke-dashoffset:-1;opacity:1}66%,100%{opacity:0;stroke-dashoffset:-1}}
+.wl-mark{position:absolute;top:6%;right:4%;width:min(52%,380px);height:auto;mix-blend-mode:lighten;-webkit-mask-image:radial-gradient(closest-side,#000 72%,transparent 100%);mask-image:radial-gradient(closest-side,#000 72%,transparent 100%);animation:wl-float 7s ease-in-out infinite;z-index:-1}
+@keyframes wl-float{50%{transform:translateY(-12px) rotate(-2deg)}}
+.wl-stage-copy{display:grid;gap:22px;max-width:520px}
+.wl-eyebrow{display:flex;align-items:center;gap:10px;margin:0;font:400 12px/1 "Geist Mono","Inter Tight",monospace;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55)}
+.wl-eyebrow i{width:7px;height:7px;border-radius:50%;background:#E8552D;box-shadow:0 0 10px #E8552D}
+.wl-eyebrow.dark{color:rgba(0,0,0,.45)}
+.wl-stage h1{margin:0;font-family:"Geist","Inter Tight",sans-serif;font-weight:200;font-size:clamp(40px,4.4vw,62px);line-height:1;letter-spacing:-.045em}
+.wl-points{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.wl-points li{display:flex;align-items:center;gap:12px;font-size:16px;color:rgba(255,255,255,.78)}
+.wl-points svg{flex:none;padding:7px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.08);color:#fff}
+.wl-people{display:flex;align-items:center;margin-top:6px}
+.wl-people img{width:36px;height:36px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 3px #0B0B0C;margin-right:-8px}
+.wl-people span{margin-left:22px;font-size:13px;color:rgba(255,255,255,.55);line-height:1.3}
+/* form card */
+.wl-card{background:#fff;border-radius:32px;padding:44px;display:flex;align-items:center}
+.wl-form,.wl-done{width:100%;display:grid;gap:16px}
+.wl-card h2{margin:0;font-family:"Geist","Inter Tight",sans-serif;font-weight:300;font-size:40px;letter-spacing:-.04em;line-height:1.05}
+.wl-sub{margin:-6px 0 6px;color:rgba(0,0,0,.56);font-size:16px;line-height:1.45}
+.wl-sub b{font-weight:500;color:#000}
+.wl-field{display:grid;gap:7px;font-size:13px;color:rgba(0,0,0,.6)}
+.wl-field em{font-style:normal;color:rgba(0,0,0,.35);margin-left:4px}
+.wl-field input,.wl-field textarea{font:500 16px/1.3 "Inter Tight",system-ui,sans-serif;color:#000;background:rgba(0,0,0,.04);border:1.5px solid transparent;border-radius:16px;padding:14px 16px;outline:none;transition:border-color .2s,background .2s;resize:vertical}
+.wl-field input:focus,.wl-field textarea:focus{border-color:#000;background:#fff}
+.wl-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.wl-chips{border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.wl-chips legend{font-size:13px;color:rgba(0,0,0,.6);margin-bottom:8px;padding:0}
+.wl-chips button{font:500 14px/1 "Inter Tight",system-ui,sans-serif;border:1.5px solid rgba(0,0,0,.12);background:#fff;color:#000;border-radius:999px;padding:10px 15px;cursor:pointer;transition:background .2s var(--wl-ease),color .2s,border-color .2s,transform .15s}
+.wl-chips button:hover{border-color:rgba(0,0,0,.35)}
+.wl-chips button:active{transform:scale(.97)}
+.wl-chips button.on{background:#000;color:#F5F5F5;border-color:#000}
+.wl-chips button:focus-visible,.wl-submit:focus-visible{outline:2px solid #E8552D;outline-offset:2px}
+.wl-hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.wl-error{margin:0;color:#B3261E;font-size:14px}
+.wl-submit{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:10px;height:56px;border:0;border-radius:999px;background:#000;color:#F5F5F5;font:500 16px/1 "Inter Tight",system-ui,sans-serif;cursor:pointer;margin-top:4px;transition:transform .15s,opacity .2s}
+.wl-submit::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.28) 50%,transparent 70%);transform:translateX(-120%)}
+.wl-submit:hover::after{transform:translateX(120%);transition:transform .8s var(--wl-ease)}
+.wl-submit:active{transform:scale(.985)}
+.wl-submit:disabled{opacity:.6;cursor:default}
+.wl-fine{margin:0;text-align:center;font-size:12.5px;color:rgba(0,0,0,.4)}
+/* success */
+.wl-done{justify-items:start;animation:wl-in .5s var(--wl-ease) both}
+@keyframes wl-in{from{opacity:0;filter:blur(10px);transform:translateY(10px)}}
+.wl-check svg{width:64px;height:64px}
+.wl-check circle{fill:none;stroke:#2FD08A;stroke-width:2.5;stroke-dasharray:160;stroke-dashoffset:160;animation:wl-draw .7s var(--wl-ease) forwards;filter:drop-shadow(0 0 6px rgba(47,208,138,.6))}
+.wl-check path{fill:none;stroke:#000;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:40;stroke-dashoffset:40;animation:wl-draw .45s .45s var(--wl-ease) forwards}
+@keyframes wl-draw{to{stroke-dashoffset:0}}
+.wl-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.wl-foot{max-width:1320px;margin:0 auto;padding:10px 24px 32px;display:flex;justify-content:space-between;font-size:13px;color:rgba(0,0,0,.45)}
+.wl-foot a{color:rgba(0,0,0,.6)}
+@media (prefers-reduced-motion:reduce){.wl-beam,.wl-mark,.wl-done,.wl-check *{animation:none!important}.wl-check circle,.wl-check path{stroke-dashoffset:0}}
+@media (max-width:900px){
+  .wl-main{grid-template-columns:1fr;padding:96px 16px 24px}
+  .wl-stage{min-height:auto;padding:32px 26px 30px;padding-top:200px;border-radius:28px}
+  .wl-mark{top:16px;right:50%;transform:translateX(50%);width:210px;animation:none}
+  .wl-card{padding:30px 22px;border-radius:28px}
+  .wl-card h2{font-size:32px}
+  .wl-two{grid-template-columns:1fr}
+}
+@media (max-width:900px){.wl-stage h1 br{display:none}}

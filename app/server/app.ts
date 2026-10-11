@@ -605,6 +605,42 @@ app.use('/api/*', (c, next) => {
   return run
 })
 
+/* ============================== Waitlist ============================== */
+const WAIT_ROLES = ['Finance', 'Team lead', 'Employee', 'Contractor', 'Builder', 'Investor', 'Other'] as const
+app.post('/api/waitlist', async (c) => {
+  rateLimit(c, 'waitlist', 8, 10 * 60_000)
+  const body = await parseBody(c, z.object({
+    email: z.string().trim().toLowerCase().max(160).email('Enter a valid email'),
+    name: z.string().trim().max(80).optional(),
+    company: z.string().trim().max(100).optional(),
+    role: z.enum(WAIT_ROLES).default('Other'),
+    size: z.enum(['1–10', '11–50', '51–200', '201–1000', '1000+']).optional(),
+    note: z.string().trim().max(280).optional(),
+    website: z.string().optional(), // honeypot: people never see it, bots fill it
+    source: z.string().trim().max(40).optional(),
+  }))
+  // The response is identical whether the email is new, already listed, or a bot: nothing about the list leaks.
+  if (body.website) return c.json({ ok: true })
+  const { website: _hp, ...entry } = body
+  await Store.waitlistAdd({ ...entry, at: Date.now() })
+  return c.json({ ok: true })
+})
+
+// The only way to read the list: GET /api/waitlist.csv with header x-admin-token = WAITLIST_TOKEN (or RESET_TOKEN).
+// Header only (never a URL parameter, which ends up in logs), compared in constant time, rate limited.
+app.get('/api/waitlist.csv', async (c) => {
+  rateLimit(c, 'waitlist-export', 10)
+  const need = process.env.WAITLIST_TOKEN || process.env.RESET_TOKEN || ''
+  const got = c.req.header('x-admin-token') || ''
+  const a = createHash('sha256').update(got).digest(), b = createHash('sha256').update(need).digest()
+  if (!need || !got || !timingSafeEqual(a, b)) return c.json({ error: 'Not allowed' }, 403)
+  const rows = [['joined', 'email', 'name', 'company', 'role', 'team size', 'note', 'source']]
+  for (const e of await Store.waitlistAll()) rows.push([new Date(e.at).toISOString(), e.email, e.name ?? '', e.company ?? '', e.role, e.size ?? '', e.note ?? '', e.source ?? ''])
+  // Neutralise spreadsheet formulas (=, +, -, @) so opening the CSV can't run anything a visitor typed.
+  const esc = (v: string) => { let x = String(v); if (/^[=+\-@\t\r]/.test(x)) x = `'${x}`; return `"${x.replace(/"/g, '""')}"` }
+  return c.text(rows.map((r) => r.map(esc).join(',')).join('\n'), 200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="teampot-waitlist.csv"', 'cache-control': 'no-store' })
+})
+
 app.get('/api/health', (c) => c.json({ ok: true, service: 'teampot', version: S.version, store: Store.storeKind(), seeded: S.seeded }))
 
 app.post('/api/auth/demo', async (c) => {

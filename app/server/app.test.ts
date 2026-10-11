@@ -7,7 +7,10 @@ vi.mock('./store.js', () => ({
   load: vi.fn(async () => mem.state),
   save: vi.fn(async (s: any) => { mem.state = JSON.parse(JSON.stringify(s)) }),
   withWriteLock: vi.fn(async (fn: () => Promise<unknown>) => fn()),
+  waitlistAdd: vi.fn(async (e: any) => { if (wl.list.some((x: any) => x.email === e.email)) return false; wl.list.push(e); return true }),
+  waitlistAll: vi.fn(async () => wl.list),
 }))
+const wl: { list: any[] } = { list: [] }
 
 vi.mock('./tempo.js', () => ({
   TOKEN: '0x20c0000000000000000000000000000000000000',
@@ -334,5 +337,34 @@ describe('card issuer webhook signatures', () => {
     expect(verifyStripeSignature(raw, `t=${t},v1=${sig}`, 'whsec_test', 300, t + 10)).toBe(true)
     expect(verifyStripeSignature(raw + ' ', `t=${t},v1=${sig}`, 'whsec_test', 300, t + 10)).toBe(false)
     expect(verifyStripeSignature(raw, `t=${t},v1=${sig}`, 'whsec_test', 300, t + 1000)).toBe(false)
+  })
+})
+
+describe('waitlist privacy', () => {
+  it('answers sign-ups the same way whether new or repeated, and never returns anyone’s data', async () => {
+    const { app } = await import('./app.js')
+    const post = (b: unknown) => app.request('/api/waitlist', { method: 'POST', body: JSON.stringify(b), headers: { 'content-type': 'application/json' } })
+    const first = await (await post({ email: 'Lena@Studio.com', name: 'Lena', role: 'Finance' })).json()
+    const again = await (await post({ email: 'lena@studio.com', role: 'Finance' })).json()
+    expect(first).toEqual({ ok: true })
+    expect(again).toEqual({ ok: true })
+    expect((await post({ email: 'not-an-email' })).status).toBe(400)
+    expect(await (await post({ email: 'bot@x.com', website: 'spam' })).json()).toEqual({ ok: true })
+    expect(wl.list.map((e) => e.email)).toEqual(['lena@studio.com'])
+  })
+
+  it('only exports with the admin header, never via a URL token, and neutralises spreadsheet formulas', async () => {
+    process.env.WAITLIST_TOKEN = 'wl-secret-token'
+    const { app } = await import('./app.js')
+    await app.request('/api/waitlist', { method: 'POST', body: JSON.stringify({ email: 'evil@x.com', name: '=HYPERLINK("http://x")', role: 'Other' }), headers: { 'content-type': 'application/json' } })
+    expect((await app.request('/api/waitlist.csv')).status).toBe(403)
+    expect((await app.request('/api/waitlist.csv?token=wl-secret-token')).status).toBe(403)
+    expect((await app.request('/api/waitlist.csv', { headers: { 'x-admin-token': 'wrong' } })).status).toBe(403)
+    const ok = await app.request('/api/waitlist.csv', { headers: { 'x-admin-token': 'wl-secret-token' } })
+    expect(ok.status).toBe(200)
+    const csv = await ok.text()
+    expect(csv).toContain('lena@studio.com')
+    expect(csv).toContain(`"'=HYPERLINK`)
+    delete process.env.WAITLIST_TOKEN
   })
 })

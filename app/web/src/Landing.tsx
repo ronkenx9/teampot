@@ -16,6 +16,7 @@ export default function Landing() {
           <a className="lp-brand" href="/" aria-label="Teampot home"><PotMark size={18} /><span>teampot</span></a>
           <ul>
             <li><a href="/tour">Tour</a></li>
+            <li><a href="/waitlist">Waitlist</a></li>
             <li><a href="#product">Product</a></li>
             <li><a href="#keys">How it works</a></li>
             <li><a href={ARCH}>Architecture</a></li>
@@ -33,6 +34,7 @@ export default function Landing() {
             <a className="lp-btn dark" href="/app">Try the live demo</a>
             <a className="lp-btn light" href="/tour">Take the tour</a>
           </div>
+          <a className="lp-wl-link" href="/waitlist">Get notified when we launch <span aria-hidden>→</span></a>
         </section>
 
         <section className="lp-marquee" aria-label="Tempo features Teampot uses">

@@ -128,3 +128,34 @@ export async function withWriteLock<T>(fn: () => Promise<T>, { ttlMs = 180_000, 
   }
   try { return await fn() } finally { await redis?.eval(RELEASE, [LOCK], [token]).catch(() => {}) }
 }
+
+/* ---- Waitlist: kept apart from the demo state, so demo resets never touch it ---- */
+export type WaitlistEntry = { email: string; name?: string; company?: string; role: string; size?: string; note?: string; at: number; source?: string }
+const WKEY = 'teampot:waitlist'
+const waitFile = () => (process.env.VERCEL ? '/tmp/teampot-waitlist.json' : 'data/waitlist.json')
+let waitMem: Record<string, WaitlistEntry> | null = null
+function readWaitFile() {
+  if (waitMem) return waitMem
+  try { waitMem = existsSync(waitFile()) ? JSON.parse(readFileSync(waitFile(), 'utf8')) : {} } catch { waitMem = {} }
+  return waitMem!
+}
+/** Adds an entry; returns false when the email was already on the list. */
+export async function waitlistAdd(e: WaitlistEntry): Promise<boolean> {
+  if (redis) {
+    try { return Number(await redis.hsetnx(WKEY, e.email, JSON.stringify(e))) === 1 } catch (err) { disableRedis(err) }
+  }
+  const all = readWaitFile()
+  if (all[e.email]) return false
+  all[e.email] = e
+  try { mkdirSync(waitFile().split('/').slice(0, -1).join('/') || '.', { recursive: true }); writeFileSync(waitFile(), JSON.stringify(all)) } catch { /* memory still holds it */ }
+  return true
+}
+export async function waitlistAll(): Promise<WaitlistEntry[]> {
+  if (redis) {
+    try {
+      const h = (await redis.hgetall<Record<string, unknown>>(WKEY)) ?? {}
+      return Object.values(h).map((v) => (typeof v === 'string' ? JSON.parse(v) : v) as WaitlistEntry).sort((a, b) => a.at - b.at)
+    } catch (err) { disableRedis(err) }
+  }
+  return Object.values(readWaitFile()).sort((a, b) => a.at - b.at)
+}
