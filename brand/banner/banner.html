@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1500, initial-scale=1">
+  <title>Teampot Banner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@200;300;400&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 1500px;
+      height: 500px;
+      margin: 0;
+      overflow: hidden;
+      background: #f7f7f8;
+    }
+
+    body {
+      position: relative;
+      color: #0d0d0d;
+      font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+
+    .banner {
+      position: relative;
+      width: 1500px;
+      height: 500px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 78% 46%, rgba(232, 85, 45, 0.13) 0 7%, rgba(232, 85, 45, 0.06) 16%, rgba(232, 85, 45, 0) 34%),
+        linear-gradient(112deg, #ffffff 0%, #fbfbfc 48%, #f4f4f5 100%);
+    }
+
+    .banner::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.46) 42%, rgba(255, 255, 255, 0) 72%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.58) 0%, rgba(255, 255, 255, 0) 60%);
+      pointer-events: none;
+    }
+
+    .copy {
+      position: absolute;
+      left: 74px;
+      top: 38px;
+      z-index: 3;
+      width: 585px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      margin-bottom: 47px;
+      color: #111111;
+      font-size: 31px;
+      font-weight: 400;
+      letter-spacing: -0.045em;
+      line-height: 1;
+    }
+
+    .brand svg {
+      width: 43px;
+      height: 43px;
+      display: block;
+      flex: 0 0 auto;
+    }
+
+    h1 {
+      width: 560px;
+      margin: 0;
+      color: #050505;
+      font-size: 62px;
+      font-weight: 200;
+      letter-spacing: -0.052em;
+      line-height: 0.96;
+    }
+
+    .subline {
+      margin: 27px 0 0;
+      color: #76767c;
+      font-size: 22px;
+      font-weight: 300;
+      letter-spacing: -0.018em;
+      line-height: 1.25;
+    }
+
+    .url {
+      margin-top: 14px;
+      color: #929299;
+      font-family: "Geist Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0.12em;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .phone-stage {
+      position: absolute;
+      right: -40px;
+      bottom: -120px;
+      transform: scale(.8);
+      transform-origin: right bottom;
+      z-index: 2;
+      width: 840px;
+      height: 628px;
+    }
+
+    .beam {
+      position: absolute;
+      left: 130px;
+      top: 92px;
+      width: 520px;
+      height: 250px;
+      transform: rotate(-17deg);
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(232, 85, 45, 0) 0%, rgba(232, 85, 45, 0.16) 47%, rgba(232, 85, 45, 0) 100%);
+      filter: blur(18px);
+      opacity: 0.72;
+    }
+
+    .phone {
+      position: absolute;
+      border-radius: 56px;
+      background: #050505;
+      padding: 12px;
+      box-shadow:
+        0 38px 76px rgba(12, 12, 14, 0.24),
+        0 10px 24px rgba(12, 12, 14, 0.14);
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      top: 24px;
+      left: 50%;
+      z-index: 3;
+      width: 82px;
+      height: 24px;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: #050505;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+
+    .phone::after {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border-radius: 44px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+      pointer-events: none;
+    }
+
+    .screen {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 44px;
+      background: #ECEEF1;
+    }
+
+    /* a status-bar strip above the app so the island never covers the app's header */
+    .screen img {
+      position: absolute;
+      top: 38px;
+      left: 0;
+      display: block;
+      width: 100%;
+      height: calc(100% - 38px);
+      object-fit: cover;
+      object-position: top center;
+    }
+
+    .phone-left {
+      left: 34px;
+      bottom: 40px;
+      width: 252px;
+      height: 546px;
+      transform: rotate(-5.5deg);
+      opacity: 0.98;
+    }
+
+    .phone-center {
+      left: 255px;
+      bottom: 4px;
+      z-index: 3;
+      width: 303px;
+      height: 656px;
+      transform: rotate(1.4deg);
+      box-shadow:
+        0 48px 94px rgba(12, 12, 14, 0.28),
+        0 18px 34px rgba(12, 12, 14, 0.18);
+    }
+
+    .phone-right {
+      left: 517px;
+      bottom: 66px;
+      width: 263px;
+      height: 569px;
+      transform: rotate(5deg);
+      opacity: 0.99;
+    }
+  </style>
+</head>
+<body>
+  <main class="banner" aria-label="Teampot X header banner">
+    <section class="copy">
+      <div class="brand" aria-label="teampot">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Teampot symbol">
+          <g transform="translate(0 4)">
+            <path fill="#141414" d="M58 302 C100 470 240 615 400 615 C560 615 698 470 743 302 C746 292 738 290 731 293 C620 345 510 376 400 376 C290 376 180 345 69 293 C62 290 55 293 58 302 Z"/>
+            <path fill="#E8552D" d="M98 207 C220 246 330 252 420 250 C540 247 630 221 690 188 C714 176 724 196 709 216 C640 285 530 318 410 318 C290 318 170 287 99 240 C84 230 86 203 98 207 Z"/>
+          </g>
+        </svg>
+        <span>teampot</span>
+      </div>
+
+      <h1>Work money that's actually yours.</h1>
+      <p class="subline">Every team runs its own money &middot; Built on Tempo</p>
+      <p class="url">teampot.vercel.app</p>
+    </section>
+
+    <section class="phone-stage" aria-label="Teampot app screens">
+      <div class="beam"></div>
+
+      <div class="phone phone-left" aria-label="Sam home screen">
+        <div class="screen">
+          <img src="s-sam-home.png" alt="Sam's Teampot home screen">
+        </div>
+      </div>
+
+      <div class="phone phone-center" aria-label="Ava home screen">
+        <div class="screen">
+          <img src="s-ava-home.png" alt="Ava's Teampot home screen">
+        </div>
+      </div>
+
+      <div class="phone phone-right" aria-label="Jordan home screen">
+        <div class="screen">
+          <img src="s-jordan-home.png" alt="Jordan's Teampot home screen">
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
