@@ -16,3 +16,4 @@ submission/footage/
 # film renders and licensed music stay local
 submission/video/film/out/
 submission/video/film/assets/bgm*.mp3
+submission/video/film/assets/sfx/

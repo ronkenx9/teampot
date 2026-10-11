@@ -369,15 +369,21 @@ window.seek=function(t){
   bg.style.background=bgAt(t)
   act1(t);act2(t);act3(t);act4(t);act5(t);act6(t)
 }
-/* sound cues (seconds, file, gain dB) — the audio mix reads these */
+/* ---- time warp: video time → film time, so each act lands on the music ("Recall", 129 BPM) ---- */
+window.WARP=[[0,0],[3.34,0.8],[10.82,9.6],[18.23,18.3],[25.8,27.0],[44.67,53.2],[63.13,75.1],[76.35,88.1],[85.8,99.0],[97.15,110]]
+window.VDUR=98.6
+window.toFilm=v=>{const W=window.WARP;if(v<=0)return 0;for(let i=1;i<W.length;i++)if(v<=W[i][0]){const [a,fa]=W[i-1],[b,fb]=W[i];return fa+(fb-fa)*(v-a)/(b-a)}return 110}
+window.toVideo=f=>{const W=window.WARP;for(let i=1;i<W.length;i++)if(f<=W[i][1]){const [a,fa]=W[i-1],[b,fb]=W[i];return a+(b-a)*(f-fa)/(fb-fa)}return W[W.length-1][0]}
+/* sound cues in FILM time: [t, file, gain dB, max length s] (one family: soft digital + deep hits) */
 window.CUES=[
-  [0.8,'05_text_reveal_hit',-6],[3.0,'06_text_accent_ping',-8],[5.2,'14_ui_scatter_pop',-7],[6.0,'21_profile_card_pulse_1',-12],[6.6,'22_profile_card_pulse_2',-12],[7.4,'11_phrase_slide_whoosh',-8],
-  [9.6,'03_scene_transition_snap',-6],[11.7,'04_neon_streak_blip',-8],[15.4,'09_kinetic_type_zoom_whoosh',-6],[18.3,'10_kinetic_type_zoom_hit',-5],
-  [18.35,'01_opening_reveal_impact',-4],[20.9,'25_fomo_logo_reveal_hit',-7],[22.6,'02_floating_card_swipe',-7],[22.75,'02_floating_card_swipe',-9],[24.8,'24_logo_transition_sweep',-7],
-  [27.2,'12_phrase_reveal_impact',-7],[30.8,'04_neon_streak_blip',-11],[31.1,'04_neon_streak_blip',-11],[31.4,'04_neon_streak_blip',-11],[33.0,'20_profile_card_reveal_pop',-8],[35.8,'21_profile_card_pulse_1',-10],[36.0,'22_profile_card_pulse_2',-10],[36.2,'21_profile_card_pulse_1',-10],[38.9,'13_chosen_badge_reveal_ping',-7],[40.4,'11_phrase_slide_whoosh',-9],[49.5,'09_kinetic_type_zoom_whoosh',-8],[52.6,'16_invite_card_zoom_hit',-6],
-  [53.2,'02_floating_card_swipe',-8],[53.6,'20_profile_card_reveal_pop',-10],[57.6,'17_ui_button_click_1',-8],[61.6,'23_card_exit_whoosh',-9],[61.9,'02_floating_card_swipe',-8],[62.3,'20_profile_card_reveal_pop',-11],[66.0,'23_card_exit_whoosh',-9],[66.3,'02_floating_card_swipe',-8],[70.3,'23_card_exit_whoosh',-9],[70.6,'02_floating_card_swipe',-8],[72.8,'15_ui_swarm_whoosh',-7],[73.6,'26_logo_pulse_1',-11],
-  [75.1,'03_scene_transition_snap',-8],[75.4,'17_ui_button_click_1',-14],[75.6,'17_ui_button_click_1',-15],[75.75,'17_ui_button_click_1',-15],[76.1,'20_profile_card_reveal_pop',-10],[77.3,'03_scene_transition_snap',-8],[79.4,'03_scene_transition_snap',-8],[79.7,'02_floating_card_swipe',-10],[81.6,'03_scene_transition_snap',-8],[82.6,'18_ui_button_confirm_chime',-8],[83.8,'03_scene_transition_snap',-8],[86.0,'03_scene_transition_snap',-8],[87.5,'06_text_accent_ping',-9],[88.1,'15_ui_swarm_whoosh',-9],
-  [99.0,'12_phrase_reveal_impact',-7],[101.2,'06_text_accent_ping',-9],[103.3,'06_text_accent_ping',-9],[105.6,'25_fomo_logo_reveal_hit',-4],[106.6,'26_logo_pulse_1',-11],[107.3,'27_logo_pulse_2',-12],[109.0,'29_outro_sweep',-8],
+  [0.8,'soft-pluck',-9],[3.0,'short-pluck-hit',-8],[5.2,'pop',-11],[6.0,'click',-14],[6.6,'click',-15],[7.4,'swoosh',-15],
+  [9.6,'woop',-15],[11.7,'shine',-8],[15.0,'deep-whoosh-1',-8],[18.3,'deep-hit',-6,2.5],[18.3,'sub-drop',-15,3],
+  [20.9,'soft-electronic-hit',-5],[22.6,'swoosh',-15],[22.8,'swoosh',-17],[24.8,'whoosh-cine',-12],
+  [27.2,'short-digital-hit',-7],[30.8,'digital-tick',-12],[31.1,'digital-tick',-13],[31.4,'digital-tick',-13],[33.0,'pop',-10],[35.8,'soft-pulse',-17],[36.05,'soft-pulse',-18],[36.25,'soft-pulse',-18],[38.9,'low-hit',-16],[40.4,'swoosh',-15],[48.8,'deep-whoosh-3',-9],[52.6,'short-digital-hit',-6],
+  [53.2,'swoosh',-15],[53.6,'pop',-12],[57.6,'click',-11],[61.6,'whoosh-cine',-15],[61.9,'swoosh',-15],[62.3,'pop',-12],[66.0,'whoosh-cine',-15],[66.3,'swoosh',-15],[66.7,'pop',-12],[70.3,'whoosh-cine',-15],[70.6,'swoosh',-15],[71.0,'pop',-12],[72.8,'digital-sweep',-9],
+  [75.1,'woop',-17],[75.35,'typing-sound',-14,0.8],[76.1,'pop',-12],[77.3,'woop',-17],[77.5,'low-pulse',-12,1.4],[79.4,'woop',-17],[79.7,'swoosh',-15],[81.6,'woop',-17],[82.6,'feedback-correct-15-sba-300286500',-16,1.6],[83.8,'woop',-17],[84.0,'bright-popup',-12],[86.0,'woop',-17],[87.4,'ding',-12],[88.1,'digital-sweep',-11],
+  [99.0,'soft-pluck',-9],[101.2,'short-pluck-hit',-9],[103.3,'short-pluck-hit',-9],[105.6,'deep-hit',-7,3],[105.7,'shine',-10],[108.9,'whoosh-cine',-14],
 ]
+window.CUESV=window.CUES.map(([t,f,g,len])=>[+window.toVideo(t).toFixed(3),f,g,len])
 window.ready=Promise.all([document.fonts.ready,...[...document.images].map(i=>i.complete?1:new Promise(r=>{i.onload=r;i.onerror=r}))]).then(()=>{seek(0);return true})
 </script></body></html>

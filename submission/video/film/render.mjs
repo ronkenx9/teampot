@@ -18,23 +18,23 @@ if (mode === 'preview') {
   mkdirSync('out/preview', { recursive: true })
   const p = await open()
   for (const t of arg.split(',').map(Number)) {
-    await p.evaluate((t) => window.seek(t), t)
+    await p.evaluate((t) => window.seek(window.toFilm ? window.toFilm(t) : t), t)
     await p.screenshot({ path: `out/preview/t${String(t.toFixed(2)).padStart(7, '0')}.jpg`, type: 'jpeg', quality: 80 })
   }
 } else {
   const fps = Number(arg || 60), workers = Number(wArg || 4)
   mkdirSync('out/frames', { recursive: true })
   const first = await open()
-  const dur = await first.evaluate(() => window.DURATION)
+  const dur = await first.evaluate(() => window.VDUR || window.DURATION)
   const { writeFileSync } = await import('node:fs')
-  writeFileSync('out/cues.json', JSON.stringify(await first.evaluate(() => window.CUES)))
+  writeFileSync('out/cues.json', JSON.stringify(await first.evaluate(() => ({ dur: window.VDUR || window.DURATION, cues: window.CUESV || window.CUES }))))
   const total = Math.round(dur * fps)
   const chunk = Math.ceil(total / workers)
   const t0 = Date.now()
   await Promise.all(Array.from({ length: workers }, async (_, w) => {
     const p = await open()
     for (let i = w * chunk; i < Math.min(total, (w + 1) * chunk); i++) {
-      await p.evaluate((t) => window.seek(t), i / fps)
+      await p.evaluate((t) => window.seek(window.toFilm ? window.toFilm(t) : t), i / fps)
       await p.screenshot({ path: `out/frames/${String(i).padStart(6, '0')}.jpg`, type: 'jpeg', quality: 93 })
       if (w === 0 && i % 300 === 0) console.log(`frame ${i}/${chunk} of worker 0 · ${((Date.now() - t0) / 1000).toFixed(0)}s`)
     }
