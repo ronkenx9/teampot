@@ -15,7 +15,25 @@ const EXPLORER_BASE = process.env.TEMPO_EXPLORER || (NETWORK === 'mainnet' ? 'ht
 export const EXPLORER = `${EXPLORER_BASE}/tx/`
 export const EXPLORER_ACCOUNT = `${EXPLORER_BASE}/address/`
 const chain: any = ((NETWORK === 'mainnet' ? tempoMainnet : tempoModerato) as any).extend({ feeToken: TOKEN })
-const mk = (account: any) => createClient({ account, chain, transport: http(process.env.TEMPO_RPC || undefined, { retryCount: 6, retryDelay: 400 }), testnet: NETWORK !== 'mainnet' } as any) as any
+// The public RPC rate-limits bursts ("Request exceeds defined limit"). Reads are retried by viem; sends are not
+// (viem never retries eth_sendRawTransaction*). A rate-limited send was rejected before processing, so re-sending
+// the same signed bytes is safe (same transaction hash), and we retry just that case with backoff.
+const RATE_LIMITED = /exceeds defined limit|rate limit|too many requests/i
+const baseTransport = http(process.env.TEMPO_RPC || undefined, { retryCount: 6, retryDelay: 400 })
+const transport = (opts: any) => {
+  const t = baseTransport(opts)
+  const request = async (args: any, o?: any): Promise<any> => {
+    for (let attempt = 0; ; attempt++) {
+      try { return await t.request(args, o) } catch (e: any) {
+        const send = typeof args?.method === 'string' && args.method.startsWith('eth_sendRawTransaction')
+        if (!send || attempt >= 5 || !RATE_LIMITED.test(String(e?.details ?? e?.message ?? e))) throw e
+        await new Promise((r) => setTimeout(r, 500 * 2 ** attempt + Math.random() * 250))
+      }
+    }
+  }
+  return { ...t, request }
+}
+const mk = (account: any) => createClient({ account, chain, transport, testnet: NETWORK !== 'mainnet' } as any) as any
 
 export const companyAccount = Account.fromSecp256k1(process.env.OPERATOR_PK as `0x${string}`)
 export const company = mk(companyAccount)
