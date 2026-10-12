@@ -5,6 +5,7 @@ import { http, parseUnits, formatUnits, pad, stringToHex, parseEventLogs, erc20A
 import { Address, PublicKey } from 'ox'
 import { Tick, TokenId } from 'ox/tempo'
 import { generatePrivateKey } from 'viem/accounts'
+import { waitForTransactionReceipt } from 'viem/actions'
 import { Account, Actions, Addresses, createClient } from 'viem/tempo'
 import { tempo as tempoMainnet, tempoModerato } from 'viem/tempo/chains'
 
@@ -171,6 +172,14 @@ export async function spendWithKeyOn(source: any, k: KeyRef | `0x${string}`, to:
 
 export const spendWithKey = (k: KeyRef | `0x${string}`, to: string, amountUsd: number, note: string) =>
   spendWithKeyOn(companyAccount, k, to, amountUsd, note)
+
+/** Testnet faucet: tops an account up with test stablecoins (Moderato only). */
+export async function faucetFund(address: string) {
+  if (NETWORK === 'mainnet') throw new Error('No faucet on mainnet')
+  const hashes = (await company.request({ method: 'tempo_fundAddress', params: [address] })) as string[]
+  for (const h of hashes) await waitForTransactionReceipt(company, { hash: h as `0x${string}` }).catch(() => undefined)
+  return hashes
+}
 
 /** Company pays someone directly (approvals, contractors). */
 export async function companyPay(to: string, amountUsd: number, note: string) {

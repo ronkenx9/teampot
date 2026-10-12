@@ -13,7 +13,7 @@
       "destination": "/api"
     },
     {
-      "source": "/((?!assets/).*)",
+      "source": "/((?!assets/|_vercel/).*)",
       "destination": "/index.html"
     }
   ],

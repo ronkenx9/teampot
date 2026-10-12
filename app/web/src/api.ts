@@ -40,8 +40,16 @@ export type State = {
   controls: Controls; topups: TopUp[]
   earn: { live: boolean; network: 'mainnet' | 'testnet'; byPot: Record<string, { mode: 'real' | 'simulated'; balance: number }> }
   issuing: { mode: 'stripe' | 'simulated' }
+  bank: BankState
   beneficiaries: Beneficiary[]
   teammates: { id: string; name: string }[]
+}
+export type BankAccount = { id: string; ownerId: string; holder: string; bankName: string; last4: string; type: 'checking' | 'savings'; mode: 'bridge' | 'simulated'; createdAt: number }
+export type BankTransfer = { id: string; at: number; kind: 'deposit' | 'cashout'; ownerId: string; amount: number; rail: 'ACH' | 'Wire'; mode: 'bridge' | 'simulated'; status: 'arrived' | 'on_the_way'; bankLabel: string; tx?: string; arrives?: string; receipt?: string }
+export type BankState = {
+  mode: 'bridge' | 'simulated'; achDays: string
+  deposit: { mode: 'bridge' | 'simulated'; bankName: string; beneficiary: string; routing: string; account: string; rails: string[] } | null
+  accounts: BankAccount[]; transfers: BankTransfer[]
 }
 export type Beneficiary = { id: string; ownerId: string; name: string; account: string; createdAt: number }
 
@@ -103,6 +111,11 @@ export const api = {
   potEarn: (id: string, action: 'deposit' | 'withdraw', amount: number) => post(`/api/pots/${id}/earn`, { action, amount, requestId: requestId(`earn-${id}`) }),
   issueVisa: (personId: string) => post('/api/cards/visa', { personId }),
   tapCard: (b: { personId: string; merchant: string; mcc: string; amount: number }) => post('/api/issuing/simulate', b),
+  bankInstructions: () => post('/api/bank/instructions'),
+  bankDeposit: (amount: number, rail: 'ACH' | 'Wire') => post('/api/bank/deposit', { amount, rail, requestId: requestId('deposit') }),
+  linkBank: (b: { owner: 'me' | 'company'; holder: string; bankName: string; routing: string; account: string; type: 'checking' | 'savings' }) => post('/api/bank/link', b),
+  removeBank: (id: string) => post(`/api/bank/${id}/remove`),
+  cashOut: (bankId: string, amount: number) => post('/api/bank/cashout', { bankId, amount, requestId: requestId('cashout') }),
   receipt: (id: string) => fetch(`/api/receipts/${id}`).then(j),
   activityCsv: () => '/api/activity.csv',
 }

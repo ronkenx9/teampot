@@ -26,7 +26,7 @@ const state = (): State => ({
   stocks: [],
   payElections: [],
   stockTrades: [],
-  earnEntries: [],
+  earnEntries: [], banks: [], bankTransfers: [],
   nextPayday: '2026-11-08',
   processed: {},
   sessions: [],

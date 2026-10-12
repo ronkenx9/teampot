@@ -2,6 +2,8 @@ export type Role = 'admin' | 'lead' | 'employee' | 'contractor'
 export type StockId = 'aapl' | 'nvda' | 'spy'
 export type Person = {
   id: string
+  /** Bridge customer (identity-verified) for bank cash-outs; only needed when real bank rails are connected. */
+  bridgeCustomerId?: string
   name: string
   role: Role
   team?: string
@@ -79,7 +81,7 @@ export type Pot = {
 }
 export type Perk = { id: string; personId: string; name: string; cap: number; periodLabel: string; periodSec: number; vendorIds: string[]; color: string; keyTx?: string; keyIssuer?: string }
 export type TopUp = { id: string; at: number; potId: string; amount: number; note: string; requestedBy: string; status: 'requested' | 'funded' | 'declined'; tx?: string; decidedBy?: string }
-export type ActivityKind = 'payday' | 'spend' | 'held' | 'approved' | 'returned' | 'invoice' | 'paid' | 'setup' | 'perk' | 'quarter' | 'kudos' | 'declined' | 'admin' | 'invest' | 'earn' | 'transfer' | 'agent' | 'visa'
+export type ActivityKind = 'payday' | 'spend' | 'held' | 'approved' | 'returned' | 'invoice' | 'paid' | 'setup' | 'perk' | 'quarter' | 'kudos' | 'declined' | 'admin' | 'invest' | 'earn' | 'transfer' | 'agent' | 'visa' | 'bank'
 export type Activity = { id: string; at: number; kind: ActivityKind; title: string; detail: string; amount?: number; who?: string; tx?: string; potId?: string; perkId?: string; memo?: string }
 export type Held = { id: string; at: number; personId: string; potId: string; vendorId: string; amount: number; note: string; reason: 'new-vendor' | 'over-limit' | 'finance-rule'; status: 'held' | 'approved' | 'returned'; tx?: string; signedBy?: string; channel?: 'visa'; payTo?: string; merchant?: string }
 export type Invoice = { id: string; number: string; at: number; contractorId: string; amount: number; description: string; status: 'submitted' | 'paid' | 'declined'; tx?: string; paidMs?: number; declineReason?: string }
@@ -87,6 +89,10 @@ export type PaydayRun = { id: string; at: number; date: string; tx: string; tota
 export type QuarterClose = { id: string; at: number; potId: string; savings: number; sharePct: number; pool: number; perPerson: number; tx: string; memberIds: string[] }
 export type KudosCredit = { personId: string; closeId: string; left: number }
 export type KudosAward = { id: string; at: number; fromPersonId: string; toPersonId: string; amount: number; note: string; tx: string }
+/** A linked bank account. Only the bank name and last four digits are kept; full numbers go to Bridge. ownerId 'company' = the treasury's bank. */
+export type BankAccount = { id: string; ownerId: string; holder: string; bankName: string; last4: string; type: 'checking' | 'savings'; mode: 'bridge' | 'simulated'; externalId?: string; payoutAddress?: string; createdAt: number }
+/** Money moving between a bank and Tempo: a deposit into the treasury, or a cash-out to a bank. */
+export type BankTransfer = { id: string; at: number; kind: 'deposit' | 'cashout'; ownerId: string; amount: number; rail: 'ACH' | 'Wire'; mode: 'bridge' | 'simulated'; status: 'arrived' | 'on_the_way'; bankLabel: string; tx?: string; arrives?: string }
 export type Processed = Record<string, unknown>
 export type Session = { id: string; personId: string; demo: boolean; createdAt: number; expiresAt: number }
 export type AuthChallenge = { id: string; personId: string; challenge: `0x${string}`; createdAt: number; expiresAt: number }
@@ -119,6 +125,9 @@ export type State = {
   payElections: PayElection[]
   stockTrades: StockTrade[]
   earnEntries: EarnEntry[]
+  banks: BankAccount[]
+  bankTransfers: BankTransfer[]
+  depositInstructions?: { mode: 'bridge' | 'simulated'; bankName: string; beneficiary: string; routing: string; account: string; rails: string[]; virtualAccountId?: string }
   nextPayday: string
   processed: Processed
   sessions: Session[]
@@ -168,6 +177,8 @@ export function normalizeState(s: Partial<State> | null, seed: () => State): Sta
     payElections: base.payElections ?? [],
     stockTrades: base.stockTrades ?? [],
     earnEntries: base.earnEntries ?? [],
+    banks: base.banks ?? [],
+    bankTransfers: base.bankTransfers ?? [],
     nextPayday: base.nextPayday ?? nextMonthlyDate(),
     processed: base.processed ?? {},
     sessions: base.sessions ?? [],

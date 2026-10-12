@@ -247,3 +247,11 @@
 .agent-av{width:36px;height:36px;border-radius:12px;background:#0B0B0C;color:#7BE3A8;display:grid;place-items:center;font:600 11px/1 "Geist Mono",monospace;flex:none}
 .code{margin:0;background:#0B0B0C;color:#E6E6E6;border-radius:14px;padding:14px;font:12px/1.5 "Geist Mono",monospace;white-space:pre-wrap;word-break:break-all}
 .vault-actions .vbtn{min-width:0}
+/* bank rails */
+.bank-dot{display:grid;place-items:center;flex:none;width:38px;height:38px;border-radius:50%;background:rgba(11,11,12,.06);color:#0B0B0C}
+.bank-panel .rows li{align-items:center}
+.bank-details dl{margin:0;display:grid;gap:10px}
+.bank-details dl div{display:flex;justify-content:space-between;gap:12px;font-size:14px}
+.bank-details dt{color:var(--gl-t2)}
+.bank-details dd{margin:0;font-weight:500;text-align:right}
+.bank-details .mono{font-family:"Geist Mono",ui-monospace,monospace;letter-spacing:.04em}

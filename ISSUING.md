@@ -66,3 +66,26 @@ curl -X POST https://teampot.vercel.app/api/agent/pay \
 ```
 
 On-card purchases go straight through on Tempo. Anything off the card, or over the limit, waits for the head. "Approve + add" adds the vendor to the agent's card and re-signs it. Removing the agent revokes its card on Tempo.
+
+## Bank rails: money in and out (Bridge)
+
+Companies keep their bank. Teampot sits between the bank and their people.
+
+- **Money in.** Finance taps *Add money*. With Bridge connected, the company gets a real deposit account (a Bridge virtual account); ACH or wire transfers into it land in the treasury on Tempo as dollars, automatically.
+- **Money out.** Anyone can link a bank and *Cash out*: Teampot sends the dollars on Tempo to that bank's Bridge liquidation address, and Bridge pays the bank by ACH. Finance can *Withdraw* from the treasury to the company bank the same way. Teampot stores only the bank name and last four digits.
+- **Simulated mode (today).** Without Bridge keys, a "bank desk" account on Tempo testnet plays Bridge: deposits really land in the treasury on-chain, and cash-outs really leave the person's balance on-chain; only the bank leg is simulated.
+
+| Env | What |
+|---|---|
+| `BRIDGE_API_KEY` | Turns on real bank rails |
+| `BRIDGE_CUSTOMER_ID` | The company's KYB'd Bridge customer (treasury deposits and withdrawals) |
+| `BRIDGE_RAIL` | Chain Bridge settles on (default `tempo`) |
+| `BRIDGE_CURRENCY` | Stablecoin Bridge settles in (default `usdc`) |
+
+Employee cash-outs with real rails need each person to be a verified Bridge customer (`bridgeCustomerId` on the person, set after Bridge KYC).
+
+## Analytics
+
+- Vercel Web Analytics is injected on every public page (enable it once in the Vercel project's Analytics tab).
+- Teampot's own cookie-free counter (`POST /api/hit`) records page views, daily unique visitors (salted daily hash), top pages and referrers in Redis for 90 days.
+- `/stats` is the private dashboard: waitlist total, signups today/this week, roles, team sizes, sources, traffic. It asks for `WAITLIST_TOKEN` and sends it as a header only.

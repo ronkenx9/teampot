@@ -12,7 +12,7 @@ const VIEWERS: { id: Viewer; label: string; full: string; sub: string; avatar: s
   { id: 'mateo', label: 'Mateo', full: 'Mateo Ruiz', sub: 'Contractor', avatar: 'MR', do: 'Send an invoice and get paid in seconds.' },
 ]
 type Toast = { id: number; text: string; tone: 'good' | 'warn' | 'bad'; receipt?: string }
-type Task = 'pay' | 'invest' | 'rules' | 'payday' | 'invoice' | 'invite' | 'topup' | 'howto' | 'agent' | 'send' | 'shop'
+type Task = 'pay' | 'invest' | 'rules' | 'payday' | 'invoice' | 'invite' | 'topup' | 'howto' | 'agent' | 'send' | 'shop' | 'deposit' | 'cashout'
 type RoleMode = 'demo' | 'signin'
 
 export default function App() {
@@ -267,11 +267,13 @@ function TaskSheet({ task, ctx, viewer, close }: { task: Task; ctx: Ctx; viewer:
     agent: 'Add an agent',
     send: 'Send money',
     shop: 'Tap at a shop',
+    deposit: 'Add money',
+    cashout: 'Cash out',
   }
   return (
     <div className="sheet" role="dialog" aria-modal="true" aria-label={title[task]}>
       <div className="sheet-card task-card">
-        {!['pay', 'send', 'shop'].includes(task) && <div className="sheet-head"><span /><h2>{title[task]}</h2><button className="plain" onClick={close}>Done</button></div>}
+        {!['pay', 'send', 'shop', 'deposit', 'cashout'].includes(task) && <div className="sheet-head"><span /><h2>{title[task]}</h2><button className="plain" onClick={close}>Done</button></div>}
         {task === 'pay' && me && <PayFlow s={s} me={me} busy={busy} run={run} toast={toast} close={close} />}
         {task === 'invest' && me && <InvestCard s={s} me={me} inv={s.investments.find((x) => x.personId === me.id)} busy={busy} run={run} toast={toast} />}
         {task === 'rules' && me?.team && <CardRules s={s} potId={me.team} busy={busy} run={run} toast={toast} onDone={close} />}
@@ -282,6 +284,8 @@ function TaskSheet({ task, ctx, viewer, close }: { task: Task; ctx: Ctx; viewer:
         {task === 'howto' && <HowItWorks s={s} viewer={viewer} />}
         {task === 'agent' && me?.team && <AgentCreate s={s} potId={me.team} busy={busy} run={run} toast={toast} />}
         {task === 'send' && me && <SendFlow s={s} me={me} busy={busy} run={run} toast={toast} close={close} />}
+        {task === 'deposit' && <DepositFlow s={s} busy={busy} run={run} toast={toast} close={close} />}
+        {task === 'cashout' && me && <CashOutFlow s={s} me={me} owner={me.role === 'admin' ? 'company' : 'me'} busy={busy} run={run} toast={toast} close={close} />}
         {task === 'shop' && me && <ShopFlow s={s} me={me} busy={busy} run={run} toast={toast} close={close} />}
       </div>
     </div>
@@ -325,7 +329,7 @@ function Finance({ s, busy, run, toast, openReceipt, active, setTask, setActive 
   return (
     <div className="surface">
       <Vault label="Company treasury" amount={s.company.balance} sub={lastPayday ? `Last payday ${ago(lastPayday.at)} · next ${s.nextPayday}` : `Next payday ${s.nextPayday}`} top={<span className="pill-live dark">On Tempo</span>}
-        actions={<><button className="vbtn" onClick={() => setTask('payday')}>Review payday</button><a className="vbtn glass" href={s.controls.treasury.link} target="_blank" rel="noreferrer">Public record</a></>} />
+        actions={<><button className="vbtn" onClick={() => setTask('deposit')}>Add money</button><button className="vbtn glass" onClick={() => setTask('payday')}>Review payday</button><button className="vbtn glass" onClick={() => setTask('cashout')}>Withdraw</button></>} />
       <div className="tiles">
         <Tile tone="lav" icon={<IconPeople />} value={String(depts.length)} label="Departments" />
         <Tile tone="sage" icon={<IconKey />} value={String(depts.filter((d) => d.head).length)} label="Head keys" />
@@ -342,6 +346,7 @@ function Finance({ s, busy, run, toast, openReceipt, active, setTask, setActive 
         <SectionTitle title="Departments" sub="Balance, head key and cards." action={<button className="btn small ghost" onClick={() => setActive('teams')}>Manage</button>} />
         <ul className="rows dept-rows">{depts.map((d) => <li key={d.id}><span className="dept-dot" style={{ background: d.color }} /><span className="grow"><b>{d.team}</b><small>{d.head ? `${d.head.name.split(' ')[0]} holds the head key` : 'No head yet · Finance runs it'} · {plural(d.cards.length, 'card', 'cards')}</small></span><span className="num">{money(d.balance ?? 0)}</span></li>)}</ul>
       </section>
+      <BankPanel s={s} owner="company" setTask={setTask} />
     </div>
   )
 }
@@ -400,8 +405,9 @@ function Contractor({ s, busy, run, toast, me, active, setTask }: Ctx & { me: Pe
   const paid = mine.filter((i) => i.status === 'paid').reduce((a, i) => a + i.amount, 0)
   return (
     <div className="surface">
-      <Vault label="Paid to you" amount={paid} sub={mine.length ? plural(mine.length, 'invoice', 'invoices') : 'No invoices yet'} actions={<><button className="vbtn" onClick={() => setTask('invoice')}>Send an invoice</button><button className="vbtn glass" onClick={() => setTask('send')}>Send money</button></>} />
+      <Vault label="Paid to you" amount={paid} sub={mine.length ? plural(mine.length, 'invoice', 'invoices') : 'No invoices yet'} actions={<><button className="vbtn" onClick={() => setTask('invoice')}>Send an invoice</button><button className="vbtn glass" onClick={() => setTask('send')}>Send</button><button className="vbtn glass" onClick={() => setTask('cashout')}>Cash out</button></>} />
       <NextCard eyebrow={`Paid by ${s.pots.find((p) => p.id === me.team)?.team ?? 'Finance'}`} title="Send an invoice" chips={['Paid in seconds', 'Public record']} action={{ label: 'Send an invoice', onClick: () => setTask('invoice') }} tone="sky" />
+      <BankPanel s={s} owner="me" setTask={setTask} />
       <AuthorityCard s={s} viewer="mateo" setTask={setTask} />
       <section className="panel"><SectionTitle title="Invoices" sub="Your team's head or Finance pays them." /><Invoices s={s} busy={busy} run={run} toast={toast} items={mine} /></section>
     </div>
@@ -429,6 +435,7 @@ function MoneyHome({ s, me, openReceipt, setTask }: Pick<Ctx, 's' | 'openReceipt
         <Tile tone="sage" icon={<IconChart />} value={money(invested)} label="Invested" />
         <Tile tone="butter" icon={<IconCard />} value={money(left)} label="Card left" />
       </div>
+      <BankPanel s={s} owner="me" setTask={setTask} />
       {card && dept && <NextCard eyebrow={`Signed by ${card.issuedBy.split(' ')[0]} · ${dept.vendors.length} vendors`} title={`Pay with your ${dept.team} card`} chips={[`${money(left)} left`, `Next payday ${s.nextPayday.slice(5)}`]} action={{ label: 'Pay', onClick: () => setTask('pay') }} tone="sky" art={<CardStackArt color={dept.color} />} />}
       <section className="panel"><SectionTitle title="Recent" sub="Newest first." /><Feed s={s} filter={(a) => a.who === me.id || a.kind === 'payday'} compact openReceipt={openReceipt} /></section>
     </div>
@@ -672,6 +679,126 @@ function SendFlow({ s, me, busy, run, toast, close }: Pick<Ctx, 's' | 'busy' | '
         <label className="field">Note<input value={note} maxLength={40} onChange={(e) => setNote(e.target.value)} placeholder="Lunch, thanks!" /></label>
       </div>
       <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !n || !target} aria-label={`Send ${money(n)}${toName ? ` to ${toName}` : ''}`} onClick={send}>{busy === 'send' ? '…' : <Arrow />}</button></div>
+    </div>
+  )
+}
+
+/* ------------------------------ Bank rails ------------------------------ */
+const DEMO_BANK = { bankName: 'Chase', routing: '021000021', account: '000123456789' }
+
+function BankPanel({ s, owner, setTask }: { s: State; owner: 'me' | 'company'; setTask: (t: Task) => void }) {
+  const bank = s.bank.accounts.find((b) => (owner === 'company' ? b.ownerId === 'company' : b.ownerId !== 'company'))
+  const recent = s.bank.transfers.filter((t) => (owner === 'company' ? t.ownerId === 'company' : t.ownerId !== 'company')).slice(0, 3)
+  const sim = s.bank.mode === 'simulated'
+  return (
+    <section className="panel bank-panel">
+      <SectionTitle title={owner === 'company' ? 'Company bank' : 'Your bank'} sub={owner === 'company' ? 'Fund the treasury by ACH or wire. It lands on Tempo as dollars.' : 'Your pay stays yours. Cash out to your bank any time.'}
+        action={owner === 'company' ? <button className="btn small primary" onClick={() => setTask('deposit')}>Add money</button> : <button className="btn small primary" onClick={() => setTask('cashout')}>Cash out</button>} />
+      <ul className="rows">
+        <li><span className="dot bank-dot" aria-hidden><BankIcon /></span><span className="grow"><b>{bank ? `${bank.bankName} ••${bank.last4}` : 'No bank linked yet'}</b><small>{bank ? `${bank.type === 'savings' ? 'Savings' : 'Checking'} · ${bank.holder}` : owner === 'company' ? 'Link one to withdraw from the treasury' : 'Link one when you first cash out'}{sim ? ' · simulated bank' : ' · through Bridge'}</small></span></li>
+        {recent.map((t) => <li key={t.id}><span className="grow"><b>{t.kind === 'deposit' ? `${t.rail} deposit` : `Cash out to ${t.bankLabel}`}</b><small>{t.status === 'arrived' ? 'Arrived' : `On its way · ${t.arrives}`} · {ago(t.at)}</small></span><span className="num">{t.kind === 'deposit' ? '+' : '−'}{money(t.amount)}</span>{t.receipt && <a className="rec" href={t.receipt} target="_blank" rel="noreferrer">Record</a>}</li>)}
+      </ul>
+      {sim && <p className="muted small">Simulated until bank rails (Bridge, by Stripe) are connected. The money still moves on Tempo testnet.</p>}
+    </section>
+  )
+}
+
+function BankIcon() {
+  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 10 12 4l9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18" /></svg>
+}
+
+function DepositFlow({ s, busy, run, toast, close }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { close: () => void }) {
+  const [amount, setAmount] = useState('25000')
+  const [rail, setRail] = useState<'ACH' | 'Wire'>('ACH')
+  const [done, setDone] = useState<{ n: number; receipt: string; rail: string } | null>(null)
+  const d = s.bank.deposit
+  const sim = s.bank.mode === 'simulated'
+  const n = Number(amount) || 0
+  if (done) return (
+    <div className="flow">
+      <div className="flow-head"><button className="circle-btn" aria-label="Close" onClick={close}>✕</button><span className="pill-lime">Landed on Tempo</span></div>
+      <div className="stamp sent"><span>ARRIVED</span></div>
+      <div className="receipt-card"><div className="rc-top"><b>{done.rail} deposit</b><Check /></div><p className="flow-sub">From the company bank · now in the treasury as dollars</p><b className="big">{money(done.n, true)}</b></div>
+      <div className="flow-actions"><a className="btn pale" href={done.receipt} target="_blank" rel="noreferrer">View public record →</a><button className="round-btn" aria-label="Done" onClick={close}><Check /></button></div>
+    </div>
+  )
+  return (
+    <div className="flow">
+      <div className="flow-head"><button className="circle-btn" aria-label="Back" onClick={close}>←</button><span className="pill-live">{money(s.company.balance)} in treasury</span></div>
+      <h1 className="flow-title">Add money</h1>
+      <p className="flow-sub">Send a bank transfer. It arrives in the treasury as dollars on Tempo, ready for payday and budgets.</p>
+      {d ? <div className="amount-card bank-details">
+        <div className="amount-top"><span>Transfer to</span><span>{d.rails.join(' · ')}</span></div>
+        <dl>
+          <div><dt>Bank</dt><dd>{d.bankName}</dd></div>
+          <div><dt>Beneficiary</dt><dd>{d.beneficiary}</dd></div>
+          <div><dt>Routing</dt><dd className="mono">{d.routing}</dd></div>
+          <div><dt>Account</dt><dd className="mono">{d.account}</dd></div>
+        </dl>
+        {sim && <p className="flow-note">Simulated details. With Bridge connected these are the company's real deposit account.</p>}
+      </div> : <div className="amount-card"><p className="flow-note">Get the company's deposit account from Bridge.</p><button className="btn primary" disabled={!!busy} onClick={() => run('instructions', () => api.bankInstructions(), () => toast({ text: 'Bank details ready', tone: 'good' }))}>Get bank details</button></div>}
+      {sim && <>
+        <div className="amount-card">
+          <div className="amount-top"><span>Try it: send a test transfer</span><span>Lands in seconds</span></div>
+          <label className="amount-input"><span>$</span><input inputMode="decimal" aria-label="Amount" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></label>
+          <Seg label="Rail" options={[{ id: 'ACH', label: 'ACH' }, { id: 'Wire', label: 'Wire' }]} value={rail} onChange={setRail} />
+        </div>
+        <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !n} aria-label={`Send a ${money(n)} test ${rail} transfer`} onClick={() => run('deposit', () => api.bankDeposit(n, rail), (r: any) => { setDone({ n, receipt: r.receipt, rail }); toast({ text: `${money(n)} landed in the treasury`, tone: 'good', receipt: r.receipt }) })}>{busy === 'deposit' ? '…' : <Arrow />}</button></div>
+      </>}
+    </div>
+  )
+}
+
+function CashOutFlow({ s, me, owner, busy, run, toast, close }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { me: Person; owner: 'me' | 'company'; close: () => void }) {
+  const bank = s.bank.accounts.find((b) => (owner === 'company' ? b.ownerId === 'company' : b.ownerId === me.id))
+  const cash = owner === 'company' ? s.company.balance : me.balance
+  const [linking, setLinking] = useState(!bank)
+  const [holder, setHolder] = useState(owner === 'company' ? s.company.name : me.name)
+  const [bankName, setBankName] = useState(DEMO_BANK.bankName)
+  const [routing, setRouting] = useState(DEMO_BANK.routing)
+  const [account, setAccount] = useState(DEMO_BANK.account)
+  const [type, setType] = useState<'checking' | 'savings'>('checking')
+  const [amount, setAmount] = useState(owner === 'company' ? '5000' : '100')
+  const [done, setDone] = useState<{ n: number; receipt: string; to: string; arrives: string } | null>(null)
+  const n = Number(amount) || 0
+  if (done) return (
+    <div className="flow">
+      <div className="flow-head"><button className="circle-btn" aria-label="Close" onClick={close}>✕</button><span className="pill-lime">Left Tempo</span></div>
+      <div className="stamp sent"><span>ON ITS WAY</span></div>
+      <div className="receipt-card"><div className="rc-top"><b>Cash out</b><Check /></div><p className="flow-sub">To {done.to} · arrives in {done.arrives}</p><b className="big">{money(done.n, true)}</b></div>
+      <div className="flow-actions"><a className="btn pale" href={done.receipt} target="_blank" rel="noreferrer">View public record →</a><button className="round-btn" aria-label="Done" onClick={close}><Check /></button></div>
+    </div>
+  )
+  if (linking || !bank) return (
+    <div className="flow">
+      <div className="flow-head"><button className="circle-btn" aria-label="Back" onClick={bank ? () => setLinking(false) : close}>←</button><span className="pill-live">{s.bank.mode === 'simulated' ? 'Simulated bank' : 'Through Bridge'}</span></div>
+      <h1 className="flow-title">Link a bank</h1>
+      <p className="flow-sub">{owner === 'company' ? 'Where treasury withdrawals go.' : 'Where your cash-outs go.'} Teampot keeps only the bank name and last four digits.</p>
+      <div className="amount-card">
+        <label className="field">Account holder<input value={holder} onChange={(e) => setHolder(e.target.value)} autoComplete="name" /></label>
+        <label className="field">Bank<input value={bankName} onChange={(e) => setBankName(e.target.value)} /></label>
+        <label className="field">Routing number<input value={routing} inputMode="numeric" maxLength={9} onChange={(e) => setRouting(e.target.value.replace(/\D/g, ''))} /></label>
+        <label className="field">Account number<input value={account} inputMode="numeric" maxLength={17} onChange={(e) => setAccount(e.target.value.replace(/\D/g, ''))} autoComplete="off" /></label>
+        <Seg label="Account type" options={[{ id: 'checking', label: 'Checking' }, { id: 'savings', label: 'Savings' }]} value={type} onChange={setType} />
+        {s.bank.mode === 'simulated' && <p className="flow-note">Demo numbers are filled in. Nothing is sent to a bank.</p>}
+      </div>
+      <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="btn primary" disabled={!!busy || !holder || !bankName || routing.length !== 9 || account.length < 4} onClick={() => run('link', () => api.linkBank({ owner, holder, bankName, routing, account, type }), () => { setLinking(false); toast({ text: `${bankName} ••${account.slice(-4)} linked`, tone: 'good' }) })}>{busy === 'link' ? 'Linking…' : 'Link bank'}</button></div>
+    </div>
+  )
+  return (
+    <div className="flow">
+      <div className="flow-head"><button className="circle-btn" aria-label="Back" onClick={close}>←</button><span className="pill-live">{money(cash)} {owner === 'company' ? 'in treasury' : 'cash'}</span></div>
+      <h1 className="flow-title">{owner === 'company' ? 'Withdraw' : 'Cash out'}</h1>
+      <p className="flow-sub">To your bank by ACH · arrives in {s.bank.achDays}</p>
+      <div className="amount-card">
+        <div className="payee"><span className="dot bank-dot" aria-hidden><BankIcon /></span><span className="grow"><b>{bank.bankName} ••{bank.last4}</b><small>{bank.type === 'savings' ? 'Savings' : 'Checking'} · {bank.holder}</small></span><button className="plain small-link" onClick={() => setLinking(true)}>Change</button></div>
+      </div>
+      <div className="amount-card">
+        <div className="amount-top"><span>Amount</span><span>{money(cash)} available</span></div>
+        <label className="amount-input"><span>$</span><input inputMode="decimal" aria-label="Amount" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></label>
+        <p className="flow-note">Dollars leave Tempo now{s.bank.mode === 'simulated' ? ' (the bank leg is simulated)' : ' and Bridge pays your bank'}.</p>
+      </div>
+      <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !n || n > cash} aria-label={`Cash out ${money(n)} to ${bank.bankName}`} onClick={() => run('cashout', () => api.cashOut(bank.id, n), (r: any) => { setDone({ n, receipt: r.receipt, to: `${bank.bankName} ••${bank.last4}`, arrives: r.transfer.arrives }); toast({ text: `${money(n)} on its way to ${bank.bankName}`, tone: 'good', receipt: r.receipt }) })}>{busy === 'cashout' ? '…' : <Arrow />}</button></div>
     </div>
   )
 }
@@ -1207,6 +1334,7 @@ function feedIcon(kind: Activity['kind']) {
     quarter: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
     setup: 'M7 20v-2a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v2M9 7a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z',
     admin: 'M12 19V5M5 12l7-7 7 7',
+    bank: 'M3 10 12 4l9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18',
     fund: 'M12 19V5M5 12l7-7 7 7',
   }
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d={d[kind] ?? 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z'} /></svg>

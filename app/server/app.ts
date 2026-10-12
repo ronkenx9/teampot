@@ -5,10 +5,11 @@ import { PublicKey, Signature, WebAuthnP256 } from 'ox'
 import * as T from './tempo.js'
 import * as Store from './store.js'
 import * as Issuing from './issuing.js'
+import * as Ramp from './ramp.js'
 import {
   DAY, MONTH, YEAR, applyKudosDebit, applyStockTrade, canAwardKudos, decodeMemoLabel, defaultStocks, holdReason, idempotent, invoiceNumber,
   moneyMemo, nextMonthlyDate, normalizeState, potApprovedTotal, potSavings, roundMoney, slug, splitKudos, stockPosition, uid,
-  type Activity, type AuthChallenge, type Beneficiary, type Held, type TopUp, type Invite, type Invoice, type Perk, type Person, type Pot, type Session, type State, type StockId, type TestStock, type Vendor,
+  type Activity, type AuthChallenge, type BankAccount, type BankTransfer, type Beneficiary, type Held, type TopUp, type Invite, type Invoice, type Perk, type Person, type Pot, type Session, type State, type StockId, type TestStock, type Vendor,
 } from './domain.js'
 
 const colors = ['#E8552D', '#141414', '#6F6A63', '#B8401C']
@@ -102,7 +103,7 @@ function seedState(): State {
     company: { name: 'Northwind Studio', address: T.companyAccount.address, financeApprovalThreshold: 1000 },
     people, vendors, pots, perks,
     activity: [], held: [], topups: [], beneficiaries: [], invoices: [], paydayRuns: [], quarterCloses: [], kudosCredits: [], kudosAwards: [],
-    stocks: defaultStocks(), payElections: [{ personId: 'sam', stockId: 'aapl', percent: 20 }], stockTrades: [], earnEntries: [],
+    stocks: defaultStocks(), payElections: [{ personId: 'sam', stockId: 'aapl', percent: 20 }], stockTrades: [], earnEntries: [], banks: [], bankTransfers: [],
     nextPayday: nextMonthlyDate(), processed: {}, sessions: [], authChallenges: [], invites: [], seeded: false,
   }
 }
@@ -554,6 +555,13 @@ async function view(_viewerId: string | null | undefined, actor: Actor) {
     controls,
     earn: { live: T.earnLive(), network: T.NETWORK, byPot: earnByPot },
     issuing: { mode: Issuing.issuerMode() },
+    bank: {
+      mode: Ramp.rampMode(),
+      achDays: Ramp.ACH_DAYS,
+      deposit: scope.isAdmin ? (S.depositInstructions ?? (Ramp.rampMode() === 'simulated' ? await Ramp.depositInstructions(S.company, S.epoch) : null)) : null,
+      accounts: S.banks.filter((b) => b.ownerId === scope.viewer.id || (scope.isAdmin && b.ownerId === 'company')).map(({ externalId: _e, payoutAddress: _p, ...b }) => b),
+      transfers: S.bankTransfers.filter((t) => t.ownerId === scope.viewer.id || (scope.isAdmin && t.ownerId === 'company')).slice(0, 20).map((t) => ({ ...t, receipt: t.tx ? T.EXPLORER + t.tx : undefined })),
+    },
     beneficiaries: S.beneficiaries.filter((b) => b.ownerId === scope.viewer.id),
     // Names only (no money), so people can send kudos or pick a teammate.
     teammates: S.people.filter((x) => x.team && x.team === scope.viewer.team && x.id !== scope.viewer.id && !x.removed && !x.agent && x.role !== 'contractor').map((x) => ({ id: x.id, name: x.name })),
@@ -590,7 +598,10 @@ app.onError((e: any, c) => {
 })
 
 let queue: Promise<unknown> = Promise.resolve()
+// Waitlist and site stats never touch the app state, so they skip the state load and write lock.
+const STATELESS = new Set(['/api/hit', '/api/stats', '/api/waitlist', '/api/waitlist.csv'])
 app.use('/api/*', (c, next) => {
+  if (STATELESS.has(c.req.path)) return next()
   const write = c.req.method === 'POST'
   const handle = async () => {
     S = normalizeState(await Store.load<State>({ fresh: write }), seedState)
@@ -630,15 +641,63 @@ app.post('/api/waitlist', async (c) => {
 // Header only (never a URL parameter, which ends up in logs), compared in constant time, rate limited.
 app.get('/api/waitlist.csv', async (c) => {
   rateLimit(c, 'waitlist-export', 10)
-  const need = process.env.WAITLIST_TOKEN || process.env.RESET_TOKEN || ''
-  const got = c.req.header('x-admin-token') || ''
-  const a = createHash('sha256').update(got).digest(), b = createHash('sha256').update(need).digest()
-  if (!need || !got || !timingSafeEqual(a, b)) return c.json({ error: 'Not allowed' }, 403)
+  if (!adminOk(c)) return c.json({ error: 'Not allowed' }, 403)
   const rows = [['joined', 'email', 'name', 'company', 'role', 'team size', 'note', 'source']]
   for (const e of await Store.waitlistAll()) rows.push([new Date(e.at).toISOString(), e.email, e.name ?? '', e.company ?? '', e.role, e.size ?? '', e.note ?? '', e.source ?? ''])
   // Neutralise spreadsheet formulas (=, +, -, @) so opening the CSV can't run anything a visitor typed.
   const esc = (v: string) => { let x = String(v); if (/^[=+\-@\t\r]/.test(x)) x = `'${x}`; return `"${x.replace(/"/g, '""')}"` }
   return c.text(rows.map((r) => r.map(esc).join(',')).join('\n'), 200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="teampot-waitlist.csv"', 'cache-control': 'no-store' })
+})
+
+
+// The admin token check shared by the waitlist export and stats: header only, constant time.
+const adminOk = (c: any) => {
+  const need = process.env.WAITLIST_TOKEN || process.env.RESET_TOKEN || ''
+  const got = c.req.header('x-admin-token') || ''
+  const a = createHash('sha256').update(got).digest(), b = createHash('sha256').update(need).digest()
+  return !!need && !!got && timingSafeEqual(a, b)
+}
+
+/* ============================== Site stats ============================== */
+// Cookie-free page views. The visitor id is a hash of IP + browser + day + server secret: it counts unique visitors
+// per day and can't follow anyone across days. Nothing personal is stored.
+const BOT = /bot|crawl|spider|slurp|preview|facebookexternalhit|headless|lighthouse|vercel/i
+const dayOf = (t = Date.now()) => new Date(t).toISOString().slice(0, 10)
+app.post('/api/hit', async (c) => {
+  rateLimit(c, 'hit', 120)
+  const ua = c.req.header('user-agent') || ''
+  if (BOT.test(ua)) return c.body(null, 204)
+  let b: { p?: string; r?: string } = {}
+  try { b = JSON.parse(await c.req.text()) } catch { return c.body(null, 204) }
+  const path = String(b.p ?? '/').split('?')[0].slice(0, 60).replace(/[^\w\-/.]/g, '') || '/'
+  const known = ['/', '/tour', '/waitlist', '/app', '/stats'].includes(path) || path.startsWith('/invite/') ? (path.startsWith('/invite/') ? '/invite' : path) : '/other'
+  let ref = ''
+  try { const h = new URL(String(b.r ?? '')).hostname.replace(/^www\./, ''); if (h && !/teampot\.(xyz|vercel\.app)$|localhost|127\.0\.0\.1/.test(h)) ref = h.slice(0, 60) } catch { /* no referrer */ }
+  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'local'
+  const day = dayOf()
+  const visitor = createHmac('sha256', process.env.OPERATOR_PK || 'teampot').update(`${ip}|${ua}|${day}`).digest('hex').slice(0, 24)
+  await Store.statsHit(day, visitor, known, ref)
+  return c.body(null, 204)
+})
+
+app.get('/api/stats', async (c) => {
+  rateLimit(c, 'stats', 30)
+  if (!adminOk(c)) return c.json({ error: 'Not allowed' }, 403)
+  const list = await Store.waitlistAll()
+  const t = Date.now()
+  const count = (f: (e: Store.WaitlistEntry) => string | undefined) => Object.entries(list.reduce<Record<string, number>>((m, e) => { const k = f(e) || 'Not given'; m[k] = (m[k] ?? 0) + 1; return m }, {})).sort((a, b) => b[1] - a[1])
+  const days = Array.from({ length: 14 }, (_, i) => dayOf(t - (13 - i) * 86400_000))
+  const traffic = await Store.statsRead(days)
+  const signupsByDay = days.map((d) => list.filter((e) => dayOf(e.at) === d).length)
+  return c.json({
+    waitlist: {
+      total: list.length, last24h: list.filter((e) => t - e.at < 86400_000).length, last7d: list.filter((e) => t - e.at < 7 * 86400_000).length,
+      byRole: count((e) => e.role), bySize: count((e) => e.size), bySource: count((e) => e.source),
+      recent: list.slice(-8).reverse().map((e) => ({ at: e.at, role: e.role, company: e.company ?? '', size: e.size ?? '' })),
+    },
+    traffic: { ...traffic, signupsByDay },
+    generatedAt: t,
+  }, 200, { 'cache-control': 'no-store' })
 })
 
 app.get('/api/health', (c) => c.json({ ok: true, service: 'teampot', version: S.version, store: Store.storeKind(), seeded: S.seeded }))
@@ -1463,6 +1522,90 @@ app.post('/api/transfer', async (c) => {
   log({ kind: 'transfer', title: `${from.name.split(' ')[0]} sent ${to.name}`, detail: body.note || 'Sent from Teampot', amount, tx, who: from.id, memo: `send:${body.note || 'transfer'}` })
   if (to.personId) log({ kind: 'transfer', title: `${from.name.split(' ')[0]} sent you money`, detail: body.note || 'Sent from Teampot', amount, tx, who: to.personId, memo: `send:${body.note || 'transfer'}` })
   const out = { ok: true, tx, receipt: T.EXPLORER + tx, to: to.name }
+  if (body.requestId) S.processed[body.requestId] = out
+  return c.json(out)
+})
+
+/* ============================ Bank rails ============================ */
+// Companies keep their bank. Money in: ACH/wire into a Bridge virtual account that lands in the treasury on Tempo.
+// Money out: a cash-out sends stablecoin to the bank's Bridge liquidation address, which pays the bank by ACH.
+// Simulated mode (no BRIDGE_API_KEY): a fixed "bank desk" account on Tempo testnet stands in for Bridge.
+const deskRoot = () => T.rootFromPk(T.derivedKeyPk('static', 'bank-desk', 'ramp'))
+const bankLabel = (b: BankAccount) => `${b.bankName} ••${b.last4}`
+const usd$ = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+
+app.post('/api/bank/instructions', async (c) => {
+  requireFinance(actorFrom(c))
+  S.depositInstructions = await Ramp.depositInstructions(S.company, S.epoch, S.depositInstructions)
+  return c.json(S.depositInstructions)
+})
+
+// Simulated mode only: plays the bank transfer Bridge would receive, and settles it into the treasury on Tempo.
+app.post('/api/bank/deposit', async (c) => {
+  const a = requireFinance(actorFrom(c))
+  const body = await parseBody(c, z.object({ amount: number.max(250_000, 'Up to $250,000 per test deposit'), rail: z.enum(['ACH', 'Wire']).default('ACH'), requestId }))
+  if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
+  if (Ramp.rampMode() === 'bridge') return c.json({ error: 'Send the transfer from your bank to the account details shown. It lands in the treasury on its own.' }, 400)
+  const amount = roundMoney(body.amount)
+  const desk = deskRoot()
+  for (let i = 0; i < 4 && (await T.balanceOf(desk.address).catch(() => 0)) < amount + 1; i++) await T.faucetFund(desk.address)
+  const have = await T.balanceOf(desk.address).catch(() => 0)
+  if (have < amount + 1) return c.json({ error: `The test bank can add up to ${usd$(Math.floor(have - 1))} right now` }, 400)
+  const tx = await T.payFrom(desk, S.company.address, amount, moneyMemo(`bank:${body.rail} deposit`))
+  const t: BankTransfer = { id: uid(), at: Date.now(), kind: 'deposit', ownerId: 'company', amount, rail: body.rail, mode: 'simulated', status: 'arrived', bankLabel: S.depositInstructions?.bankName ?? 'Company bank', tx }
+  S.bankTransfers.unshift(t)
+  log({ kind: 'bank', title: `${body.rail} deposit landed in the treasury`, detail: 'From the company bank · converted to dollars on Tempo (simulated bank)', amount, tx, who: a.person.id, memo: 'bank:deposit' })
+  const out = { ok: true, transfer: t, receipt: T.EXPLORER + tx }
+  if (body.requestId) S.processed[body.requestId] = out
+  return c.json(out)
+})
+
+app.post('/api/bank/link', async (c) => {
+  const a = actorFrom(c)
+  const body = await parseBody(c, z.object({
+    owner: z.enum(['me', 'company']).default('me'),
+    holder: text(80), bankName: text(60),
+    routing: z.string().trim().refine(Ramp.validRouting, 'Enter a valid 9-digit routing number'),
+    account: z.string().trim().regex(/^\d{4,17}$/, 'Account numbers are 4 to 17 digits'),
+    type: z.enum(['checking', 'savings']).default('checking'),
+  }))
+  if (body.owner === 'company') requireFinance(a)
+  if (a.person.agent) throw forbidden('Agents can’t link a bank')
+  const ownerId = body.owner === 'company' ? 'company' : a.person.id
+  const customer = body.owner === 'company' ? process.env.BRIDGE_CUSTOMER_ID : a.person.bridgeCustomerId
+  const linked = await Ramp.linkBank(customer, body, `teampot-bank-${ownerId}-${uid()}`)
+  const bank: BankAccount = { id: uid(), ownerId, holder: body.holder, bankName: body.bankName, type: body.type, createdAt: Date.now(), ...linked }
+  S.banks = [bank, ...S.banks.filter((b) => b.ownerId !== ownerId)]
+  log({ kind: 'bank', title: `${ownerId === 'company' ? 'Company' : a.person.name.split(' ')[0] + '’s'} bank linked`, detail: `${bankLabel(bank)}${bank.mode === 'simulated' ? ' · simulated bank' : ' · through Bridge'}`, who: ownerId === 'company' ? undefined : a.person.id, memo: 'bank:linked' })
+  return c.json(bank)
+})
+
+app.post('/api/bank/:id/remove', (c) => {
+  const a = actorFrom(c)
+  const b = requireOne(S.banks.find((x) => x.id === c.req.param('id')), 'Bank')
+  if (b.ownerId === 'company') requireFinance(a); else requireSelf(a, b.ownerId)
+  S.banks = S.banks.filter((x) => x.id !== b.id)
+  return c.json({ ok: true })
+})
+
+app.post('/api/bank/cashout', async (c) => {
+  const a = actorFrom(c)
+  const body = await parseBody(c, z.object({ bankId: text(20), amount: number, requestId }))
+  if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
+  const b = requireOne(S.banks.find((x) => x.id === body.bankId), 'Bank')
+  const company = b.ownerId === 'company'
+  if (company) requireFinance(a); else if (b.ownerId !== a.person.id) throw forbidden('This bank belongs to someone else')
+  const amount = roundMoney(body.amount)
+  const from = company ? S.company.address : person(b.ownerId).address
+  const cash = await T.balanceOf(from).catch(() => 0)
+  if (amount + 0.01 > cash) return c.json({ error: `${company ? 'The treasury has' : 'You have'} ${usd$(cash)} in cash` }, 400)
+  const to = b.mode === 'bridge' && b.payoutAddress ? b.payoutAddress : deskRoot().address
+  const note = moneyMemo(`bank:cash out ••${b.last4}`)
+  const tx = company ? await T.companyPay(to, amount, note) : await T.payFrom(personalRoot(b.ownerId), to, amount, note)
+  const t: BankTransfer = { id: uid(), at: Date.now(), kind: 'cashout', ownerId: b.ownerId, amount, rail: 'ACH', mode: b.mode, status: 'on_the_way', bankLabel: bankLabel(b), tx, arrives: Ramp.ACH_DAYS }
+  S.bankTransfers.unshift(t)
+  log({ kind: 'bank', title: company ? 'Treasury withdrawal to the company bank' : `${a.person.name.split(' ')[0]} cashed out to their bank`, detail: `To ${bankLabel(b)} · arrives in ${Ramp.ACH_DAYS}${b.mode === 'simulated' ? ' (simulated bank)' : ''}`, amount, tx, who: company ? undefined : b.ownerId, memo: 'bank:cashout' })
+  const out = { ok: true, transfer: t, receipt: T.EXPLORER + tx }
   if (body.requestId) S.processed[body.requestId] = out
   return c.json(out)
 })

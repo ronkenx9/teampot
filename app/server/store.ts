@@ -159,3 +159,41 @@ export async function waitlistAll(): Promise<WaitlistEntry[]> {
   }
   return Object.values(readWaitFile()).sort((a, b) => a.at - b.at)
 }
+
+/* ============================== Site stats ============================== */
+// First-party, cookie-free page-view counts: views per day, unique visitors per day (HyperLogLog over a salted
+// daily hash, so no visitor can be tracked across days), top pages and referrers. Kept 90 days.
+const SK = 'teampot:stats'
+const statMem = { views: {} as Record<string, number>, uv: {} as Record<string, Set<string>>, paths: {} as Record<string, number>, refs: {} as Record<string, number> }
+const TTL = 90 * 86400
+export async function statsHit(day: string, visitor: string, path: string, ref: string) {
+  if (redis) {
+    try {
+      const p = redis.pipeline()
+      p.incr(`${SK}:views:${day}`); p.expire(`${SK}:views:${day}`, TTL)
+      p.pfadd(`${SK}:uv:${day}`, visitor); p.expire(`${SK}:uv:${day}`, TTL)
+      p.hincrby(`${SK}:paths`, path, 1)
+      if (ref) p.hincrby(`${SK}:refs`, ref, 1)
+      await p.exec()
+      return
+    } catch (err) { disableRedis(err) }
+  }
+  statMem.views[day] = (statMem.views[day] ?? 0) + 1
+  ;(statMem.uv[day] ??= new Set()).add(visitor)
+  statMem.paths[path] = (statMem.paths[path] ?? 0) + 1
+  if (ref) statMem.refs[ref] = (statMem.refs[ref] ?? 0) + 1
+}
+export async function statsRead(days: string[]) {
+  const top = (h: Record<string, unknown> | null) => Object.entries(h ?? {}).map(([k, v]) => [k, Number(v)] as const).sort((a, b) => b[1] - a[1]).slice(0, 12)
+  if (redis) {
+    try {
+      const p = redis.pipeline()
+      for (const d of days) { p.get(`${SK}:views:${d}`); p.pfcount(`${SK}:uv:${d}`) }
+      p.hgetall(`${SK}:paths`); p.hgetall(`${SK}:refs`)
+      const r = (await p.exec()) as unknown[]
+      const daily = days.map((d, i) => ({ day: d, views: Number(r[i * 2] ?? 0), visitors: Number(r[i * 2 + 1] ?? 0) }))
+      return { daily, paths: top(r[days.length * 2] as any), referrers: top(r[days.length * 2 + 1] as any) }
+    } catch (err) { disableRedis(err) }
+  }
+  return { daily: days.map((d) => ({ day: d, views: statMem.views[d] ?? 0, visitors: statMem.uv[d]?.size ?? 0 })), paths: top(statMem.paths), referrers: top(statMem.refs) }
+}
