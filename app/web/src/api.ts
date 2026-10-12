@@ -68,7 +68,8 @@ export const api = {
   logout: () => post('/api/auth/logout'),
   challenge: (personId: string): Promise<{ id: string; challenge: `0x${string}`; credentialId: string }> => post('/api/auth/challenge', { personId }),
   verify: (b: { personId: string; challengeId: string; metadata: any; signature: `0x${string}` }) => post('/api/auth/verify', b),
-  state: (): Promise<State> => fetch('/api/state').then(j),
+  /** The signed-in view, or null when nobody is signed in. */
+  state: (): Promise<State | null> => fetch('/api/state', { cache: 'no-store' }).then((r) => (r.status === 401 ? null : j(r))),
   setup: (body?: { companyName?: string; departments?: { team: string; budget: number; perPersonCap: number; color?: string; headName?: string; headTitle?: string }[]; invites?: { name: string; role?: 'employee' | 'contractor'; title: string; team: string; salary?: number; country?: string }[] }) => post('/api/setup', body ?? {}),
   paydayPreview: () => fetch('/api/payday/preview').then(j),
   setPayday: (date: string) => post('/api/settings/payday', { date }),

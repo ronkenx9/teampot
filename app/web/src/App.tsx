@@ -24,7 +24,14 @@ type Task = 'pay' | 'invest' | 'rules' | 'payday' | 'invoice' | 'invite' | 'topu
 type RoleMode = 'demo' | 'signin'
 
 export default function App() {
-  const [s, setS] = useState<State | null>(null)
+  // Paint the last screen this tab saw right away, then refresh it (kept in this tab only).
+  const [s, setS] = useState<State | null>(() => {
+    try {
+      const v = localStorage.getItem('tp-viewer'), raw = sessionStorage.getItem('tp-state')
+      const x = raw ? (JSON.parse(raw) as State) : null
+      return x && x.auth?.personId === v ? x : null
+    } catch { return null }
+  })
   const [checked, setChecked] = useState(false)
   const [viewer, setViewer] = useState<Viewer>(() => (localStorage.getItem('tp-viewer') as Viewer) || 'sam')
   const [activeTab, setActiveTab] = useState('home')
@@ -41,15 +48,13 @@ export default function App() {
     return match ? decodeURIComponent(match[1] || '') : ''
   }, [])
 
-  const load = (x: State) => { setS(x); try { localStorage.setItem('tp-state', JSON.stringify(x)) } catch { /* private mode */ } setError(null) }
+  const load = (x: State) => { setS(x); try { localStorage.removeItem('tp-state'); sessionStorage.setItem('tp-state', JSON.stringify(x)) } catch { /* private mode */ } setError(null) }
+  // One round trip: the state call itself says when nobody is signed in.
   const refresh = useCallback(async () => {
     try {
-      const me = await api.me()
-      if (!me.signedIn) {
-        setS(null)
-        return
-      }
-      load(await api.state())
+      const x = await api.state()
+      if (!x) { setS(null); try { sessionStorage.removeItem('tp-state') } catch { /* private mode */ } return }
+      load(x)
     } catch (e: any) { setError(e.message) } finally { setChecked(true) }
   }, [])
   // Refresh every 8 s while the tab is visible; hidden tabs don't poll (keeps storage use low).
