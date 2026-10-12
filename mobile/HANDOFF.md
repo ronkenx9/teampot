@@ -19,7 +19,7 @@
 
 ## Notes
 
-- `EXPO_PUBLIC_API_BASE` defaults to `https://teampot.vercel.app`.
+- `EXPO_PUBLIC_API_BASE` defaults to `https://www.teampot.xyz`.
 - Expo web cannot reliably use the production cookie flow cross-origin because browsers block JS access to `set-cookie` and the live API does not answer CORS preflight. The app now fails honestly on web in that case with the Retry state. Native Expo Go uses the real API path.
 - Investment types mirror the web client: `Stock`, `Investment`, `EarnEntry`, `stocks`, `investments`, and `earnEntries`.
 - The Face ID helper only prompts when hardware and enrollment exist. Expo web and devices without enrolled biometrics continue after the in-app confirmation sheet.

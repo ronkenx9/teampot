@@ -38,7 +38,7 @@ export default function Waitlist() {
     }
   }
 
-  const share = `https://x.com/intent/post?text=${encodeURIComponent("I just joined the Teampot waitlist: work money that's actually yours, every team running its own money on Tempo.")}&url=${encodeURIComponent('https://teampot.vercel.app/waitlist')}`
+  const share = `https://x.com/intent/post?text=${encodeURIComponent("I just joined the Teampot waitlist: work money that's actually yours, every team running its own money on Tempo.")}&url=${encodeURIComponent('https://www.teampot.xyz/waitlist')}`
 
   return (
     <div className="lp wl">
@@ -111,7 +111,7 @@ export default function Waitlist() {
         </section>
       </main>
 
-      <footer className="wl-foot"><span>Teampot · built on Tempo</span><a href="/">teampot.vercel.app</a></footer>
+      <footer className="wl-foot"><span>Teampot · built on Tempo</span><a href="/">teampot.xyz</a></footer>
     </div>
   )
 }

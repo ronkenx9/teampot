@@ -192,7 +192,7 @@ S(t=>{
 // 11) Roadmap glimpse → logo lock-up
 const L11=layer()
 const ideas=['Agent cards','Visa cards','Earn on idle budgets','Global payouts','Pay by username','Stripe Issuing'].map((x,i)=>{const c=el('div','pill',L11,x);css(c,{left:`${[220,780,1250,330,900,1350][i]}px`,top:`${[240,190,280,420,400,470][i]}px`,fontSize:'26px'});return c})
-const lock=el('div','abs',L11,`<div style="display:flex;align-items:center;justify-content:center;gap:30px"><img src="teampot-symbol.svg" style="width:170px;height:170px;object-fit:contain"><div class="h" style="font-size:170px">teampot</div></div><div class="mono" style="font-size:22px;color:#8A8F95;text-align:center;margin-top:18px">teampot.vercel.app · Built on Tempo</div>`);css(lock,{left:'0',right:'0',top:'330px'})
+const lock=el('div','abs',L11,`<div style="display:flex;align-items:center;justify-content:center;gap:30px"><img src="teampot-symbol.svg" style="width:170px;height:170px;object-fit:contain"><div class="h" style="font-size:170px">teampot</div></div><div class="mono" style="font-size:22px;color:#8A8F95;text-align:center;margin-top:18px">teampot.xyz · Built on Tempo</div>`);css(lock,{left:'0',right:'0',top:'330px'})
 S(t=>{
   L11.style.display=t>=107.0?'block':'none'
   ideas.forEach((c,i)=>{win(c,t,107.2+i*.18,110.2,{dy:20});c.style.transform+=` translateY(${Math.sin(t+i)*6}px)`})

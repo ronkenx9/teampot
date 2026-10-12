@@ -60,7 +60,7 @@ Signature verification: `verifyStripeSignature` (HMAC-SHA256 over `t.payload`, 5
 A head gives an AI agent its own card: a monthly limit and vendor list, signed by the head key, enforced by Tempo. The agent pays with its agent key:
 
 ```bash
-curl -X POST https://teampot.vercel.app/api/agent/pay \
+curl -X POST https://www.teampot.xyz/api/agent/pay \
   -H "Authorization: Bearer tpa_…" -H "content-type: application/json" \
   -d '{"vendorId":"adobe-fonts","amount":12,"note":"Font license"}'
 ```

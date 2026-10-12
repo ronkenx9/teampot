@@ -39,7 +39,7 @@ h1{font-size:96px;font-weight:800;font-style:italic;letter-spacing:-.05em;line-h
 <div class="p s7 type"><span class="lbl">Type · Inter Tight</span><div class="big">$3,600</div><div class="row"><div><b>ExtraBold Italic</b>Money, headlines, the wordmark</div><div><b>Medium</b>Section titles</div><div><b>Regular</b>Body and interface</div></div></div>
 <div class="p s5"><span class="lbl">Fill gauge · a UI element, not the logo</span><div class="gauges"><figure>${fill(1)}full</figure><figure>${fill(0.62)}mid-month</figure><figure>${fill(0.2)}nearly spent</figure></div><p class="rules" style="margin-top:22px">Lit blocks are the money left in a pot, filling from the bottom. Used on every department and person card.</p></div>
 <div class="p s12 paper"><span class="lbl">Product · real screens from the live demo</span><div class="shots"><img src="${shot('finance.webp')}" style="width:72%;left:0;top:0"><img src="${shot('phone.webp')}" style="width:20%;right:4%;top:40px;border-radius:26px;border:7px solid #141414"></div></div>
-<div class="foot"><span>Teampot · brand board v4</span><span>teampot.vercel.app · github.com/ronkenx9/teampot</span></div>
+<div class="foot"><span>Teampot · brand board v4</span><span>teampot.xyz · github.com/ronkenx9/teampot</span></div>
 </div></body></html>`
 writeFileSync('board.html', html)
 console.log('board.html written')

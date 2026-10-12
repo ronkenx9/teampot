@@ -2,7 +2,7 @@
 
 Server, web app and website for Teampot. Overview and screenshots: [../README.md](../README.md). Permission model: [../ARCHITECTURE.md](../ARCHITECTURE.md). Evidence: [VERIFIED.md](VERIFIED.md).
 
-Live: https://teampot.vercel.app (`/` website, `/app` app, `/tour` guided tour). Tempo Moderato testnet, test money.
+Live: https://www.teampot.xyz (`/` website, `/app` app, `/tour` guided tour). Tempo Moderato testnet, test money.
 
 ## Features
 

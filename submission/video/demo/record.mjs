@@ -2,7 +2,7 @@
 // Usage: node record.mjs [scene ...]   → clips/<scene>/frames + times.json
 import { chromium } from '/Users/gadgetplug/Documents/vibecoding/teampot/app/node_modules/playwright/index.mjs'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
-const BASE = process.env.BASE || 'https://teampot.vercel.app'
+const BASE = process.env.BASE || 'https://www.teampot.xyz'
 const only = process.argv.slice(2)
 const b = await chromium.launch()
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))

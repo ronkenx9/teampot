@@ -10,4 +10,4 @@ Colosseum: "clear narrative over editing"; include team, problem, who it's for, 
 | 1:05–1:50 | Solution | Live app: Finance funds Design → Ava sets rules → Sam pays with Face ID → off-list payment held → Ava approves | "Finance funds each department as its own account. Heads set their team's limits and vendors. Everyone pays from their phone with Face ID. Anything outside the rules is stopped by the network and waits for the head's one tap." |
 | 1:50–2:15 | Why Tempo | VERIFIED.md + receipts | "This only works because Tempo enforces the rules on-chain, in stablecoins, in under a second, with keys a department can issue itself. It's verified on testnet, transaction by transaction." |
 | 2:15–2:40 | Team + validation | You on camera | **[OWNER]** Who you are, why you, and what the finance/ops people you spoke to said. |
-| 2:40–3:00 | Vision | Logo + URL | "Every team runs its own money. Live at teampot.vercel.app." |
+| 2:40–3:00 | Vision | Logo + URL | "Every team runs its own money. Live at teampot.xyz." |

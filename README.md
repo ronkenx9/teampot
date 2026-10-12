@@ -11,9 +11,9 @@
 Your pay, your team's budget and your perks in one app, on <a href="https://tempo.xyz">Tempo</a>. Spend it, hold it or invest it, while every team runs its own money.</p>
 
 <p align="center">
-  <a href="https://teampot.vercel.app"><b>Website</b></a> ·
-  <a href="https://teampot.vercel.app/app"><b>Live demo</b></a> ·
-  <a href="https://teampot.vercel.app/tour"><b>Guided tour</b></a> ·
+  <a href="https://www.teampot.xyz"><b>Website</b></a> ·
+  <a href="https://www.teampot.xyz/app"><b>Live demo</b></a> ·
+  <a href="https://www.teampot.xyz/tour"><b>Guided tour</b></a> ·
   <a href="ARCHITECTURE.md">Architecture</a> ·
   <a href="app/VERIFIED.md">Verified on Tempo</a>
 </p>

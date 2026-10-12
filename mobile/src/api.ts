@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import type { Held, Invoice, State, StockId } from './types';
 
-const API_BASE = (process.env.EXPO_PUBLIC_API_BASE || 'https://teampot.vercel.app').replace(/\/$/, '');
+const API_BASE = (process.env.EXPO_PUBLIC_API_BASE || 'https://www.teampot.xyz').replace(/\/$/, '');
 const COOKIE_KEY = 'teampot.session.cookie';
 const PERSON_KEY = 'teampot.demo.person';
 

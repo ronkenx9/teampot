@@ -4,7 +4,7 @@ Only write inside `mobile/` at the repo root. No deploy, no push, no AI attribut
 
 There's no Xcode on this machine, so build an **Expo (React Native, TypeScript, Expo Router)** app that runs on a real iPhone through Expo Go, and in a browser through Expo web for testing.
 
-- **API:** the live API at https://teampot.vercel.app (endpoints in app/server/app.ts; the web client is app/web/src/api.ts). Sessions are an HTTP-only cookie. On native, read the `set-cookie` from `/api/auth/demo` and send it as a `cookie` header, stored in expo-secure-store. Support the demo personas (Finance, Ava, Sam, Mateo) through a "Demo" picker. Make the API base configurable through `EXPO_PUBLIC_API_BASE` (default https://teampot.vercel.app).
+- **API:** the live API at https://www.teampot.xyz (endpoints in app/server/app.ts; the web client is app/web/src/api.ts). Sessions are an HTTP-only cookie. On native, read the `set-cookie` from `/api/auth/demo` and send it as a `cookie` header, stored in expo-secure-store. Support the demo personas (Finance, Ava, Sam, Mateo) through a "Demo" picker. Make the API base configurable through `EXPO_PUBLIC_API_BASE` (default https://www.teampot.xyz).
 - **Screens:**
   - Sam (employee): a Money home with total balance, Spend (Design card), Keep and Earn, Invest (holdings and pay-to-stocks, if the API exposes them; otherwise show a placeholder section that reads from the API when available), and recent activity.
   - Pay a vendor, with a native confirmation sheet guarded by expo-local-authentication (Face ID on device), then the existing spend API.

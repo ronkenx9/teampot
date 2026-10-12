@@ -47,7 +47,7 @@ Tempo (Moderato testnet, chain 42431), via viem `viem/tempo`:
 Also: Hono API on Vercel, React 19 + Vite PWA, Vercel Blob, Playwright and Vitest.
 
 ## Links
-- Live demo: https://teampot.vercel.app
+- Live demo: https://www.teampot.xyz
 - GitHub: https://github.com/ronkenx9/teampot (MIT)
 - Verified on-chain claims: https://github.com/ronkenx9/teampot/blob/main/app/VERIFIED.md
 - Pitch video: **[OWNER: YouTube/Loom link]**

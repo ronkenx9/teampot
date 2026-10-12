@@ -16,7 +16,7 @@
 | Demoverse | A network of brand chips and people avatars, then a ranked list scrolling past | The four profile pictures form a ring around the Teampot mark; the activity record list scrolls past |
 | Catalyst | A whiteboard canvas: dotted grid, cards joined by dotted connectors, the camera travelling along the arrows | Act 3 is one continuous canvas: treasury → departments → head key → cards, with the camera following the light beams |
 | Catalyst | Years scrambling in, a dark opening | The "47 waiting" counter scrambles up in the dark opening |
-| teampot.vercel.app | Light beams travelling paths; outlines glow in the department's colour on arrival; "Refused by Tempo" | The same beams and glows, re-drawn for the film |
+| teampot.xyz | Light beams travelling paths; outlines glow in the department's colour on arrival; "Refused by Tempo" | The same beams and glows, re-drawn for the film |
 
 ## Rules
 - **Type:** Geist at weight 200–300, large and thin, with tight tracking. Geist Mono for small capital labels. Never heavy display type.
@@ -86,4 +86,4 @@
 | 101.2 | "Teams decide." | text accent ping |
 | 103.3 | "Tempo enforces it." | text accent ping |
 | 105.6 | Mark and "teampot" lock up centre | logo reveal hit, pulses |
-| 107.8 | Mono: "teampot.vercel.app · Built on Tempo" | outro sweep at 109 |
+| 107.8 | Mono: "teampot.xyz · Built on Tempo" | outro sweep at 109 |

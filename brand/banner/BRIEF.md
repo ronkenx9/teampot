@@ -8,7 +8,7 @@ Make `brand/banner/banner.html`: a single self-contained HTML page whose body is
   - The logo mark `teampot-symbol.svg` (inline it) with the word "teampot" next to it: weight 400, tight tracking, black.
   - Headline in thin type (Geist 200–300 from Google Fonts, large, tight letter-spacing, black): "Work money that's actually yours."
   - One short line in grey: "Every team runs its own money · Built on Tempo"
-  - Optionally a small mono label (Geist Mono, uppercase, grey): "teampot.vercel.app"
+  - Optionally a small mono label (Geist Mono, uppercase, grey): "teampot.xyz"
 - **Right side:** the real app screens `s-sam-home.png`, `s-ava-home.png` and `s-jordan-home.png` (phone screenshots, 1170×2532), shown inside clean phone frames.
   - Black rounded bezel, about 56 px radius at full size, with a small dynamic-island pill. A 9:41 status bar is optional.
   - Stagger the phones: slightly overlapping, different heights, the middle one forward and largest, with soft natural shadows.

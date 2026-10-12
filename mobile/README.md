@@ -32,7 +32,7 @@ ulimit -n 65536
 npx expo start
 ```
 
-The API defaults to `https://teampot.vercel.app`. To point at another API:
+The API defaults to `https://www.teampot.xyz`. To point at another API:
 
 ```sh
 EXPO_PUBLIC_API_BASE=https://your-host.example npx expo start
