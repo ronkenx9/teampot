@@ -2,10 +2,12 @@
 import { chromium } from '/Users/gadgetplug/Documents/vibecoding/teampot/app/node_modules/playwright/index.mjs'
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-const FILM = '../film/out/teampot-film-v4.mp4'
+const FILM = '../film/out/teampot-film-v5.mp4'
 const SFX = '../film/assets/sfx'
 const MUSIC = '../film/assets/bgm-recall-high.wav'
 mkdirSync('build', { recursive: true })
+const AUDIO_ONLY = !!process.env.AUDIO_ONLY
+const MUSIC_DB = Number(process.env.MUSIC_DB ?? -30)
 const ff = (args) => execFileSync('ffmpeg', ['-y', '-v', 'error', ...args], { stdio: ['ignore', 'inherit', 'inherit'] })
 const dur = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]).toString())
 
@@ -47,7 +49,7 @@ const html = (eyebrow, caption, i, n) => `<!doctype html><html><head><link href=
 <div class="prog">${Array.from({ length: n }, (_, k) => `<b class="${k === i ? 'on' : ''}"></b>`).join('')}</div>
 <div class="phone"></div><div class="scr"><span class="t">9:41</span><span class="isl"></span><span class="bat"></span></div>
 </body></html>`
-for (const [i, [id, , eyebrow, caption]] of SCENES.entries()) {
+if (!AUDIO_ONLY) for (const [i, [id, , eyebrow, caption]] of SCENES.entries()) {
   await pg.setContent(html(eyebrow, caption, i, SCENES.length), { waitUntil: 'networkidle' })
   await pg.evaluate(() => document.fonts.ready)
   await pg.screenshot({ path: `build/under-${id}.png` })
@@ -78,11 +80,11 @@ for (const [id, clips, , , voKey, tail, sfx] of SCENES) {
   }
   writeFileSync(`build/${id}.txt`, list.join('\n'))
   const raw = `build/${id}-raw.mp4`
-  ff(['-f', 'concat', '-safe', '0', '-i', `build/${id}.txt`, '-vf', `fps=${FPS},scale=${VID.w}:${VID.h}:flags=lanczos,format=yuv420p`, '-c:v', 'libx264', '-crf', '14', '-preset', 'fast', raw])
+  if (!AUDIO_ONLY) ff(['-f', 'concat', '-safe', '0', '-i', `build/${id}.txt`, '-vf', `fps=${FPS},scale=${VID.w}:${VID.h}:flags=lanczos,format=yuv420p`, '-c:v', 'libx264', '-crf', '14', '-preset', 'fast', raw])
   const clipD = dur(raw), voD = dur(vo(voKey))
   const D = Math.max(clipD, voD + 1.0)
   const out = `build/${id}.mp4`
-  ff(['-loop', '1', '-framerate', String(FPS), '-i', `build/under-${id}.png`, '-i', raw, '-i', 'build/mask.png',
+  if (!AUDIO_ONLY) ff(['-loop', '1', '-framerate', String(FPS), '-i', `build/under-${id}.png`, '-i', raw, '-i', 'build/mask.png',
     '-filter_complex', `[1:v]tpad=stop_mode=clone:stop_duration=${(D - clipD + 0.2).toFixed(2)},format=rgba[v];[2:v]format=gray[m];[v][m]alphamerge[vm];[0:v][vm]overlay=${VID.x}:${VID.y}:shortest=0,trim=duration=${D.toFixed(3)},setsar=1,format=yuv420p[o]`,
     '-map', '[o]', '-r', String(FPS), '-c:v', 'libx264', '-crf', '15', '-preset', 'fast', out])
   timeline.push({ id, file: out, D, voKey, voD, key: tail ? clipD - tail : null, sfx })
@@ -90,11 +92,11 @@ for (const [id, clips, , , voKey, tail, sfx] of SCENES) {
 }
 
 // 3) film intro and outro
-ff(['-ss', '18.15', '-t', '6.6', '-i', FILM, '-vf', `fps=${FPS},scale=1920:1080,format=yuv420p`, '-an', '-c:v', 'libx264', '-crf', '15', '-preset', 'fast', 'build/intro.mp4'])
-ff(['-ss', '80.55', '-t', '11.6', '-i', FILM, '-vf', `fps=${FPS},scale=1920:1080,format=yuv420p`, '-an', '-c:v', 'libx264', '-crf', '15', '-preset', 'fast', 'build/outro.mp4'])
+if (!AUDIO_ONLY) ff(['-ss', '18.15', '-t', '6.6', '-i', FILM, '-vf', `fps=${FPS},scale=1920:1080,format=yuv420p`, '-an', '-c:v', 'libx264', '-crf', '15', '-preset', 'fast', 'build/intro.mp4'])
+if (!AUDIO_ONLY) ff(['-ss', '80.55', '-t', '13.6', '-i', FILM, '-vf', `fps=${FPS},scale=1920:1080,format=yuv420p`, '-an', '-c:v', 'libx264', '-crf', '15', '-preset', 'fast', 'build/outro.mp4'])
 
 // 4) join with quick slide transitions
-const parts = [{ file: 'build/intro.mp4', D: 6.6 }, ...timeline, { file: 'build/outro.mp4', D: 11.6 }]
+const parts = [{ file: 'build/intro.mp4', D: 6.6 }, ...timeline, { file: 'build/outro.mp4', D: 13.6 }]
 const X = 0.35
 let fc = '', last = '[0:v]', offset = 0
 const starts = [0]
@@ -107,7 +109,7 @@ for (let k = 1; k < parts.length; k++) {
 }
 const total = offset + parts[parts.length - 1].D
 const inputs = parts.flatMap((p) => ['-i', p.file])
-ff([...inputs, '-filter_complex', fc.replace(/;$/, ''), '-map', last, '-c:v', 'libx264', '-crf', '16', '-preset', 'slow', '-pix_fmt', 'yuv420p', 'build/video.mp4'])
+if (!AUDIO_ONLY) ff([...inputs, '-filter_complex', fc.replace(/;$/, ''), '-map', last, '-c:v', 'libx264', '-crf', '16', '-preset', 'slow', '-pix_fmt', 'yuv420p', 'build/video.mp4'])
 
 // 5) audio: VO, SFX, music bed (ducked under the voice)
 const cues = [] // [time, file, gainDb, maxLen]
@@ -122,7 +124,7 @@ if (existsSync(vo('contractor'))) { /* contractor sfx: paid pop on the invoices 
 const tO = starts[starts.length - 1]
 cues.push([tO + 0.4, vo('o1'), 0], [tO + 3.1, vo('o2'), 0], [tO + 5.7, vo('o3'), 0], [tO + 8.6, vo('o4'), 0], [tO + 8.5, `${SFX}/deep-hit.wav`, -12, 2.5])
 const aIn = ['-i', MUSIC, ...cues.flatMap((c) => ['-i', c[1]])]
-let af = `[0:a]aformat=sample_rates=48000:channel_layouts=stereo,atrim=0:${total.toFixed(2)},afade=t=in:d=0.3,afade=t=out:st=${(total - 2.5).toFixed(2)}:d=2.5,volume=-17dB[m];`
+let af = `[0:a]aformat=sample_rates=48000:channel_layouts=stereo,atrim=0:${total.toFixed(2)},afade=t=in:d=0.3,afade=t=out:st=${(total - 2.5).toFixed(2)}:d=2.5,volume=${MUSIC_DB}dB[m];`
 const vLabels = [], sLabels = []
 cues.forEach(([t, f, g, len], k) => {
   const isVo = f.startsWith('vo/')
@@ -131,8 +133,9 @@ cues.forEach(([t, f, g, len], k) => {
   ;(isVo ? vLabels : sLabels).push(`[c${k}]`)
 })
 af += `${vLabels.join('')}amix=inputs=${vLabels.length}:normalize=0[vo];[vo]asplit=2[vo1][vo2];`
-af += `[m][vo2]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=400[md];`
-af += `[md][vo1]${sLabels.join('')}amix=inputs=${2 + sLabels.length}:normalize=0,atrim=0:${total.toFixed(2)},loudnorm=I=-14:TP=-1.2:LRA=9[a]`
+af += `[m][vo2]sidechaincompress=threshold=0.02:ratio=10:attack=15:release=500[md];`
+af += `[md][vo1]${sLabels.join('')}amix=inputs=${2 + sLabels.length}:normalize=0,apad,atrim=0:${total.toFixed(2)},loudnorm=I=-14:TP=-1.2:LRA=9[a]`
 ff([...aIn, '-filter_complex', af, '-map', '[a]', '-ar', '48000', '-c:a', 'pcm_s16le', 'build/audio.wav'])
-ff(['-i', 'build/video.mp4', '-i', 'build/audio.wav', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', 'build/teampot-demo.mp4'])
+const OUT = process.env.OUT || 'build/teampot-demo.mp4'
+ff(['-i', 'build/video.mp4', '-i', 'build/audio.wav', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', '-movflags', '+faststart', OUT])
 console.log(`done: ${total.toFixed(1)}s → build/teampot-demo.mp4`)
