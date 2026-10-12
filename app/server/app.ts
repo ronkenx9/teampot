@@ -202,7 +202,12 @@ const safeLog = (c: any, e: any) => {
 
 type CacheEntry<T> = { at: number; value: T }
 const cache = { balance: new Map<string, CacheEntry<number>>(), limit: new Map<string, CacheEntry<{ remaining: number; periodEnd: number | null }>>() }
-const fresh = <T,>(e: CacheEntry<T> | undefined) => e && Date.now() - e.at < 5000 ? e.value : null
+// Chain reads are cached for 20 s, and dropped whenever the shared state version moves (any write on any instance).
+let cacheVersion = -1
+const fresh = <T,>(e: CacheEntry<T> | undefined) => {
+  if (S && S.version !== cacheVersion) { cacheVersion = S.version; cache.balance.clear(); cache.limit.clear(); return null }
+  return e && Date.now() - e.at < 20_000 ? e.value : null
+}
 const invalidateCache = () => { cache.balance.clear(); cache.limit.clear() }
 async function cachedBalance(address: string) {
   const hit = fresh(cache.balance.get(address)); if (hit !== null) return hit
@@ -325,32 +330,41 @@ async function quote(symbol: string): Promise<{ price: number; previous: number;
   if (!Number.isFinite(price) || price <= 0) throw new Error('no price')
   return { price, previous: price - (Number.isFinite(change) ? change : 0), source: 'nasdaq' as const }
 }
+// Quotes live in a module cache so a page load never waits on the quote API: view() applies what's cached and
+// refreshes in the background once a minute; trades await a fresh quote.
 let pricesAt = 0
-async function refreshStockPrices(force = false) {
-  if (!force && Date.now() - pricesAt < 60_000) return
+let pricesInflight: Promise<void> | null = null
+const livePrices: Record<string, { price: number; previous: number; source: TestStock['priceSource']; at: number }> = {}
+function fetchPrices() {
+  if (pricesInflight) return pricesInflight
   pricesAt = Date.now()
-  await Promise.all(S.stocks.map(async (st) => {
-    const fallback = st.lastPrice || defaultStocks().find((x) => x.id === st.id)!.lastPrice
+  pricesInflight = Promise.all(S.stocks.map(async (st) => {
+    if (process.env.VITEST) return
     try {
-      if (process.env.VITEST) throw new Error('offline test price fallback')
       const q = await quote(st.symbol)
-      st.previousPrice = roundMoney(q.previous)
-      st.lastPrice = roundMoney(q.price)
-      st.priceAsOf = Date.now()
-      st.priceSource = q.source
-      st.delayed = true
-    } catch {
-      st.previousPrice = st.previousPrice || fallback
-      st.lastPrice = fallback
-      st.priceAsOf = st.priceAsOf || Date.now()
-      st.priceSource = 'fallback'
-      st.delayed = true
-    }
-  }))
+      livePrices[st.id] = { price: roundMoney(q.price), previous: roundMoney(q.previous), source: q.source, at: Date.now() }
+    } catch { /* keep the last known price */ }
+  })).then(() => undefined).finally(() => { pricesInflight = null })
+  return pricesInflight
+}
+function applyPrices() {
+  for (const st of S.stocks) {
+    const q = livePrices[st.id]
+    const fallback = st.lastPrice || defaultStocks().find((x) => x.id === st.id)!.lastPrice
+    if (q) { st.previousPrice = q.previous; st.lastPrice = q.price; st.priceAsOf = q.at; st.priceSource = q.source }
+    else { st.previousPrice = st.previousPrice || fallback; st.lastPrice = fallback; st.priceAsOf = st.priceAsOf || Date.now(); st.priceSource = st.priceSource || 'fallback' }
+    st.delayed = true
+  }
+}
+async function refreshStockPrices(force = false) {
+  const stale = Date.now() - pricesAt >= 60_000
+  if (force) await fetchPrices()
+  else if (stale) void fetchPrices().catch(() => undefined)
+  applyPrices()
 }
 
 async function setupStocks() {
-  await refreshStockPrices()
+  await refreshStockPrices(true)
   for (const st of S.stocks) {
     try {
       if (!st.tokenAddress) {

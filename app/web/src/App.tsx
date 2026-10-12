@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api, ago, money, resetDate, type Activity, type Card, type Held, type Invoice, type Person, type State, type StockId } from './api'
-import { createInvitePasskey, enrollPasskey, passkeysSupported, payWithPasskey, signInPasskey } from './passkey'
+// Passkey signing pulls in the Tempo SDK; it loads only when someone actually uses Face ID.
+const passkey = () => import('./passkey')
+const passkeysSupported = () => typeof window !== 'undefined' && typeof window.PublicKeyCredential !== 'undefined'
+const signInPasskey: typeof import('./passkey').signInPasskey = (...a) => passkey().then((m) => m.signInPasskey(...a))
+const createInvitePasskey: typeof import('./passkey').createInvitePasskey = (...a) => passkey().then((m) => m.createInvitePasskey(...a))
+const payWithPasskey: typeof import('./passkey').payWithPasskey = (...a) => passkey().then((m) => m.payWithPasskey(...a))
+const enrollPasskey: typeof import('./passkey').enrollPasskey = (...a) => passkey().then((m) => m.enrollPasskey(...a))
+// Warm it up in the background so a Face ID tap never waits on the download.
+if (typeof window !== 'undefined') setTimeout(() => { passkey().catch(() => undefined) }, 2500)
 import { Vault, NextCard, Seg, SegBar, Tile, Arrow, IconCard, IconCash, IconChart, IconClock, IconKey, IconPeople, Check } from './glide'
 
 type Viewer = 'jordan' | 'ava' | 'sam' | 'mateo'
@@ -217,12 +225,10 @@ function RoleFrame({ s, viewer, active, setActive, profileOpen, setProfileOpen, 
   const person = VIEWERS.find((v) => v.id === viewer)!
   const tabs = ROLE_TABS[viewer]
   const [leaving, setLeaving] = useState(false)
-  // Glide-style change: the screen blurs out, then the next one blurs in, staggered.
   const go = (id: string) => {
     if (id === active) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setActive(id); return }
-    setLeaving(true)
-    setTimeout(() => { setActive(id); setLeaving(false); window.scrollTo({ top: 0 }) }, 170)
+    // Switch right away; the new screen fades in quickly (no waiting for the old one to leave).
+    setActive(id); setLeaving(false); window.scrollTo({ top: 0 })
   }
   return (
     <div className="role-layout">

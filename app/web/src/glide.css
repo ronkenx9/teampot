@@ -85,13 +85,14 @@
 .gl-icon{width:44px;height:44px;border-radius:50%;border:0;background:#fff;display:grid;place-items:center;cursor:pointer;flex:none;color:var(--gl-ink)}
 
 /* screen transitions: blur in, staggered */
-.screen .surface>*:not(.money-home),.screen .surface-stack>*{animation:blur-in .55s var(--ease) both}
-.screen .surface>*:nth-child(2),.screen .surface-stack>*:nth-child(2){animation-delay:.06s}
-.screen .surface>*:nth-child(3),.screen .surface-stack>*:nth-child(3){animation-delay:.12s}
-.screen .surface>*:nth-child(4),.screen .surface-stack>*:nth-child(4){animation-delay:.18s}
-.screen .surface>*:nth-child(n+5),.screen .surface-stack>*:nth-child(n+5){animation-delay:.24s}
+.screen .surface>*:not(.money-home),.screen .surface-stack>*{animation:screen-in .26s var(--ease) both}
+.screen .surface>*:nth-child(2),.screen .surface-stack>*:nth-child(2){animation-delay:.025s}
+.screen .surface>*:nth-child(3),.screen .surface-stack>*:nth-child(3){animation-delay:.05s}
+.screen .surface>*:nth-child(4),.screen .surface-stack>*:nth-child(4){animation-delay:.075s}
+.screen .surface>*:nth-child(n+5),.screen .surface-stack>*:nth-child(n+5){animation-delay:.1s}
 .screen.leaving .surface>*,.screen.leaving .surface-stack>*{animation:blur-out .17s ease-in both}
 @keyframes blur-in{from{opacity:0;filter:blur(10px);transform:translateY(8px)}to{opacity:1;filter:none;transform:none}}
+@keyframes screen-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @keyframes blur-out{to{opacity:0;filter:blur(10px);transform:translateY(-4px)}}
 
 /* buttons: press + light sweep */

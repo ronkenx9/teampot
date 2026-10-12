@@ -1,16 +1,20 @@
+import { lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { inject } from '@vercel/analytics'
-import App from './App'
-import Landing from './Landing'
-import Tour from './Tour'
-import Waitlist from './Waitlist'
-import Stats from './Stats'
 import './styles.css'
 import './glide.css'
 
+// Each page is its own download, so the landing page doesn't ship the app (and the app doesn't ship the landing).
+const App = lazy(() => import('./App'))
+const Landing = lazy(() => import('./Landing'))
+const Tour = lazy(() => import('./Tour'))
+const Waitlist = lazy(() => import('./Waitlist'))
+const Stats = lazy(() => import('./Stats'))
+
 const path = window.location.pathname
 const isAppRoute = path === '/app' || path.startsWith('/app/') || path.startsWith('/invite/')
-createRoot(document.getElementById('root')!).render(isAppRoute ? <App /> : path === '/tour' ? <Tour /> : path === '/waitlist' ? <Waitlist /> : path === '/stats' ? <Stats /> : <Landing />)
+const Page = isAppRoute ? App : path === '/tour' ? Tour : path === '/waitlist' ? Waitlist : path === '/stats' ? Stats : Landing
+createRoot(document.getElementById('root')!).render(<Suspense fallback={null}><Page /></Suspense>)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => undefined))
 }
