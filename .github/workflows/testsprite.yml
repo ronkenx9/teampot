@@ -1,0 +1,29 @@
+name: TestSprite
+
+# Runs the TestSprite end-to-end suite against the live app on every pull request.
+# Needs the TESTSPRITE_API_KEY secret and the TESTSPRITE_PROJECT_ID variable (see TESTSPRITE.md).
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: testsprite-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: TestSprite e2e
+    runs-on: ubuntu-latest
+    # Fork PRs get no repository secrets, so the run would fail on auth.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - id: testsprite
+        uses: TestSprite/testsprite-action@v1
+        with:
+          api-key: ${{ secrets.TESTSPRITE_API_KEY }}
+          project: ${{ vars.TESTSPRITE_PROJECT_ID }}
+          timeout: 900
+      - if: always()
+        run: |
+          echo "### TestSprite" >> "$GITHUB_STEP_SUMMARY"
+          echo "passed ${{ steps.testsprite.outputs.passed }} / ${{ steps.testsprite.outputs.total }}, failed ${{ steps.testsprite.outputs.failed }}, skipped ${{ steps.testsprite.outputs.skipped }}, timed out ${{ steps.testsprite.outputs.timed-out }} ${{ steps.testsprite.outputs.error-code }}" >> "$GITHUB_STEP_SUMMARY"

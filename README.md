@@ -88,6 +88,10 @@ PORT=8790 npx tsx server/local.ts
 
 Open `http://localhost:8790` for the website, `/app` for the app and `/tour` for the guided tour. More detail, tests and environment variables: [app/README.md](app/README.md).
 
+## Tests on every pull request
+
+Every pull request runs the [TestSprite](https://www.testsprite.com) end-to-end suite against the live app at https://www.teampot.xyz, and the merge is held until it passes. It covers the website, guided tour, payday, pot spends, the chain-enforced "held for approval" path, approvals, contractor pay and the phone view. Setup and coverage: [TESTSPRITE.md](TESTSPRITE.md). Local suites (Playwright, Vitest) are in [app/README.md](app/README.md).
+
 ## Repo map
 
 | Path | What |
