@@ -1,29 +1,21 @@
 # TestSprite on Teampot
 
-Every pull request is tested against its own Vercel preview. When Vercel reports a preview deployment as live, the workflow runs the whole TestSprite suite against that preview URL (`test run --all --target-url`). A failing test fails the `TestSprite e2e` check on the PR's commit, and branch protection holds the merge. Production is never the target of a PR check, so a bug is caught before it ships.
+Every pull request is tested against its own Vercel preview by the TestSprite GitHub App. When a PR opens or updates, TestSprite runs Teampot's suite against that PR's preview URL and posts the result on the PR. With **Block PR until tests pass** on, a failing suite holds the merge. Production is never the target of a PR check, so a bug is caught before it ships.
 
-Workflow: [.github/workflows/testsprite.yml](.github/workflows/testsprite.yml). It calls the TestSprite CLI directly because the GitHub Action only accepts a target URL for a single test. It uploads the JUnit report and summary JSON, annotates the Checks tab, and writes a results table to the job summary. You can also start it by hand against any URL (defaults to production).
+## Setup (owner, in the TestSprite 3.0 portal)
 
-## One-time setup (owner)
+All of this must be done from the same TestSprite account that submits the hackathon entry.
 
-Vercel (both are project settings):
-1. Settings → Build and Deployment → **Root Directory = `app`**. Git-triggered builds currently fail at the repo root (`Could not read package.json`), so no preview ever goes live.
-2. Settings → Deployment Protection: previews are behind Vercel sign-in, so TestSprite's browser can't reach them. Turn protection off for previews (simplest), or keep it on and use Protection Bypass for Automation.
-
-TestSprite, all from the terminal:
-```bash
-npx @testsprite/testsprite-cli setup --no-agent          # paste your API key (create it in the TestSprite portal)
-npx @testsprite/testsprite-cli project create --type frontend --name Teampot --url https://www.teampot.xyz
-npx @testsprite/testsprite-cli test plan generate --project <project-id>   # V3 accounts; review the proposals
-npx @testsprite/testsprite-cli test plan accept ...                        # keep the ones you want
-```
-
-GitHub:
-```bash
-gh secret set TESTSPRITE_API_KEY            # paste the key when prompted
-gh variable set TESTSPRITE_PROJECT_ID --body <project-id>
-```
-Then protect `main` and require the `TestSprite e2e` check.
+1. **Vercel first** (project settings):
+   - Build and Deployment → **Root Directory = `app`**. Git-triggered builds currently fail at the repo root (`Could not read package.json`), so no preview ever goes live.
+   - Deployment Protection: previews sit behind Vercel sign-in, which TestSprite's browser can't pass. Turn protection off for previews, or use Protection Bypass for Automation.
+2. **Project + suite:** create a frontend project for `https://www.teampot.xyz` and generate the test suite in the portal. Suggested coverage is below.
+3. **Connect GitHub:** Workspace Settings → Connections → Integrations → GitHub → Connect → only `ronkenx9/teampot` → Install & Authorize.
+4. **PR trigger:** project → GitHub Action tab → Add Trigger → Pull request:
+   - Target URL pattern: `https://teampot-git-{branch-slug}-ronins-projects-c7d07daa.vercel.app` (Vercel's per-branch preview alias)
+   - **Block PR until tests pass:** on
+   - Use **Send Test Event** to confirm a run queues.
+5. Optional push trigger on `main` against the production environment, so every merge is re-checked live.
 
 ## Suggested suite coverage
 

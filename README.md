@@ -90,7 +90,7 @@ Open `http://localhost:8790` for the website, `/app` for the app and `/tour` for
 
 ## Tests on every pull request
 
-Every pull request runs the [TestSprite](https://www.testsprite.com) end-to-end suite against its own Vercel preview, and the merge is held until it passes. It covers the website, guided tour, payday, pot spends, the chain-enforced "held for approval" path, approvals, contractor pay and the phone view. Setup and coverage: [TESTSPRITE.md](TESTSPRITE.md). Local suites (Playwright, Vitest) are in [app/README.md](app/README.md).
+Every pull request is tested by the [TestSprite](https://www.testsprite.com) GitHub App against its own Vercel preview, and the merge is held until the suite passes. It covers the website, guided tour, payday, pot spends, the chain-enforced "held for approval" path, approvals, contractor pay and the phone view. Setup and coverage: [TESTSPRITE.md](TESTSPRITE.md). Local suites (Playwright, Vitest) are in [app/README.md](app/README.md).
 
 ## Repo map
 
