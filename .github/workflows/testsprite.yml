@@ -1,29 +1,53 @@
 name: TestSprite
 
-# Runs the TestSprite end-to-end suite against the live app on every pull request.
+# Runs the whole TestSprite suite against THIS pull request's Vercel preview, so a
+# bug in the PR fails the check before it can reach production. Vercel reports each
+# preview to GitHub as a deployment; when one goes live, its URL becomes the target.
 # Needs the TESTSPRITE_API_KEY secret and the TESTSPRITE_PROJECT_ID variable (see TESTSPRITE.md).
 on:
-  pull_request:
+  deployment_status:
   workflow_dispatch:
+    inputs:
+      target-url:
+        description: URL to test (defaults to production)
+        required: false
+        default: https://www.teampot.xyz
+
+permissions:
+  contents: read
 
 concurrency:
-  group: testsprite-${{ github.ref }}
+  group: testsprite-${{ github.event.deployment.sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
   e2e:
     name: TestSprite e2e
     runs-on: ubuntu-latest
-    # Fork PRs get no repository secrets, so the run would fail on auth.
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment_status.environment_url != '')
+    env:
+      TESTSPRITE_API_KEY: ${{ secrets.TESTSPRITE_API_KEY }}
+      PROJECT_ID: ${{ vars.TESTSPRITE_PROJECT_ID }}
+      TARGET_URL: ${{ github.event.deployment_status.environment_url || inputs.target-url }}
     steps:
-      - id: testsprite
-        uses: TestSprite/testsprite-action@v1
+      - uses: actions/setup-node@v4
         with:
-          api-key: ${{ secrets.TESTSPRITE_API_KEY }}
-          project: ${{ vars.TESTSPRITE_PROJECT_ID }}
-          timeout: 900
+          node-version: lts/*
+      - name: Run the suite against the deployment
+        run: >-
+          npx --yes @testsprite/testsprite-cli@0.14.0 test run --all
+          --project "$PROJECT_ID" --target-url "$TARGET_URL"
+          --wait --timeout 900
+          --report junit --report-file testsprite-junit.xml
+          --summary-file testsprite-summary.json
       - if: always()
-        run: |
-          echo "### TestSprite" >> "$GITHUB_STEP_SUMMARY"
-          echo "passed ${{ steps.testsprite.outputs.passed }} / ${{ steps.testsprite.outputs.total }}, failed ${{ steps.testsprite.outputs.failed }}, skipped ${{ steps.testsprite.outputs.skipped }}, timed out ${{ steps.testsprite.outputs.timed-out }} ${{ steps.testsprite.outputs.error-code }}" >> "$GITHUB_STEP_SUMMARY"
+        uses: actions/upload-artifact@v4
+        with:
+          name: testsprite-results
+          path: |
+            testsprite-junit.xml
+            testsprite-summary.json
+          if-no-files-found: ignore
