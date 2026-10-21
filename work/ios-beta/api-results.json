@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-20T20:33:24.570Z",
+  "api": "https://teampot.vercel.app",
+  "network": "testnet",
+  "role": "employee",
+  "nativeCookieTransport": true,
+  "restored": true,
+  "financialActions": 0,
+  "note": "Node transport check, not a device SecureStore/Face ID test."
+}

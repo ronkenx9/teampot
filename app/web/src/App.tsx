@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import './workspace.css'
+import InteractiveMark from './InteractiveMark'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api, ago, money, resetDate, type Activity, type Card, type Held, type Invoice, type Person, type State, type StockId } from './api'
 // Passkey signing pulls in the Tempo SDK; it loads only when someone actually uses Face ID.
@@ -10,6 +12,8 @@ const payWithPasskey: typeof import('./passkey').payWithPasskey = (...a) => pass
 const enrollPasskey: typeof import('./passkey').enrollPasskey = (...a) => passkey().then((m) => m.enrollPasskey(...a))
 // Warm it up in the background so a Face ID tap never waits on the download.
 if (typeof window !== 'undefined') setTimeout(() => { passkey().catch(() => undefined) }, 2500)
+import { positiveAmount, amountIssue, percentValid } from './interactionRules'
+import './interactions.css'
 import { Vault, NextCard, Seg, SegBar, Tile, Arrow, IconCard, IconCash, IconChart, IconClock, IconKey, IconPeople, Check } from './glide'
 
 type Viewer = 'jordan' | 'ava' | 'sam' | 'mateo'
@@ -23,7 +27,8 @@ type Toast = { id: number; text: string; tone: 'good' | 'warn' | 'bad'; receipt?
 type Task = 'pay' | 'invest' | 'rules' | 'payday' | 'invoice' | 'invite' | 'topup' | 'howto' | 'agent' | 'send' | 'shop' | 'deposit' | 'cashout'
 type RoleMode = 'demo' | 'signin'
 
-export default function App() {
+export default function App() { return <><div className="demo-boundary"><span>Demo workspace · sample company · testnet</span><a href="/app">Your workspace</a></div><DemoContent /></> }
+function DemoContent() {
   // Paint the last screen this tab saw right away, then refresh it (kept in this tab only).
   const [s, setS] = useState<State | null>(() => {
     try {
@@ -40,6 +45,7 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [busy, setBusy] = useState<string | null>(null)
+  const inFlight = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<any | null>(null)
   const [setupName, setSetupName] = useState('Northwind Studio')
@@ -87,16 +93,20 @@ export default function App() {
     setTimeout(() => setToasts((x) => x.filter((y) => y.id !== id)), 6200)
   }
   const run = async <T,>(key: string, fn: () => Promise<T>, done: (r: T) => void = () => undefined) => {
+    if (inFlight.current) return
+    inFlight.current = true
     setBusy(key)
-    try { done(await fn()) } catch (e: any) { toast({ text: e.message, tone: 'bad' }) } finally { setBusy(null); refresh() }
+    try { done(await fn()) } catch (e: any) { toast({ text: e.message, tone: 'bad' }) } finally { inFlight.current = false; setBusy(null); refresh() }
   }
   const openReceipt = (id: string) => run('receipt', () => api.receipt(id), setReceipt)
 
   const switchDemo = (id: Viewer) => {
-    setViewer(id)
-    setRoleSheet(null)
-    setProfileOpen(false)
-    return run('demo', () => api.demo(id), () => undefined)
+    if (inFlight.current) return Promise.resolve()
+    return run('demo', () => api.demo(id), () => {
+      setViewer(id)
+      setRoleSheet(null)
+      setProfileOpen(false)
+    })
   }
   const realSignIn = (id: Viewer) => run('signin', async () => {
     const ch = await api.challenge(id)
@@ -175,13 +185,13 @@ function WelcomeScreen({ busy, mode, setMode, chooseDemo, signIn }: {
   return (
     <div className="welcome">
       <main className="welcome-stage">
-        <img className="welcome-mark" src="/mark3d.webp" width="1200" height="1200" alt="" />
+        <InteractiveMark />
         <h1>Teampot</h1>
         <p>Every team runs its own money.</p>
         {busy === 'demo' || busy === 'signin'
           ? <p className="welcome-loading" role="status"><span className="spinner" aria-hidden />Opening your view…</p>
           : <><button className="btn welcome-primary" onClick={() => setMode('demo')}>Try the demo</button>
-            <button className="link-button" onClick={() => setMode('signin')}>Sign in with Face ID</button></>}
+            <a className="link-button" href="/app">Open your company workspace</a></>}
       </main>
       <span className="welcome-flat-mark"><PotMark size={34} /></span>
       {mode && (
@@ -249,12 +259,12 @@ function RoleFrame({ s, viewer, active, setActive, profileOpen, setProfileOpen, 
               <div className="profile-menu">
                 <p>Switch demo role</p>
                 {VIEWERS.map((v) => <button key={v.id} className={viewer === v.id ? 'on' : ''} onClick={() => switchDemo(v.id)}><span className="role-avatar small"><Pfp id={v.id} /></span><span><b>{v.label}</b><small>{v.sub}</small></span></button>)}
-                <button className="signin-row" disabled={!!busy || s.auth?.demo === false} onClick={() => realSignIn(viewer)}><FaceIcon /> Sign in with Face ID</button>
+                <a className="signin-row" href="/app">Your company workspace</a>
               </div>
             )}
           </div>
           <div className="gl-title"><small>{s.company.name}</small><b>{tabs.find((t) => t.id === active)?.id === 'home' ? person.sub : tabs.find((t) => t.id === active)?.label}</b></div>
-          <button className="gl-icon" aria-label="How Teampot works" onClick={onHelp}><KeyIcon /></button>
+          <button className="gl-icon" aria-label="How Teampot works" onClick={onHelp}><HelpIcon /></button>
         </header>
         <main key={active} className={`screen ${leaving ? 'leaving' : ''}`}>{children}</main>
       </div>
@@ -283,7 +293,7 @@ function TaskSheet({ task, ctx, viewer, close }: { task: Task; ctx: Ctx; viewer:
   }
   return (
     <div className="sheet" role="dialog" aria-modal="true" aria-label={title[task]}>
-      <div className="sheet-card task-card">
+      <div className={`sheet-card task-card ${task === 'howto' ? 'howto-card' : ''}`}>
         {!['pay', 'send', 'shop', 'deposit', 'cashout'].includes(task) && <div className="sheet-head"><span /><h2>{title[task]}</h2><button className="plain" onClick={close}>Done</button></div>}
         {task === 'pay' && me && <PayFlow s={s} me={me} busy={busy} run={run} toast={toast} close={close} />}
         {task === 'invest' && me && <InvestCard s={s} me={me} inv={s.investments.find((x) => x.personId === me.id)} busy={busy} run={run} toast={toast} />}
@@ -327,7 +337,7 @@ function Finance({ s, busy, run, toast, openReceipt, active, setTask, setActive 
   if (active === 'payday') return <div className="surface two-col"><PaydayTask s={s} busy={busy} run={run} toast={toast} /><section className="panel"><SectionTitle title="Payday history" sub="One payment from the treasury pays everyone, each line with a note." /><ul className="rows">{s.paydayRuns.length ? s.paydayRuns.map((p) => <li key={p.id}><span className="grow"><b>{p.date}</b><small>{plural(p.count, 'person', 'people')} · landed in {(p.ms / 1000).toFixed(1)}s</small></span><span className="num">{money(p.total)}</span><a className="rec" href={`https://explore.testnet.tempo.xyz/tx/${p.tx}`} target="_blank" rel="noreferrer">Record</a></li>) : <li><Empty text="No payday yet." /></li>}</ul></section></div>
   if (active === 'teams') return (
     <div className="surface">
-      <PageIntro title="Departments" text="Each department has its own account on Tempo. You decide how much goes in and who holds the head key. The head runs everything inside it." action={<button className="btn small ghost" onClick={() => setTask('howto')}>How it works</button>} />
+      <PageIntro title="Departments" text="Each department has its own account on Tempo. You decide how much goes in and who holds the head key. The head runs everything inside it." action={<HelpButton onClick={() => setTask('howto')} />} />
       {depts.map((d) => <DepartmentCard key={d.id} s={s} d={d} mode="finance" busy={busy} run={run} toast={toast} />)}
       <section className="panel"><SectionTitle title="People" sub="Finance sets salaries and appoints heads." action={<button className="btn small primary" onClick={() => setTask('invite')}>Invite</button>} /><Directory s={s} busy={busy} run={run} toast={toast} /></section>
       <CompanyRules s={s} busy={busy} run={run} toast={toast} />
@@ -346,6 +356,7 @@ function Finance({ s, busy, run, toast, openReceipt, active, setTask, setActive 
         <Tile tone="sage" icon={<IconKey />} value={String(depts.filter((d) => d.head).length)} label="Head keys" />
         <Tile tone="butter" icon={<IconClock />} value={String(needs)} label="Need you" />
       </div>
+      <SurplusEarn s={s} scope="company" label="Treasury" busy={busy} run={run} toast={toast} />
       <NextCard eyebrow={`Payday · ${s.nextPayday}`} title="Pay everyone" chips={[`${staff} people`, money(payroll), 'One payment']} action={{ label: 'Review payday', onClick: () => setTask('payday') }} tone="sky" art={<PaydayArt />} />
       <section className="panel">
         <SectionTitle title={needs ? 'Needs you' : 'Nothing needs you'} sub={needs ? 'Only what a head can’t decide.' : 'Heads handle their own requests.'} />
@@ -462,10 +473,10 @@ function InvestGlow({ s, me }: { s: State; me: Person }) {
 
 /** Small illustrations for the "up next" cards. */
 function CardStackArt({ color }: { color: string }) {
-  return <svg viewBox="0 0 220 96" width="220" height="96" className="art-cards">{[0, 1, 2].map((i) => <rect key={i} x={30 + i * 26} y={34 - i * 8} width="120" height="74" rx="12" fill={i === 2 ? '#0B0B0C' : '#fff'} opacity={i === 2 ? 1 : 0.7 + i * 0.1} />)}<rect x="96" y="30" width="18" height="4" rx="2" fill={color} /><text x="96" y="52" className="art-t">CARD</text></svg>
+  return <svg viewBox="0 0 220 96" width="220" height="96" className="art-cards">{[0, 1, 2].map((i) => <rect className={`stack-layer layer-${i}`} key={i} x={30 + i * 26} y={34 - i * 8} width="120" height="74" rx="12" fill={i === 2 ? '#0B0B0C' : '#fff'} opacity={i === 2 ? 1 : 0.7 + i * 0.1} />)}<rect x="96" y="30" width="18" height="4" rx="2" fill={color} /><text x="96" y="52" className="art-t">CARD</text></svg>
 }
 function PaydayArt() {
-  return <svg viewBox="0 0 260 96" width="260" height="96" className="art-pay">{[0, 1, 2, 3].map((i) => <g key={i}><path d={`M20 70 C 90 70, 120 ${20 + i * 16}, 200 ${20 + i * 16}`} fill="none" stroke="#fff" strokeWidth="2" /><circle r="4" fill="#0B0B0C"><animateMotion dur="2.6s" begin={`${i * 0.35}s`} repeatCount="indefinite" path={`M20 70 C 90 70, 120 ${20 + i * 16}, 200 ${20 + i * 16}`} /></circle><rect x="200" y={12 + i * 16} width="40" height="14" rx="7" fill="#fff" /></g>)}<rect x="0" y="60" width="40" height="20" rx="10" fill="#0B0B0C" /></svg>
+  return <div className="payday-art" aria-hidden="true"><span className="payday-source"><PotMark size={26} /></span><span className="payday-trail" />{['AC', 'SO', 'LP'].map((initials, i) => <span className={`payday-token token-${i}`} key={initials}>{initials}<i><Check /></i></span>)}</div>
 }
 
 /** The person's cards exactly as Tempo holds them: who signed them, the limit, the vendors. */
@@ -475,7 +486,7 @@ function MyCards({ s, me, onHowto }: { s: State; me: Person; onHowto?: () => voi
   if (!dept || !cards.length) return null
   return (
     <section className="panel">
-      <SectionTitle title="Your cards" sub={`Signed by ${dept.head ? dept.head.name.split(' ')[0] : 'Finance'}. Tempo blocks anything over the limit or off the list.`} action={onHowto && <button className="btn small ghost" onClick={onHowto}>How it works</button>} />
+      <SectionTitle title="Your cards" sub={`Signed by ${dept.head ? dept.head.name.split(' ')[0] : 'Finance'}. Tempo blocks anything over the limit or off the list.`} action={onHowto && <HelpButton onClick={onHowto} />} />
       <ul className="wcards">{cards.map((c) => (
         <li key={c.id}>
           <WalletCard c={c} color={dept.color} />
@@ -519,9 +530,20 @@ function AuthorityCard({ s, viewer, setTask }: { s: State; viewer: Viewer; setTa
     <section className="authority">
       <span className="authority-icon" aria-hidden><KeyIcon /></span>
       <div className="grow"><b>{c.title}</b><p>{c.text}</p></div>
-      <div className="authority-links"><button className="plain" onClick={() => setTask('howto')}>How it works</button>{c.link && <a href={c.link} target="_blank" rel="noreferrer">Record</a>}</div>
+      <div className="authority-links"><HelpButton onClick={() => setTask('howto')} />{c.link && <a href={c.link} target="_blank" rel="noreferrer">Record</a>}</div>
     </section>
   )
+}
+
+function HowIcon({ kind }: { kind: 'treasury' | 'department' | 'key' | 'card' | 'shield' | 'rules' }) {
+  return <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {kind === 'treasury' && <><path d="M5 12 16 5l11 7M7 14v11m6-11v11m6-11v11m6-11v11M4 27h24M5 12h22" /><path d="M14 9h4" /></>}
+    {kind === 'department' && <><rect x="6" y="5" width="20" height="23" rx="3"/><path d="M12 11h2m4 0h2m-8 5h2m4 0h2m-7 12v-6h6v6"/></>}
+    {kind === 'key' && <><circle cx="11" cy="12" r="7"/><path d="m16 17 11 11m-7-7 3-3m1 7 3-3"/><circle cx="9" cy="10" r="1"/></>}
+    {kind === 'card' && <><rect x="3" y="7" width="26" height="19" rx="4"/><path d="M3 13h26M8 21h5m8 0h3"/></>}
+    {kind === 'shield' && <><path d="m16 3 11 5v8c0 6-7 11-11 13C12 27 5 22 5 16V8Z"/><path d="m11 16 4 4 7-8"/></>}
+    {kind === 'rules' && <><path d="M6 8h20M6 16h20M6 24h20"/><circle cx="12" cy="8" r="3" fill="currentColor"/><circle cx="22" cy="16" r="3" fill="currentColor"/><circle cx="10" cy="24" r="3" fill="currentColor"/></>}
+  </svg>
 }
 
 function HowItWorks({ s, viewer }: { s: State; viewer: Viewer }) {
@@ -533,14 +555,21 @@ function HowItWorks({ s, viewer }: { s: State; viewer: Viewer }) {
     { id: 'sam', title: 'Cards', text: 'The head signs each card with a monthly limit and a list of approved vendors. People pay from their phone.' },
   ]
   return (
-    <div className="howto">
-      <p className="lede">Each level gets its own key on Tempo, and each key can only do what the level above allowed. Tempo rejects everything else, so the rules hold even if Teampot is down.</p>
-      <ol className="ladder">{levels.map((l) => <li key={l.id} className={l.id === viewer ? 'you' : ''}><b>{l.title}{l.id === viewer && <em>You</em>}</b><span>{l.text}</span></li>)}</ol>
-      <div className="enforced">
-        <div><h3>Tempo enforces</h3><ul><li>Monthly limit on every card</li><li>Approved vendors only</li><li>Only a head key can issue cards</li><li>A revoked key stops working at once</li></ul></div>
-        <div><h3>Teampot enforces</h3><ul><li>Payments over {limit} need Finance</li><li>No approving your own request</li><li>Who can see whose pay</li></ul></div>
+    <div className="howto" tabIndex={0} aria-label="How Teampot works details">
+      <div className="howto-map" aria-label="Finance funds departments; department heads give people cards">
+        <div><span className="howto-map-icon"><HowIcon kind="treasury" /></span><b>Treasury</b><small>Finance funds</small></div>
+        <span className="howto-connector" aria-hidden="true">→</span>
+        <div><span className="howto-map-icon"><HowIcon kind="key" /></span><b>Department</b><small>Heads set rules</small></div>
+        <span className="howto-connector" aria-hidden="true">→</span>
+        <div><span className="howto-map-icon"><HowIcon kind="card" /></span><b>Your card</b><small>You spend</small></div>
       </div>
-      <p className="muted small">Demo note: department roots and demo keys are held by the Teampot server. People who join by invite use Face ID on their own phone, so their card never leaves the device.</p>
+      <p className="lede">Each level gets its own key on Tempo, and each key can only do what the level above allowed. Tempo rejects everything else, so the rules hold even if Teampot is down.</p>
+      <ol className="howto-path">{levels.map((l) => <li key={l.id} className={l.id === viewer ? 'you' : ''}><span className="howto-role-icon"><HowIcon kind={l.id === 'jordan' ? 'treasury' : l.id === 'dept' ? 'department' : l.id === 'ava' ? 'key' : 'card'} /></span><div><b>{l.title}{l.id === viewer && <em>You are here</em>}</b><p>{l.text}</p></div></li>)}</ol>
+      <div className="enforced howto-rules">
+        <div><HowIcon kind="shield" /><h3>Tempo enforces</h3><ul><li>Monthly limit on every card</li><li>Approved vendors only</li><li>Only a head key can issue cards</li><li>A revoked key stops working at once</li></ul></div>
+        <div><HowIcon kind="rules" /><h3>Teampot enforces</h3><ul><li>Payments over {limit} need Finance</li><li>No approving your own request</li><li>Who can see whose pay</li></ul></div>
+      </div>
+      <p className="howto-note">Demo note: department roots and demo keys are held by the Teampot server. People who join by invite use Face ID on their own phone, so their card never leaves the device.</p>
       <a className="btn ghost" href={s.controls.treasury.link} target="_blank" rel="noreferrer">See the company account on Tempo</a>
     </div>
   )
@@ -549,9 +578,7 @@ function HowItWorks({ s, viewer }: { s: State; viewer: Viewer }) {
 function DepartmentCard({ s, d, mode, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { d: State['controls']['departments'][number]; mode: 'finance' | 'head' }) {
   const [amount, setAmount] = useState('500')
   const [panel, setPanel] = useState<'head' | 'money' | 'earn' | null>(null)
-  const [earnAmt, setEarnAmt] = useState('1000')
-  const earn = s.earn?.byPot[d.id] ?? { mode: 'simulated', balance: 0 }
-  const team = s.people.filter((p) => p.team === d.id && p.role !== 'contractor')
+  const team = s.people.filter((p) => p.team === d.id && p.role !== 'contractor' && !p.removed)
   const [nextHead, setNextHead] = useState(d.head?.personId ?? team[0]?.id ?? '')
   const toggle = (x: 'head' | 'money' | 'earn') => setPanel((p) => (p === x ? null : x))
   return (
@@ -565,8 +592,8 @@ function DepartmentCard({ s, d, mode, busy, run, toast }: Pick<Ctx, 's' | 'busy'
           <p className="muted">Moves real money between the treasury and {d.team}.</p>
           <div className="inline-form">
             <div className="money-in"><span>$</span><input aria-label={`Amount for ${d.team}`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div>
-            <button className="btn small primary" disabled={!!busy || !Number(amount)} onClick={() => run('fund' + d.id, () => api.fundPot(d.id, Number(amount)), (r: any) => { setPanel(null); toast({ text: `${money(Number(amount))} sent to ${d.team}`, tone: 'good', receipt: r.receipt }) })}>Add money</button>
-            <button className="btn small ghost" disabled={!!busy || !Number(amount)} onClick={() => run('return' + d.id, () => api.returnPot(d.id, Number(amount)), (r: any) => { setPanel(null); toast({ text: `${money(Number(amount))} back from ${d.team}`, tone: 'good', receipt: r.receipt }) })}>Pull back</button>
+            <ActionHint>{amountIssue(amount) || `Treasury: ${money(s.company.balance)} · Department: ${money(d.balance ?? 0)}`}</ActionHint><button className="btn small primary" disabled={!!busy || !!amountIssue(amount, s.company.balance)} onClick={() => run('fund' + d.id, () => api.fundPot(d.id, Number(amount)), (r: any) => { setPanel(null); toast({ text: `${money(Number(amount))} sent to ${d.team}`, tone: 'good', receipt: r.receipt }) })}>Add money</button>
+            <button className="btn small ghost" disabled={!!busy || d.balance === null || !!amountIssue(amount, d.balance)} onClick={() => run('return' + d.id, () => api.returnPot(d.id, Number(amount)), (r: any) => { setPanel(null); toast({ text: `${money(Number(amount))} back from ${d.team}`, tone: 'good', receipt: r.receipt }) })}>Pull back</button>
           </div>
         </div>
       )}
@@ -585,20 +612,7 @@ function DepartmentCard({ s, d, mode, busy, run, toast }: Pick<Ctx, 's' | 'busy'
           </div>
         )}
       </div>
-      <div className="dept-level">
-        <p className="eyebrow">Idle budget · {earn.mode === 'real' ? 'Tempo Earn' : 'Simulated on testnet'}</p>
-        <div className="level-row">
-          <span className="grow"><b>{money(earn.balance)} earning</b><small>{earn.mode === 'real' ? 'In the Tempo Earn vault; bring it back any time.' : 'Goes into Tempo Earn on mainnet once a vault is connected. Nothing moves on testnet.'}</small></span>
-          <button className="btn small ghost" onClick={() => toggle('earn')}>{panel === 'earn' ? 'Close' : 'Manage'}</button>
-        </div>
-        {panel === 'earn' && (
-          <div className="inline-form dept-drawer">
-            <div className="money-in"><span>$</span><input aria-label={`Earn amount for ${d.team}`} inputMode="decimal" value={earnAmt} onChange={(e) => setEarnAmt(e.target.value.replace(/[^\d.]/g, ''))} /></div>
-            <button className="btn small primary" disabled={!!busy || !Number(earnAmt)} onClick={() => run('earn' + d.id, () => api.potEarn(d.id, 'deposit', Number(earnAmt)), () => { setPanel(null); toast({ text: `${money(Number(earnAmt))} of ${d.team}'s budget is earning`, tone: 'good' }) })}>Put to work</button>
-            <button className="btn small ghost" disabled={!!busy || !Number(earnAmt)} onClick={() => run('earn' + d.id, () => api.potEarn(d.id, 'withdraw', Number(earnAmt)), () => { setPanel(null); toast({ text: `${money(Number(earnAmt))} back in ${d.team}`, tone: 'good' }) })}>Bring back</button>
-          </div>
-        )}
-      </div>
+      <SurplusEarn s={s} scope={d.id} label={d.team} busy={busy} run={run} toast={toast} />
       <div className="dept-level">
         <p className="eyebrow">Cards · {money(d.perPersonCap)} a month at {d.vendors.length} vendors</p>
         {d.cards.length ? <ul className="rows card-rows">{d.cards.map((c) => (
@@ -620,6 +634,16 @@ function TopUps({ s, items, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' |
     const who = s.people.find((p) => p.id === t.requestedBy)
     return <li key={t.id}><span className="grow"><b>{dept?.team} wants {money(t.amount)} more</b><small>{who?.name.split(' ')[0]} · {t.note} · {ago(t.at)}</small></span><button className="btn small ghost" disabled={!!busy} onClick={() => run('t' + t.id, () => api.decideTopup(t.id, 'decline'), () => toast({ text: 'Top-up declined', tone: 'good' }))}>Decline</button><button className="btn small primary" disabled={!!busy} onClick={() => run('t' + t.id, () => api.decideTopup(t.id, 'fund'), (r: any) => toast({ text: `${dept?.team} funded ${money(t.amount)}`, tone: 'good', receipt: r.tx ? `https://explore.testnet.tempo.xyz/tx/${r.tx}` : undefined }))}>Fund</button></li>
   })}</ul>
+}
+
+function HelpIcon() {
+  return <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M9 8a3 3 0 0 1 6 0c0 2-3 2-3 5" /><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none" /></svg>
+}
+function HelpButton({ onClick }: { onClick: () => void }) {
+  return <button type="button" className="help-button" aria-label="How Teampot works" title="How Teampot works" onClick={onClick}><HelpIcon /></button>
+}
+function ActionHint({ children }: { children: ReactNode }) {
+  return children ? <p className="action-hint" role="status">{children}</p> : null
 }
 
 function SectionTitle({ title, sub, action }: { title: string; sub?: string; action?: ReactNode }) {
@@ -645,17 +669,19 @@ function SendFlow({ s, me, busy, run, toast, close }: Pick<Ctx, 's' | 'busy' | '
   const [note, setNote] = useState('')
   const [done, setDone] = useState<{ to: string; receipt: string; n: number } | null>(null)
   useEffect(() => {
+    let current = true
+    setFound(null); setLookErr('')
     if (mode !== 'user') return
     const h = handle.trim().replace(/^@/, '')
-    if (h.length < 2) { setFound(null); return }
-    const t = setTimeout(() => { api.lookup(h).then((r) => { setFound(r); setLookErr('') }).catch((e) => { setFound(null); setLookErr(e.message) }) }, 250)
-    return () => clearTimeout(t)
+    if (h.length < 2) return
+    const t = setTimeout(() => { api.lookup(h).then((r) => { if (current) setFound(r) }).catch((e) => { if (current) setLookErr(e.message) }) }, 250)
+    return () => { current = false; clearTimeout(t) }
   }, [handle, mode])
   const n = Number(amount) || 0
   const validAccount = /^0x[0-9a-fA-F]{40}$/.test(account.trim())
-  const target = mode === 'user' ? (found && found.id !== me.id ? { handle: found.handle } : null) : mode === 'saved' ? (benId ? { beneficiaryId: benId } : null) : (name.trim() && validAccount ? { name: name.trim(), account: account.trim(), save } : null)
+  const target = mode === 'user' ? (found && found.handle.replace(/^@/, '').toLowerCase() === handle.trim().replace(/^@/, '').toLowerCase() && found.id !== me.id ? { handle: found.handle } : null) : mode === 'saved' ? (s.beneficiaries.some((b) => b.id === benId) ? { beneficiaryId: benId } : null) : (name.trim() && validAccount ? { name: name.trim(), account: account.trim(), save } : null)
   const toName = mode === 'user' ? found?.name : mode === 'saved' ? s.beneficiaries.find((b) => b.id === benId)?.name : name
-  const send = () => target && run('send', () => api.transfer({ ...target, amount: n, note }), (r: any) => { setDone({ to: r.to, receipt: r.receipt, n }); toast({ text: `Sent ${money(n)} to ${r.to}`, tone: 'good', receipt: r.receipt }) })
+  const send = () => target && !amountIssue(amount, me.balance) && !busy && run('send', () => api.transfer({ ...target, amount: n, note }), (r: any) => { setDone({ to: r.to, receipt: r.receipt, n }); toast({ text: `Sent ${money(n)} to ${r.to}`, tone: 'good', receipt: r.receipt }) })
   if (done) return (
     <div className="flow">
       <div className="flow-head"><button className="circle-btn" aria-label="Close" onClick={close}>✕</button><span className="pill-lime">Sent on Tempo</span></div>
@@ -689,7 +715,8 @@ function SendFlow({ s, me, busy, run, toast, close }: Pick<Ctx, 's' | 'busy' | '
         <label className="amount-input"><span>$</span><input inputMode="decimal" aria-label="Amount" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></label>
         <label className="field">Note<input value={note} maxLength={40} onChange={(e) => setNote(e.target.value)} placeholder="Lunch, thanks!" /></label>
       </div>
-      <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !n || !target} aria-label={`Send ${money(n)}${toName ? ` to ${toName}` : ''}`} onClick={send}>{busy === 'send' ? '…' : <Arrow />}</button></div>
+      <ActionHint>{!target ? "Choose a valid recipient before sending." : amountIssue(amount, me.balance)}</ActionHint>
+      <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !!amountIssue(amount, me.balance) || !target} aria-label={`Send ${money(n)}${toName ? ` to ${toName}` : ''}`} onClick={send}>{busy === 'send' ? '…' : <Arrow />}</button></div>
     </div>
   )
 }
@@ -754,7 +781,7 @@ function DepositFlow({ s, busy, run, toast, close }: Pick<Ctx, 's' | 'busy' | 'r
           <label className="amount-input"><span>$</span><input inputMode="decimal" aria-label="Amount" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></label>
           <Seg label="Rail" options={[{ id: 'ACH', label: 'ACH' }, { id: 'Wire', label: 'Wire' }]} value={rail} onChange={setRail} />
         </div>
-        <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !n} aria-label={`Send a ${money(n)} test ${rail} transfer`} onClick={() => run('deposit', () => api.bankDeposit(n, rail), (r: any) => { setDone({ n, receipt: r.receipt, rail }); toast({ text: `${money(n)} landed in the treasury`, tone: 'good', receipt: r.receipt }) })}>{busy === 'deposit' ? '…' : <Arrow />}</button></div>
+        <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !positiveAmount(amount)} aria-label={`Send a ${money(n)} test ${rail} transfer`} onClick={() => run('deposit', () => api.bankDeposit(n, rail), (r: any) => { setDone({ n, receipt: r.receipt, rail }); toast({ text: `${money(n)} landed in the treasury`, tone: 'good', receipt: r.receipt }) })}>{busy === 'deposit' ? '…' : <Arrow />}</button></div>
       </>}
     </div>
   )
@@ -793,7 +820,7 @@ function CashOutFlow({ s, me, owner, busy, run, toast, close }: Pick<Ctx, 's' | 
         <Seg label="Account type" options={[{ id: 'checking', label: 'Checking' }, { id: 'savings', label: 'Savings' }]} value={type} onChange={setType} />
         {s.bank.mode === 'simulated' && <p className="flow-note">Demo numbers are filled in. Nothing is sent to a bank.</p>}
       </div>
-      <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="btn primary" disabled={!!busy || !holder || !bankName || routing.length !== 9 || account.length < 4} onClick={() => run('link', () => api.linkBank({ owner, holder, bankName, routing, account, type }), () => { setLinking(false); toast({ text: `${bankName} ••${account.slice(-4)} linked`, tone: 'good' }) })}>{busy === 'link' ? 'Linking…' : 'Link bank'}</button></div>
+      <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="btn primary" disabled={!!busy || !holder.trim() || !bankName.trim() || !/^\d{9}$/.test(routing) || !/^\d{4,17}$/.test(account)} onClick={() => run('link', () => api.linkBank({ owner, holder, bankName, routing, account, type }), () => { setLinking(false); toast({ text: `${bankName} ••${account.slice(-4)} linked`, tone: 'good' }) })}>{busy === 'link' ? 'Linking…' : 'Link bank'}</button></div>
     </div>
   )
   return (
@@ -809,7 +836,7 @@ function CashOutFlow({ s, me, owner, busy, run, toast, close }: Pick<Ctx, 's' | 
         <label className="amount-input"><span>$</span><input inputMode="decimal" aria-label="Amount" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></label>
         <p className="flow-note">Dollars leave Tempo now{s.bank.mode === 'simulated' ? ' (the bank leg is simulated)' : ' and Bridge pays your bank'}.</p>
       </div>
-      <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !n || n > cash} aria-label={`Cash out ${money(n)} to ${bank.bankName}`} onClick={() => run('cashout', () => api.cashOut(bank.id, n), (r: any) => { setDone({ n, receipt: r.receipt, to: `${bank.bankName} ••${bank.last4}`, arrives: r.transfer.arrives }); toast({ text: `${money(n)} on its way to ${bank.bankName}`, tone: 'good', receipt: r.receipt }) })}>{busy === 'cashout' ? '…' : <Arrow />}</button></div>
+      <ActionHint>{amountIssue(amount, cash)}</ActionHint><div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !!amountIssue(amount, cash)} aria-label={`Cash out ${money(n)} to ${bank.bankName}`} onClick={() => run('cashout', () => api.cashOut(bank.id, n), (r: any) => { setDone({ n, receipt: r.receipt, to: `${bank.bankName} ••${bank.last4}`, arrives: r.transfer.arrives }); toast({ text: `${money(n)} on its way to ${bank.bankName}`, tone: 'good', receipt: r.receipt }) })}>{busy === 'cashout' ? '…' : <Arrow />}</button></div>
     </div>
   )
 }
@@ -890,7 +917,7 @@ function ShopFlow({ s, me, busy, run, toast, close }: Pick<Ctx, 's' | 'busy' | '
         <label className="amount-input"><span>$</span><input inputMode="decimal" aria-label="Amount" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></label>
       </div>
       <p className="flow-note">The card network asks Teampot. Teampot checks your Tempo card: is {shop.label} on it, and is there room under the limit?</p>
-      <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !n} aria-label={`Tap $${n} at ${shop.merchant}`} onClick={tap}>{busy === 'tap' ? '…' : <IconCard />}</button></div>
+      <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !positiveAmount(amount)} aria-label={`Tap $${n} at ${shop.merchant}`} onClick={tap}>{busy === 'tap' ? '…' : <IconCard />}</button></div>
     </div>
   )
 }
@@ -943,7 +970,7 @@ function AgentCreate({ s, potId, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'r
       <div className="two"><label>Name<input value={name} onChange={(e) => setName(e.target.value)} /></label><label>What it does<input value={purpose} onChange={(e) => setPurpose(e.target.value)} /></label></div>
       <label>Monthly limit<div className="money-in"><span>$</span><input inputMode="decimal" value={cap} onChange={(e) => setCap(e.target.value.replace(/[^\d.]/g, ''))} /></div></label>
       <fieldset className="check-grid"><legend>Vendors it can pay</legend>{s.vendors.map((v) => <label key={v.id} className="check"><input type="checkbox" checked={vendorIds.includes(v.id)} onChange={() => toggle(v.id)} />{v.name}</label>)}</fieldset>
-      <button className="btn primary" disabled={!!busy || !name || !Number(cap) || !vendorIds.length}>{busy === 'agent' ? 'Signing the card…' : 'Give it a card'}</button>
+      <button className="btn primary" disabled={!!busy || !name.trim() || !purpose.trim() || !positiveAmount(cap) || !vendorIds.length}>{busy === 'agent' ? 'Signing the card…' : 'Give it a card'}</button>
     </form>
   )
 }
@@ -957,7 +984,7 @@ function QuarterPanel({ s, potId, busy, run, toast }: Pick<Ctx, 's' | 'busy' | '
       <SectionTitle title="Close the quarter" sub="Unspent card room becomes savings. Share part of it as kudos, paid from the department in one payment." />
       <div className="inline-form">
         <label className="grow">Share of savings<div className="money-in"><input inputMode="numeric" value={share} onChange={(e) => setShare(e.target.value.replace(/[^\d]/g, ''))} /><span style={{ paddingRight: 12 }}>%</span></div></label>
-        <button className="btn small primary" disabled={!!busy || !Number(share)} onClick={() => run('close', () => api.closeQuarter(potId, Number(share)), (r: any) => toast({ text: `Quarter closed · ${money(r.pool)} kudos split`, tone: 'good', receipt: r.tx ? `https://explore.testnet.tempo.xyz/tx/${r.tx}` : undefined }))}>Close quarter</button>
+        <ActionHint>{!percentValid(share) ? "Choose a percentage from 0 to 100." : null}</ActionHint><button className="btn small primary" disabled={!!busy || !percentValid(share)} onClick={() => run('close', () => api.closeQuarter(potId, Number(share)), (r: any) => toast({ text: `Quarter closed · ${money(r.pool)} kudos split`, tone: 'good', receipt: r.tx ? `https://explore.testnet.tempo.xyz/tx/${r.tx}` : undefined }))}>Close quarter</button>
       </div>
       {closes.length > 0 && <ul className="rows">{closes.slice(0, 3).map((q) => <li key={q.id}><span className="grow"><b>{money(q.savings)} saved</b><small>{q.sharePct}% shared · {money(q.perPerson, true)} each · {ago(q.at)}</small></span><span className="num">{money(q.pool)}</span></li>)}</ul>}
     </section>
@@ -977,7 +1004,7 @@ function KudosPanel({ s, me, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' 
       <SectionTitle title="Kudos" sub={`${money(left, true)} from your team's savings to give a teammate.`} />
       <div className="two"><label>Teammate<select value={to} onChange={(e) => setTo(e.target.value)}>{mates.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label>Amount<div className="money-in"><span>$</span><input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div></label></div>
       <label>Note<input value={note} onChange={(e) => setNote(e.target.value)} /></label>
-      <button className="btn primary" disabled={!!busy || !to || !Number(amount)} onClick={() => run('kudos', () => api.kudos({ fromPersonId: me.id, toPersonId: to, amount: Number(amount), note }), () => toast({ text: 'Kudos sent', tone: 'good' }))}>Send kudos</button>
+      <ActionHint>{!to ? "Choose a teammate." : amountIssue(amount, left)}</ActionHint><button className="btn primary" disabled={!!busy || !mates.some((p) => p.id === to && p.id !== me.id) || !!amountIssue(amount, left)} onClick={() => run('kudos', () => api.kudos({ fromPersonId: me.id, toPersonId: to, amount: Number(amount), note }), () => toast({ text: 'Kudos sent', tone: 'good' }))}>Send kudos</button>
     </section>
   )
 }
@@ -986,36 +1013,98 @@ function Directory({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'to
   return <ul className="rows">{s.people.filter((p) => p.role !== 'contractor' && !p.removed).map((p) => <li key={p.id}><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title} · {p.team || 'Finance'}</small></span>{p.salary && <span className="num">{money(p.salary)}</span>}{p.role !== 'admin' && p.id !== s.auth?.personId && (s.auth?.role === 'admin' || p.role !== 'lead') && <button className="btn small ghost" disabled={!!busy} onClick={() => run('remove' + p.id, () => api.removePerson(p.id), () => toast({ text: `${p.name.split(' ')[0]} removed`, tone: 'good' }))}>Remove</button>}</li>)}</ul>
 }
 
+function PayrollPrivacyControl({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'>) {
+  const [publicAck, setPublicAck] = useState(false)
+  const privateRequired = s.privacy?.mode === 'confidential'
+  return <div className="policy-box" data-testid="payroll-privacy">
+    <p className="eyebrow">Payroll privacy · {privateRequired ? 'Waiting for access' : 'Public payments'}</p>
+    <p>{s.privacy?.message}</p>
+    <p className="muted">{s.privacy?.visibility}</p>
+    {privateRequired ? <>
+      <label className="policy-check"><input type="checkbox" checked={publicAck} onChange={(e) => setPublicAck(e.target.checked)} />I understand public payments expose payroll details on the blockchain.</label>
+      <button className="btn small ghost" disabled={!!busy || !publicAck} onClick={() => run('privacy', () => api.payrollPrivacy('public', publicAck), () => { setPublicAck(false); toast({ text: 'Public payroll enabled', tone: 'warn' }) })}>Use public payroll</button>
+    </> : <button className="btn small ghost" disabled={!!busy} onClick={() => run('privacy', () => api.payrollPrivacy('confidential'), () => toast({ text: 'Confidential payroll required. Payments paused pending Zone access.', tone: 'warn' }))}>Require confidential payroll</button>}
+  </div>
+}
+
+function SurplusEarn({ s, scope, label, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { scope: string; label: string }) {
+  const earn = scope === 'company' ? s.earn?.treasury : s.earn?.byPot[scope]
+  const finance = s.auth?.role === 'admin'
+  const manager = finance || s.auth?.role === 'lead'
+  const [open, setOpen] = useState(false)
+  const [reserve, setReserve] = useState(String(earn?.policy.cashReserve ?? 0))
+  const [enabled, setEnabled] = useState(earn?.policy.enabled ?? false)
+  const [ack, setAck] = useState(false)
+  const [amount, setAmount] = useState('100')
+  useEffect(() => { setReserve(String(earn?.policy.cashReserve ?? 0)); setEnabled(earn?.policy.enabled ?? false); setAck(false) }, [earn?.policy.updatedAt])
+  if (!earn || !manager) return null
+  const n = Number(amount)
+  const valid = Number.isFinite(n) && n > 0 && Math.round(n * 100) / 100 === n
+  const move = (action: 'deposit' | 'withdraw') => run(`earn-${scope}`, () => scope === 'company' ? api.treasuryEarn(action, n) : api.potEarn(scope, action, n), (r: any) => toast({ text: r.mode === 'simulated' ? 'Simulation saved — no money moved' : action === 'deposit' ? 'Surplus deposit confirmed' : 'Withdrawal confirmed', tone: r.mode === 'simulated' ? 'warn' : 'good', receipt: r.receipt }))
+  return <section className="policy-box surplus-earn" aria-label={`${label} surplus earn`}>
+    <div className="level-row"><div className="grow"><p className="eyebrow">{label} surplus earn · {earn.mode === 'real' ? 'Vault connected' : 'Simulation'}</p><b>{earn.balance === null ? 'Balance unavailable' : `${money(earn.balance)} ${earn.mode === 'real' ? 'invested' : 'simulated'}`}</b></div><button className="btn small ghost" onClick={() => setOpen(!open)}>{open ? 'Close earn' : 'Manage earn'}</button></div>
+    <p className="muted">{money(earn.protectedCash)} kept out of Earn · {money(earn.available)} available surplus</p>
+    {earn.error && <p role="alert">{earn.error}</p>}
+    {open && <div className="earn-details">
+      <p>{s.earn.risk}</p>
+      {earn.mode === 'simulated' && <p className="muted">Testnet planning only. No money moves and no returns accrue.</p>}
+      <dl className="earn-breakdown"><div><dt>Next payroll</dt><dd>{money(earn.payroll)}</dd></div><div><dt>Open invoices and requests</dt><dd>{money(earn.invoices + earn.requests)}</dd></div><div><dt>Extra cash reserve</dt><dd>{money(earn.policy.cashReserve)}</dd></div><div><dt>Fee buffer</dt><dd>{money(earn.feeReserve)}</dd></div><div><dt>Withdrawal estimate (idle funds)</dt><dd>{earn.withdrawable === null ? 'Unavailable' : money(earn.withdrawable)}</dd></div></dl>
+      {finance && <form className="form" onSubmit={(e) => { e.preventDefault(); run(`policy-${scope}`, () => api.earnPolicy(scope, enabled, Number(reserve), ack), () => toast({ text: 'Reserve policy saved', tone: 'good' })) }}>
+        <label>Extra cash reserve<input aria-label={`${label} cash reserve`} type="number" min="0" step="0.01" required value={reserve} onChange={(e) => setReserve(e.target.value)} /></label>
+        <label className="policy-check"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />Allow surplus deposits</label>
+        {enabled && <label className="policy-check"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />I understand returns and withdrawal availability are not guaranteed.</label>}
+        <button className="btn small ghost" disabled={!!busy || (enabled && !ack) || reserve.trim() === '' || !Number.isFinite(Number(reserve)) || Number(reserve) < 0}>Save reserve policy</button>
+      </form>}
+      {!earn.policy.enabled && <p className="muted">Deposits paused. Finance must approve a reserve policy. Existing positions can still be withdrawn.</p>}
+      <div className="inline-form"><div className="money-in"><span>$</span><input aria-label={`${label} earn amount`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
+        <button className="btn small primary" disabled={!!busy || !valid || !!earn.error || !earn.policy.enabled || n > earn.available} onClick={() => move('deposit')}>{earn.mode === 'real' ? 'Deposit surplus' : 'Simulate deposit'}</button>
+        <button className="btn small ghost" disabled={!!busy || !valid || !!earn.error || n > (earn.withdrawable ?? 0)} onClick={() => move('withdraw')}>{earn.mode === 'real' ? 'Withdraw' : 'Simulate withdrawal'}</button>
+      </div>
+    </div>}
+  </section>
+}
+
 function PaydayTask({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'>) {
   const staff = s.people.filter((p) => p.salary && !p.removed)
-  const payroll = staff.reduce((a, p) => a + (p.salary || 0), 0)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const selected = staff.filter((p) => selectedIds.includes(p.id))
+  const payroll = selected.reduce((a, p) => a + (p.salary || 0), 0)
   const [confirmPayday, setConfirmPayday] = useState(false)
   const [paydayParty, setPaydayParty] = useState<{ total: number; count: number; receipt?: string } | null>(null)
   const [nextDate, setNextDate] = useState(s.nextPayday)
   useEffect(() => setNextDate(s.nextPayday), [s.nextPayday])
-  return (
-    <section className="panel payday-panel">
-      <SectionTitle title="Review payday" sub="Preview the batch, then confirm once." />
-      <div className="date-row">
-        <label>Next payday<input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} /></label>
-        <button className="btn ghost" disabled={!!busy || nextDate === s.nextPayday} onClick={() => run('paydate', () => api.setPayday(nextDate), () => toast({ text: 'Next payday saved', tone: 'good' }))}>Save date</button>
-      </div>
-      <ul className="rows">{staff.map((p) => <li key={p.id}><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title}</small></span><span className="num">{money(p.salary!)}</span></li>)}</ul>
-      <div className="card-f"><span className="muted">{plural(staff.length, 'person', 'people')} · {money(payroll)} total</span><button className="btn primary" disabled={!!busy} onClick={() => setConfirmPayday(true)}>Run payday</button></div>
-      {confirmPayday && <ConfirmSheet title="Run payday?" amount={money(payroll)} detail={`${plural(staff.length, 'person', 'people')} · ${s.nextPayday}`} busy={busy === 'payday'} actionText="Confirm with Face ID" onCancel={() => setConfirmPayday(false)} onConfirm={() => run('payday', api.payday, (r: any) => { setConfirmPayday(false); setPaydayParty({ total: r.total, count: r.count, receipt: `https://explore.testnet.tempo.xyz/tx/${r.tx}` }); toast({ text: `Payday complete · ${plural(r.count, 'person', 'people')}`, tone: 'good', receipt: `https://explore.testnet.tempo.xyz/tx/${r.tx}` }) })} face />}
-      {paydayParty && <PaydaySuccessSheet total={paydayParty.total} count={paydayParty.count} receipt={paydayParty.receipt} close={() => setPaydayParty(null)} />}
-    </section>
-  )
+  const issue = s.privacy?.blocked ? 'Public payday is paused by your privacy setting.' : selected.length < 2 ? 'Select at least 2 people to run payday.' : payroll > s.company.balance ? 'Add money to the treasury to cover this payday.' : ''
+  const selectionKey = selected.map((p) => `${p.id}:${p.salary}`).join('|')
+  useEffect(() => setConfirmPayday(false), [selectionKey, s.nextPayday, s.privacy?.blocked])
+  const toggle = (id: string) => setSelectedIds((ids) => ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id])
+  return <section className="panel payday-panel">
+    <SectionTitle title="Review payday" sub="Choose who gets paid, then confirm once." />
+    <PayrollPrivacyControl s={s} busy={busy} run={run} toast={toast} />
+    <div className="date-row">
+      <label>Next payday<input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} /></label>
+      <button className="btn ghost" disabled={!!busy || !nextDate || nextDate === s.nextPayday} onClick={() => run('paydate', () => api.setPayday(nextDate), () => toast({ text: 'Next payday saved', tone: 'good' }))}>Save date</button>
+    </div>
+    <div className="payday-selection-head"><span>{selected.length} of {staff.length} selected</span><button type="button" className="btn small ghost" disabled={!!busy || !staff.length} onClick={() => setSelectedIds(selected.length === staff.length ? [] : staff.map((p) => p.id))}>{selected.length === staff.length && staff.length ? 'Clear selection' : 'Select all'}</button></div>
+    <ul className="rows payroll-options">{staff.map((p) => <li key={p.id} className={selectedIds.includes(p.id) ? 'is-selected' : ''}><label><input type="checkbox" checked={selectedIds.includes(p.id)} disabled={!!busy} onChange={() => toggle(p.id)} aria-label={`Pay ${p.name}`} /><Avatar name={p.name} /><span className="grow"><b>{p.name}</b><small>{p.title}</small></span><span className="num">{money(p.salary!)}</span></label></li>)}</ul>
+    {!staff.length && <Empty text="Add people with a salary before running payday." />}
+    <div className="payday-summary" data-ready={!issue}>
+      <div className="recipient-stack" aria-hidden="true">{selected.slice(0, 4).map((p) => <span key={p.id}><Avatar name={p.name} /></span>)}{selected.length > 4 && <span className="recipient-extra">+{selected.length - 4}</span>}</div>
+      <div className="card-f"><span className="muted" aria-live="polite">{plural(selected.length, 'person', 'people')} · {money(payroll)} total</span><button className="btn primary" aria-describedby="payday-requirement" disabled={!!busy || !!issue} onClick={() => setConfirmPayday(true)}>Run payday</button></div>
+      <p className="action-hint" id="payday-requirement" role="status">{issue || 'Ready. Only the selected people will be paid.'}</p>
+    </div>
+    {confirmPayday && !issue && <ConfirmSheet title="Run payday?" amount={money(payroll)} detail={<>{selected.map((p) => p.name).join(', ')}<br />{s.nextPayday}</>} busy={!!busy} actionText="Confirm with Face ID" onCancel={() => setConfirmPayday(false)} onConfirm={() => { if (issue || busy) return; run('payday', () => api.payday(selected.map((p) => p.id)), (r: any) => { setConfirmPayday(false); setSelectedIds([]); setPaydayParty({ total: r.total, count: r.count, receipt: `https://explore.testnet.tempo.xyz/tx/${r.tx}` }); toast({ text: `Payday complete · ${plural(r.count, 'person', 'people')}`, tone: 'good' }) }) }} face />}
+    {paydayParty && <PaydaySuccessSheet total={paydayParty.total} count={paydayParty.count} receipt={paydayParty.receipt} close={() => setPaydayParty(null)} />}
+  </section>
 }
 
 function InvoiceComposer({ busy, run, toast, me }: Pick<Ctx, 's' | 'busy' | 'run' | 'toast'> & { me: Person }) {
   const [amount, setAmount] = useState('1800')
   const [desc, setDesc] = useState('Q4 campaign illustrations')
   return (
-    <form className="form" onSubmit={(e) => { e.preventDefault(); run('inv', () => api.invoice({ contractorId: me.id, amount: Number(amount), description: desc }), () => toast({ text: 'Invoice sent', tone: 'good' })) }}>
+    <form className="form" onSubmit={(e) => { e.preventDefault(); if (busy || !positiveAmount(amount) || !desc.trim()) return; run('inv', () => api.invoice({ contractorId: me.id, amount: Number(amount), description: desc }), () => toast({ text: 'Invoice sent', tone: 'good' })) }}>
       <label>What for<input value={desc} onChange={(e) => setDesc(e.target.value)} required /></label>
       <label>Amount<div className="money-in"><span>$</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} required /></div></label>
-      <button className="btn primary" disabled={!!busy || !Number(amount)}>{busy === 'inv' ? 'Sending...' : `Send invoice · ${money(Number(amount) || 0)}`}</button>
+      <ActionHint>{!desc.trim() ? "Describe the work before sending your invoice." : amountIssue(amount)}</ActionHint><button className="btn primary" disabled={!!busy || !positiveAmount(amount) || !desc.trim()}>{busy === 'inv' ? 'Sending...' : `Send invoice · ${money(Number(amount) || 0)}`}</button>
     </form>
   )
 }
@@ -1026,10 +1115,10 @@ function EarnCard({ me, entry, busy, run, toast }: Pick<Ctx, 'busy' | 'run' | 't
     <section className="card flat earn-card">
       <div className="card-h"><h3>Earning</h3><span className="pill">{entry?.mode === 'real' ? 'Live' : 'Simulated'}</span></div>
       <b className="big-money">{money(entry?.balance ?? 0)}</b>
-      <p className="muted">{entry?.mode === 'real' ? 'Your idle cash is earning and stays spendable.' : "Illustrative for now: earning goes live when Tempo's earning vaults open on the test network."}</p>
-      <form className="form compact-form" onSubmit={(e) => { e.preventDefault(); run('earn', () => api.earnDeposit({ personId: me.id, amount: Number(amount) }), (r: any) => toast({ text: r.mode === 'real' ? 'Earning deposit confirmed' : 'Earning is simulated for now', tone: r.mode === 'real' ? 'good' : 'warn' })) }}>
+      <p className="muted">{entry?.mode === 'real' ? 'Your money is invested. Withdrawals depend on vault liquidity and must confirm before you can spend.' : "Illustrative only. This personal earn demo does not move money or accrue returns."}</p>
+      <form className="form compact-form" onSubmit={(e) => { e.preventDefault(); if (busy || amountIssue(amount, me.balance)) return; run('earn', () => api.earnDeposit({ personId: me.id, amount: Number(amount) }), (r: any) => toast({ text: r.mode === 'real' ? 'Earning deposit confirmed' : 'Earning is simulated for now', tone: r.mode === 'real' ? 'good' : 'warn' })) }}>
         <label>Move idle cash<div className="money-in"><span>$</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div></label>
-        <button className="btn ghost" disabled={!!busy || !Number(amount)}>Move to Earning</button>
+        <ActionHint>{amountIssue(amount, me.balance)}</ActionHint><button className="btn ghost" disabled={!!busy || !!amountIssue(amount, me.balance)}>Move to Earning</button>
       </form>
     </section>
   )
@@ -1045,6 +1134,9 @@ function InvestCard({ s, me, inv, busy, run, toast }: Pick<Ctx, 's' | 'busy' | '
   const selected = s.stocks.find((x) => x.id === stockId) ?? s.stocks[0]
   const delayed = selected?.delayed ? 'Delayed prices' : 'Live prices'
   const positions = inv?.positions ?? []
+  const buyIssue = !selected ? 'Choose a stock.' : amountIssue(cash, me.balance)
+  const heldShares = positions.find((p) => p.stockId === sellStock)?.shares ?? 0
+  const sellIssue = heldShares <= 0 ? 'You do not own shares of this stock yet.' : !(Number.isFinite(Number(sellShares)) && Number(sellShares) > 0) ? 'Enter a valid number of shares.' : Number(sellShares) > heldShares ? `You own ${heldShares} shares. Choose that amount or less.` : ''
   const worth = positions.reduce((a, p) => a + p.value, 0)
   return (
     <section className="card flat invest-card">
@@ -1058,18 +1150,18 @@ function InvestCard({ s, me, inv, busy, run, toast }: Pick<Ctx, 's' | 'busy' | '
       <div className="segmented" role="tablist" aria-label="Invest action">
         {([['buy', 'Buy'], ['sell', 'Sell'], ['payday', 'Each payday']] as const).map(([id, label]) => <button key={id} role="tab" aria-selected={mode === id} className={mode === id ? 'on' : ''} onClick={() => setMode(id)}>{label}</button>)}
       </div>
-      {mode === 'buy' && <form className="form compact-form trade-form" onSubmit={(e) => { e.preventDefault(); run('trade-buy', () => api.trade({ personId: me.id, stockId, side: 'buy', cashAmount: Number(cash) }), (r: any) => toast({ text: `Bought ${r.shares} shares`, tone: 'good', receipt: r.receipt })) }}>
+      {mode === 'buy' && <form className="form compact-form trade-form" onSubmit={(e) => { e.preventDefault(); if (busy || buyIssue) return; run('trade-buy', () => api.trade({ personId: me.id, stockId, side: 'buy', cashAmount: Number(cash) }), (r: any) => toast({ text: `Bought ${r.shares} shares`, tone: 'good', receipt: r.receipt })) }}>
         <div className="two"><label>Stock<select value={stockId} onChange={(e) => setStockId(e.target.value as StockId)}>{s.stocks.map((st) => <option key={st.id} value={st.id}>{st.display} · {money(st.lastPrice, true)}</option>)}</select></label><label>Amount<div className="money-in"><span>$</span><input inputMode="decimal" value={cash} onChange={(e) => setCash(e.target.value.replace(/[^\d.]/g, ''))} /></div></label></div>
-        <button className="btn primary" disabled={!!busy || !Number(cash)}>Buy {money(Number(cash) || 0)}</button>
+        <ActionHint>{buyIssue}</ActionHint><button className="btn primary" disabled={!!busy || !!buyIssue}>Buy {money(Number(cash) || 0)}</button>
       </form>}
-      {mode === 'sell' && <form className="form compact-form trade-form" onSubmit={(e) => { e.preventDefault(); run('trade-sell', () => api.trade({ personId: me.id, stockId: sellStock, side: 'sell', shares: Number(sellShares) }), (r: any) => toast({ text: `Sold ${r.shares} shares`, tone: 'good', receipt: r.receipt })) }}>
+      {mode === 'sell' && <form className="form compact-form trade-form" onSubmit={(e) => { e.preventDefault(); if (busy || sellIssue) return; run('trade-sell', () => api.trade({ personId: me.id, stockId: sellStock, side: 'sell', shares: Number(sellShares) }), (r: any) => toast({ text: `Sold ${r.shares} shares`, tone: 'good', receipt: r.receipt })) }}>
         <div className="two"><label>Stock<select value={sellStock} onChange={(e) => setSellStock(e.target.value as StockId)}>{(positions.length ? positions : s.stocks.map((st) => ({ stockId: st.id }))).map((p: any) => { const st = s.stocks.find((x) => x.id === p.stockId)!; return <option key={st.id} value={st.id}>{st.display}</option> })}</select></label><label>Shares<input inputMode="decimal" value={sellShares} onChange={(e) => setSellShares(e.target.value.replace(/[^\d.]/g, ''))} /></label></div>
-        <button className="btn primary" disabled={!!busy || !Number(sellShares)}>Sell</button>
+        <ActionHint>{sellIssue}</ActionHint><button className="btn primary" disabled={!!busy || !!sellIssue}>Sell</button>
       </form>}
-      {mode === 'payday' && <form className="form compact-form" onSubmit={(e) => { e.preventDefault(); run('election', () => api.election({ personId: me.id, stockId, percent: Number(percent) }), () => toast({ text: 'Payday investing saved', tone: 'good' })) }}>
+      {mode === 'payday' && <form className="form compact-form" onSubmit={(e) => { e.preventDefault(); if (busy || !percentValid(percent) || !selected) return; run('election', () => api.election({ personId: me.id, stockId, percent: Number(percent) }), () => toast({ text: 'Payday investing saved', tone: 'good' })) }}>
         <p className="hint">A share of every payday buys this stock automatically.</p>
         <div className="two"><label>Share of payday<div className="money-in"><input inputMode="numeric" value={percent} onChange={(e) => setPercent(e.target.value.replace(/[^\d.]/g, ''))} /><span style={{ paddingRight: 12 }}>%</span></div></label><label>Stock<select value={stockId} onChange={(e) => setStockId(e.target.value as StockId)}>{s.stocks.map((st) => <option key={st.id} value={st.id}>{st.display}</option>)}</select></label></div>
-        <button className="btn primary" disabled={!!busy}>Save</button>
+        <ActionHint>{!percentValid(percent) ? "Choose a percentage from 0 to 100. Use 0 to turn this off." : null}</ActionHint><button className="btn primary" disabled={!!busy || !percentValid(percent) || !selected}>Save</button>
       </form>}
     </section>
   )
@@ -1087,7 +1179,7 @@ function InviteAccept({ token, toast }: { token: string; toast: (t: Omit<Toast, 
       const cred = await createInvitePasskey(info.person.name)
       await api.acceptInvite(token, { id: cred.id, publicKey: cred.publicKey as `0x${string}` })
       toast({ text: 'Face ID is set up', tone: 'good' })
-      location.href = '/app'
+      location.href = '/demo'
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -1170,8 +1262,8 @@ function PayFlow({ s, me, busy, run, toast, close }: Pick<Ctx, 's' | 'busy' | 'r
       <div className="vendor-chips" role="radiogroup" aria-label="Vendors on your card">{onCard.map((v) => <button key={v.id} role="radio" aria-checked={vendorId === v.id} className={`vchip ${vendorId === v.id ? 'on' : ''}`} onClick={() => setVendorId(v.id)}>{v.name}</button>)}</div>
       <p className="eyebrow">Not on your card · needs {head}</p>
       <div className="vendor-chips" role="radiogroup" aria-label="Vendors that need approval">{offCard.map((v) => <button key={v.id} role="radio" aria-checked={vendorId === v.id} className={`vchip off ${vendorId === v.id ? 'on' : ''}`} onClick={() => setVendorId(v.id)}>{v.name}</button>)}</div>
-      <p className={`flow-note ${onList && !tight ? '' : 'warn'}`}>{!onList ? `${vendor.name} isn't on your card, so Tempo will refuse it and ${head} gets a request instead.` : tight ? `Tempo counts a tiny network fee against your limit, so you can pay up to ${money(maxPay, true)} right now.` : 'Tempo checks your limit and the vendor list when you pay.'}</p>
-      <div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !n} aria-label={`Pay ${money(n)} to ${vendor.name}`} onClick={pay}>{busy === 'spend' ? '…' : <FaceIcon />}</button></div>
+      <p className={`flow-note ${onList && !tight ? '' : 'warn'}`}>{!onList ? `${vendor.name} isn't on your card, so Tempo will refuse it and ${head} gets a request instead.` : tight ? `Tempo counts a tiny network fee against your limit, so you can pay up to ${money(maxPay, true)} right now.` : n > maxPay ? `This is over your card limit. Send it to ${head} for approval.` : 'Tempo checks your limit and the vendor list when you pay.'}</p>
+      <ActionHint>{!positiveAmount(amount) ? amountIssue(amount) : !onList || n > maxPay ? `Continue to request ${head}’s approval.` : null}</ActionHint><div className="flow-actions"><button className="btn pale" onClick={close}>Cancel</button><button className="round-btn" disabled={!!busy || !positiveAmount(amount)} aria-label={`${!onList || n > maxPay ? 'Request approval for' : 'Pay'} ${money(n)} to ${vendor.name}`} onClick={pay}>{busy === 'spend' ? '…' : <FaceIcon />}</button></div>
     </div>
   )
 }
@@ -1191,7 +1283,7 @@ function PerkCard({ s, perk, me, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'r
       <div className="pot-head"><small>{perk.name} perk</small><b>{money(Math.round(left))} <span>left this {perk.periodLabel}</span></b><Bar used={perk.cap - left} cap={perk.cap} color={perk.color} /></div>
       <form className="form" onSubmit={(e) => { e.preventDefault(); run('perk' + perk.id, () => api.spend({ personId: me.id, vendorId, amount: Number(amount), note: perk.name, source: 'perk', perkId: perk.id }), (r: any) => toast({ text: `${perk.name} covered at ${vendor.name}`, tone: 'good', receipt: r.receipt })) }}>
         <div className="two"><label>Place<select value={vendorId} onChange={(e) => setVendorId(e.target.value)}>{perk.vendorIds.map((id) => { const v = s.vendors.find((x) => x.id === id)!; return <option key={id} value={id}>{v.name}</option> })}</select></label><label>Amount<div className="money-in"><span>$</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div></label></div>
-        <button className="btn primary" disabled={!!busy || !Number(amount)}>Use {perk.name}</button>
+        <button className="btn primary" disabled={!!busy || !positiveAmount(amount)}>Use {perk.name}</button>
       </form>
     </div>
   )
@@ -1226,6 +1318,8 @@ function Invoices({ s, busy, run, toast, items, canPay }: Pick<Ctx, 's' | 'busy'
     <ul className="rows">
       {list.map((i) => {
         const c = s.people.find((x) => x.id === i.contractorId)!
+        const available = c.team ? s.controls.departments.find((d) => d.id === c.team)?.balance : s.company.balance
+        const paymentIssue = available == null ? 'Balance unavailable. Refresh before paying.' : i.amount > available ? 'Add money to this department before paying.' : ''
         return (
           <li key={i.id}>
             <Avatar name={c.name} />
@@ -1238,7 +1332,7 @@ function Invoices({ s, busy, run, toast, items, canPay }: Pick<Ctx, 's' | 'busy'
                 : canPay && s.auth?.role === 'lead' && i.amount > s.company.financeApprovalThreshold
                   ? <span className="pill">Finance pays this</span>
                   : canPay
-                  ? <><button className="btn small ghost" disabled={!!busy} onClick={() => setDecline(i.id)}>Decline</button><button className="btn small primary" disabled={!!busy} onClick={() => run('inv' + i.id, () => api.payInvoice(i.id), (r: any) => toast({ text: `${c.name.split(' ')[0]} paid ${money(i.amount)} · in ${((r.paidMs || 0) / 1000).toFixed(1)}s`, tone: 'good', receipt: `https://explore.testnet.tempo.xyz/tx/${r.tx}` }))}>{busy === 'inv' + i.id ? 'Paying…' : 'Approve & pay'}</button></>
+                  ? <><button className="btn small ghost" disabled={!!busy} onClick={() => setDecline(i.id)}>Decline</button><button className="btn small primary" disabled={!!busy || !!paymentIssue} title={paymentIssue || undefined} onClick={() => run('inv' + i.id, () => api.payInvoice(i.id), (r: any) => toast({ text: `${c.name.split(' ')[0]} paid ${money(i.amount)} · in ${((r.paidMs || 0) / 1000).toFixed(1)}s`, tone: 'good', receipt: `https://explore.testnet.tempo.xyz/tx/${r.tx}` }))}>{busy === 'inv' + i.id ? 'Paying…' : 'Approve & pay'}</button><ActionHint>{paymentIssue}</ActionHint></>
                   : <span className="pill">Waiting</span>}
             {decline === i.id && <ConfirmSheet title="Decline invoice?" amount={i.number} detail={<label>Reason<input value={reason} onChange={(e) => setReason(e.target.value)} /></label>} actionText="Decline" busy={busy === 'decline'} onCancel={() => setDecline(null)} onConfirm={() => run('decline', () => api.declineInvoice(i.id, reason), () => { setDecline(null); toast({ text: 'Invoice declined', tone: 'good' }) })} />}
           </li>
@@ -1253,13 +1347,14 @@ function CardRules({ s, potId, busy, run, toast, onDone }: Pick<Ctx, 's' | 'busy
   const [cap, setCap] = useState(String(pot.perPersonCap))
   const [vendorIds, setVendorIds] = useState<string[]>(pot.vendorIds)
   const toggle = (id: string) => setVendorIds((xs) => xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id])
+  const unchanged = Number(cap) === pot.perPersonCap && [...vendorIds].sort().join('|') === [...pot.vendorIds].sort().join('|')
   const signer = s.controls.departments.find((d) => d.id === potId)?.head?.name.split(' ')[0]
   return (
-    <form className="form" onSubmit={(e) => { e.preventDefault(); run('rules', () => api.updatePot(potId, { perPersonCap: Number(cap), vendorIds }), (r: any) => { toast({ text: `${plural(r.reissued, 'card', 'cards')} re-issued with the new rules`, tone: 'good' }); onDone?.() }) }}>
+    <form className="form" onSubmit={(e) => { e.preventDefault(); if (busy || unchanged || !positiveAmount(cap) || !vendorIds.length) return; run('rules', () => api.updatePot(potId, { perPersonCap: Number(cap), vendorIds }), (r: any) => { toast({ text: `${plural(r.reissued, 'card', 'cards')} re-issued with the new rules`, tone: 'good' }); onDone?.() }) }}>
       <p className="hint">Saving signs new cards for everyone in {pot.team}{signer ? ` with ${signer}'s head key` : ''}. Tempo enforces the new rules on the next payment.</p>
       <label>Monthly limit per person<div className="money-in"><span>$</span><input inputMode="decimal" value={cap} onChange={(e) => setCap(e.target.value.replace(/[^\d.]/g, ''))} /></div></label>
       <fieldset className="check-grid"><legend>Approved vendors</legend>{s.vendors.map((v) => <label key={v.id} className="check"><input type="checkbox" checked={vendorIds.includes(v.id)} onChange={() => toggle(v.id)} />{v.name}</label>)}</fieldset>
-      <button className="btn primary" disabled={!!busy || !Number(cap) || !vendorIds.length}>{busy === 'rules' ? 'Signing cards…' : 'Save and re-issue cards'}</button>
+      <ActionHint>{unchanged ? "Your current rules are saved." : !vendorIds.length ? "Select at least one approved vendor." : amountIssue(cap)}</ActionHint><button className="btn primary" disabled={!!busy || unchanged || !positiveAmount(cap) || !vendorIds.length}>{busy === 'rules' ? 'Signing cards…' : 'Save and re-issue cards'}</button>
     </form>
   )
 }
@@ -1269,10 +1364,10 @@ function TopUpRequest({ s, potId, busy, run, toast, onDone }: Pick<Ctx, 's' | 'b
   const [note, setNote] = useState('Team offsite')
   const pot = s.pots.find((p) => p.id === potId)!
   return (
-    <form className="form" onSubmit={(e) => { e.preventDefault(); run('topup', () => api.topupRequest(potId, Number(amount), note), () => { toast({ text: 'Sent to Finance', tone: 'good' }); onDone?.() }) }}>
+    <form className="form" onSubmit={(e) => { e.preventDefault(); if (busy || !positiveAmount(amount) || !note.trim()) return; run('topup', () => api.topupRequest(potId, Number(amount), note), () => { toast({ text: 'Sent to Finance', tone: 'good' }); onDone?.() }) }}>
       <p className="hint">Only Finance can move money into {pot.team}. They'll see this on their home screen.</p>
       <div className="two"><label>Amount<div className="money-in"><span>$</span><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} /></div></label><label>What for<input value={note} maxLength={80} onChange={(e) => setNote(e.target.value)} /></label></div>
-      <button className="btn primary" disabled={!!busy || !Number(amount)}>Send request</button>
+      <ActionHint>{!note.trim() ? "Tell Finance what the money is for." : amountIssue(amount)}</ActionHint><button className="btn primary" disabled={!!busy || !positiveAmount(amount) || !note.trim()}>Send request</button>
     </form>
   )
 }
@@ -1288,13 +1383,13 @@ function InvitePerson({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 
   const [salary, setSalary] = useState('3600')
   const [link, setLink] = useState('')
   return (
-    <form className="form" onSubmit={(e) => { e.preventDefault(); run('invite', () => api.invite({ name, role, title, team, salary: isFinance && role === 'employee' ? Number(salary) : undefined }), (r: any) => { setLink(`${location.origin}${r.inviteLink}`); toast({ text: 'Invite link ready', tone: 'good' }) }) }}>
+    <form className="form" onSubmit={(e) => { e.preventDefault(); if (busy || !name.trim() || !title.trim() || !team || (isFinance && role === 'employee' && !positiveAmount(salary))) return; run('invite', () => api.invite({ name, role, title, team, salary: isFinance && role === 'employee' ? Number(salary) : undefined }), (r: any) => { setLink(`${location.origin}${r.inviteLink}`); toast({ text: 'Invite link ready', tone: 'good' }) }) }}>
       <p className="hint">They open the link, turn on Face ID, and their phone becomes their {role === 'employee' ? 'card' : 'invoice inbox'}. {role === 'employee' ? 'The card is signed by the department head.' : ''}</p>
       <div className="two"><label>Name<input value={name} onChange={(e) => setName(e.target.value)} /></label><label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} /></label></div>
       <div className="two"><label>Department<select value={team} onChange={(e) => setTeam(e.target.value)}>{teams.map((p) => <option key={p.id} value={p.id}>{p.team}</option>)}</select></label><label>Role<select value={role} onChange={(e) => setRole(e.target.value as 'employee' | 'contractor')}><option value="employee">Employee</option><option value="contractor">Contractor</option></select></label></div>
       {isFinance && role === 'employee' && <label>Monthly salary<div className="money-in"><span>$</span><input inputMode="decimal" value={salary} onChange={(e) => setSalary(e.target.value.replace(/[^\d.]/g, ''))} /></div></label>}
       {link && <p className="hint">Share this link: {link}</p>}
-      <button className="btn primary" disabled={!!busy || !name || !team}>Create invite</button>
+      <ActionHint>{!name.trim() || !title.trim() || !team ? "Add a name, title and department." : isFinance && role === 'employee' ? amountIssue(salary) : null}</ActionHint><button className="btn primary" disabled={!!busy || !name.trim() || !title.trim() || !teams.some((p) => p.id === team) || (isFinance && role === 'employee' && !positiveAmount(salary))}>Create invite</button>
     </form>
   )
 }
@@ -1308,12 +1403,12 @@ function CompanyRules({ s, busy, run, toast }: Pick<Ctx, 's' | 'busy' | 'run' | 
       <SectionTitle title="Company rules" sub="Rules Teampot checks before anything reaches Tempo." />
       <form className="inline-form" onSubmit={(e) => { e.preventDefault(); run('rule', () => api.financeRule(Number(threshold)), () => toast({ text: 'Finance limit saved', tone: 'good' })) }}>
         <label className="grow">Payments over this need Finance<div className="money-in"><span>$</span><input inputMode="decimal" value={threshold} onChange={(e) => setThreshold(e.target.value.replace(/[^\d.]/g, ''))} /></div></label>
-        <button className="btn small ghost" disabled={!!busy || !Number(threshold)}>Save</button>
+        <button className="btn small ghost" disabled={!!busy || !positiveAmount(threshold)}>Save</button>
       </form>
       <form className="inline-form" onSubmit={(e) => { e.preventDefault(); run('vendor', () => api.vendor({ name: vendorName, category: vendorCat }), () => toast({ text: `${vendorName} added. Heads can now put it on their cards.`, tone: 'good' })) }}>
         <label className="grow">New vendor<input value={vendorName} onChange={(e) => setVendorName(e.target.value)} /></label>
         <label className="grow">Category<input value={vendorCat} onChange={(e) => setVendorCat(e.target.value)} /></label>
-        <button className="btn small ghost" disabled={!!busy || !vendorName}>Add</button>
+        <button className="btn small ghost" disabled={!!busy || !vendorName.trim() || !vendorCat.trim()}>Add</button>
       </form>
     </section>
   )

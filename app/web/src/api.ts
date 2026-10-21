@@ -30,6 +30,11 @@ export type DepartmentControl = {
 export type Controls = { treasury: { name: string; account: string; link: string; balance: number | null; holder: string }; departments: DepartmentControl[] }
 export type TopUp = { id: string; at: number; potId: string; amount: number; note: string; requestedBy: string; status: 'requested' | 'funded' | 'declined'; tx?: string }
 export type EarnEntry = { personId: string; balance: number; mode: 'simulated' | 'real'; depositTx?: string; reason?: string; updatedAt: number }
+export type EarnView = {
+  mode: 'real' | 'simulated'; balance: number | null; withdrawable: number | null; cash: number | null; error?: string; vault: string | null
+  policy: { enabled: boolean; cashReserve: number; approvedBy: string; updatedAt: number }
+  available: number; protectedCash: number; payroll: number; invoices: number; requests: number; feeReserve: number
+}
 export type State = {
   auth?: { personId: string; role: Person['role']; demo: boolean }
   company: { name: string; balance: number; financeApprovalThreshold: number }; nextPayday: string
@@ -38,7 +43,8 @@ export type State = {
   stocks: Stock[]; investments: Investment[]; earnEntries: EarnEntry[]
   simulatedEarnings: { label: string; amount: number; note: string }; seeded: boolean
   controls: Controls; topups: TopUp[]
-  earn: { live: boolean; network: 'mainnet' | 'testnet'; byPot: Record<string, { mode: 'real' | 'simulated'; balance: number }> }
+  earn: { live: boolean; network: 'mainnet' | 'testnet'; byPot: Record<string, EarnView>; treasury: EarnView | null; risk: string }
+  privacy: { mode: 'public' | 'confidential'; available: boolean; blocked: boolean; message: string; visibility: string }
   issuing: { mode: 'stripe' | 'simulated' }
   bank: BankState
   beneficiaries: Beneficiary[]
@@ -73,7 +79,10 @@ export const api = {
   setup: (body?: { companyName?: string; departments?: { team: string; budget: number; perPersonCap: number; color?: string; headName?: string; headTitle?: string }[]; invites?: { name: string; role?: 'employee' | 'contractor'; title: string; team: string; salary?: number; country?: string }[] }) => post('/api/setup', body ?? {}),
   paydayPreview: () => fetch('/api/payday/preview').then(j),
   setPayday: (date: string) => post('/api/settings/payday', { date }),
-  payday: () => post('/api/payday', { requestId: requestId('payday') }),
+  payrollPrivacy: (mode: 'public' | 'confidential', acknowledgePublic = false) => post('/api/settings/payroll-privacy', { mode, acknowledgePublic }),
+  earnPolicy: (scope: string, enabled: boolean, cashReserve: number, acknowledgeRisk: boolean) => post(`/api/earn/${scope}/policy`, { enabled, cashReserve, acknowledgeRisk }),
+  treasuryEarn: (action: 'deposit' | 'withdraw', amount: number) => post('/api/earn/company/move', { action, amount, requestId: requestId('treasury-earn') }),
+  payday: (personIds: string[]) => post('/api/payday', { personIds, requestId: requestId('payday') }),
   spend: (b: { personId: string; vendorId: string; amount: number; note: string; source?: 'pot' | 'perk'; perkId?: string }) =>
     post('/api/spend', { ...b, requestId: requestId('spend') }),
   decide: (id: string, action: 'approve' | 'approve-add' | 'return', approverId: string) => post(`/api/held/${id}/${action}`, { requestId: requestId(`held-${id}`), approverId }),

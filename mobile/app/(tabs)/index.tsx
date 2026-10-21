@@ -1,15 +1,22 @@
+import { useTheme, useThemedStyles, type ThemeColors } from '@/theme';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { useEffect, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Shell } from '@/components/Shell';
-import { Button, CantReachTeampot, Card, Label, Pill, SectionTitle, colors } from '@/components/ui';
+import { Button, CantReachTeampot, Card, Label, Pill, SectionTitle } from '@/components/ui';
 import { useTeampot } from '@/TeampotProvider';
 import { ago, money } from '@/format';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { StockId } from '@/types';
 
 export default function MoneyScreen() {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { state, loading, personId, refresh, payVendor, saveElection, tradeStock } = useTeampot();
+  const insets = useSafeAreaInsets();
+  const authBusy = useRef(false);
+  const [authenticating, setAuthenticating] = useState(false);
   const [vendorId, setVendorId] = useState('figma');
   const [amount, setAmount] = useState('45');
   const [note, setNote] = useState('seats');
@@ -17,7 +24,7 @@ export default function MoneyScreen() {
   const [stockId, setStockId] = useState<StockId>('aapl');
   const [percent, setPercent] = useState(20);
   const [trade, setTrade] = useState<null | { side: 'buy' | 'sell'; stockId: StockId; cashAmount?: number; shares?: number }>(null);
-  const person = state?.people.find((p) => p.id === personId) ?? state?.people.find((p) => p.id === 'sam');
+  const person = state?.people.find((p) => p.id === personId);
   const pot = state?.pots.find((p) => p.id === person?.team);
   const vendors = state?.vendors.filter((v) => !pot || pot.vendorIds.includes(v.id) || v.id.includes('stock')).slice(0, 5) ?? [];
   const recent = state && person ? state.activity.filter((a) => !a.who || a.who === person.id || a.potId === person.team).slice(0, 5) : [];
@@ -44,11 +51,12 @@ export default function MoneyScreen() {
     );
   }
 
+  const validPayment = /^\d+(\.\d{1,2})?$/.test(amount) && Number(amount) > 0 && Number(amount) <= 1000000 && note.trim().length >= 1 && vendors.some(v => v.id === vendorId) && !!person.pot;
   const authenticate = async (promptMessage: string) => {
     if (Platform.OS === 'web') return true;
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
     const enrolled = await LocalAuthentication.isEnrolledAsync();
-    if (!hasHardware || !enrolled) return true;
+    if (!hasHardware || !enrolled) { Alert.alert('Device confirmation unavailable', 'Set up Face ID or Touch ID in device settings before testing payments.'); return false; }
     const result = await LocalAuthentication.authenticateAsync({
       promptMessage,
       cancelLabel: 'Cancel',
@@ -57,44 +65,45 @@ export default function MoneyScreen() {
     return result.success;
   };
 
-  const authenticateAndPay = async () => {
-    const ok = await authenticate('Confirm Teampot payment');
-    if (!ok) return;
-    setConfirming(false);
-    await payVendor(vendorId, Number(amount), note);
+  const withConfirmation = async (prompt: string, action: () => Promise<void>) => {
+    if (authBusy.current || loading) return;
+    authBusy.current = true; setAuthenticating(true);
+    try { if (await authenticate(prompt)) await action(); }
+    catch { Alert.alert('Confirmation unavailable', 'Try again when device authentication is available.'); }
+    finally { authBusy.current = false; setAuthenticating(false); }
   };
-
-  const authenticateAndTrade = async () => {
+  const authenticateAndPay = () => withConfirmation('Confirm test payment', async () => {
+    if (!validPayment) return;
+    setConfirming(false); await payVendor(vendorId, Number(amount), note.trim());
+  });
+  const authenticateAndTrade = () => withConfirmation('Confirm test trade', async () => {
     if (!trade) return;
-    const ok = await authenticate(trade.side === 'buy' ? 'Confirm stock buy' : 'Confirm stock sale');
-    if (!ok) return;
-    setTrade(null);
-    await tradeStock(trade.stockId, trade.side, { cashAmount: trade.cashAmount, shares: trade.shares });
-  };
+    setTrade(null); await tradeStock(trade.stockId, trade.side, { cashAmount: trade.cashAmount, shares: trade.shares });
+  });
 
   return (
     <Shell title="Money">
       <Card style={styles.balanceCard}>
         <View style={styles.balanceTop}>
-          <Label>Total balance</Label>
+          <Label>Your test balance</Label>
           <Pill tone="clay">Demo</Pill>
         </View>
         <Text testID="sam-money-balance" style={styles.money}>{money(person.balance)}</Text>
-        <Text style={styles.caption}>{person.name.split(' ')[0]} · {pot?.team || 'Team'} money, work cards, and pay.</Text>
+        <Text style={styles.caption}>Demo account: {person.name.split(' ')[0]} · {pot?.team || 'Team'}</Text>
       </Card>
 
       <View style={styles.grid}>
         <Card style={styles.tile}>
           <Ionicons name="card-outline" size={24} color={colors.clay} />
           <Label>Spend</Label>
-          <Text style={styles.tileValue}>{person.pot?.left != null ? money(Math.round(person.pot.left)) : pot ? money(pot.perPersonCap) : 'Ready'}</Text>
+          <Text style={styles.tileValue}>{person.pot?.left != null ? money(Math.round(person.pot.left)) : person.pot ? 'Unavailable' : 'No card'}</Text>
           <Text style={styles.small}>left on your {pot?.team || 'Company'} card</Text>
         </Card>
         <Card style={styles.tile}>
           <Ionicons name="archive-outline" size={24} color={colors.ink} />
-          <Label>Earning</Label>
-          <Text style={styles.tileValue}>{money(state.earnEntries?.find((e) => e.personId === person.id)?.balance ?? 0)}</Text>
-          <Text style={styles.small}>{state.earnEntries?.find((e) => e.personId === person.id)?.mode === 'real' ? 'Earning live' : 'Illustrative for now'}</Text>
+          <Label>Earn</Label>
+          <Text style={styles.tileValue}>Not enabled</Text>
+          <Text style={styles.small}>Live earning is off for this beta</Text>
         </Card>
       </View>
 
@@ -102,7 +111,7 @@ export default function MoneyScreen() {
         <View style={styles.rowBetween}>
           <View style={styles.flex}>
             <SectionTitle>Pay a Vendor</SectionTitle>
-            <Text style={styles.small}>Native confirmation uses Face ID when the device supports it.</Text>
+            <Text style={styles.small}>Test payments use device confirmation on iPhone.</Text>
           </View>
           {held ? <Pill tone="dark">Held</Pill> : null}
         </View>
@@ -114,10 +123,10 @@ export default function MoneyScreen() {
           ))}
         </View>
         <View style={styles.formRow}>
-          <TextInput value={amount} onChangeText={setAmount} keyboardType="decimal-pad" style={[styles.input, styles.amountInput]} placeholder="$" />
-          <TextInput value={note} onChangeText={setNote} style={[styles.input, styles.noteInput]} placeholder="Note" />
+          <TextInput placeholderTextColor={colors.muted} selectionColor={colors.clayDark} keyboardAppearance={isDark ? 'dark' : 'light'} accessibilityLabel="Payment amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" style={[styles.input, styles.amountInput]} placeholder="$" />
+          <TextInput placeholderTextColor={colors.muted} selectionColor={colors.clayDark} keyboardAppearance={isDark ? 'dark' : 'light'} accessibilityLabel="Payment note" maxLength={60} value={note} onChangeText={setNote} style={[styles.input, styles.noteInput]} placeholder="Note" />
         </View>
-        <Button tone="clay" onPress={() => setConfirming(true)}>Confirm with Face ID</Button>
+        <Text style={styles.small}>{person.pot ? 'Enter an amount and note. Payments outside your card rules may need approval.' : 'This demo role does not have a spending card.'}</Text><Button disabled={loading || !validPayment} tone="clay" onPress={() => setConfirming(true)}>Review test payment</Button>
       </Card>
 
       <Card testID="sam-money-invest">
@@ -152,13 +161,13 @@ export default function MoneyScreen() {
                 <Text style={[styles.percentText, percent === value && styles.percentTextActive]}>{value}%</Text>
               </Pressable>
             ))}
-            <Button tone="clay" onPress={() => saveElection(stockId, percent)} style={styles.saveElection}>Save</Button>
+            <Button disabled={loading || !selectedStock?.ready} tone="clay" onPress={() => saveElection(stockId, percent)} style={styles.saveElection}>Save</Button>
           </View>
         </View>
 
         <View style={styles.tradeRow}>
-          <Button tone="dark" onPress={() => setTrade({ side: 'buy', stockId, cashAmount: 50 })} style={styles.tradeButton}>Buy $50</Button>
-          <Button tone="plain" disabled={!sellShares} onPress={() => setTrade({ side: 'sell', stockId, shares: sellShares })} style={styles.tradeButton}>Sell</Button>
+          <Button disabled={loading || person.balance < 50 || !selectedStock?.ready} tone="dark" onPress={() => setTrade({ side: 'buy', stockId, cashAmount: 50 })} style={styles.tradeButton}>Buy $50</Button>
+          <Button tone="plain" disabled={loading || !sellShares || !selectedStock?.ready} onPress={() => setTrade({ side: 'sell', stockId, shares: sellShares })} style={styles.tradeButton}>Sell</Button>
         </View>
 
         <View style={styles.holdings}>
@@ -191,6 +200,7 @@ export default function MoneyScreen() {
 
       <Card>
         <SectionTitle>Recent Activity</SectionTitle>
+        {recent.length === 0 ? <Text style={styles.body}>No recent activity yet.</Text> : null}
         {recent.map((a) => (
           <View key={a.id} style={styles.activity}>
             <View style={styles.activityDot} />
@@ -203,21 +213,21 @@ export default function MoneyScreen() {
         ))}
       </Card>
 
-      <Modal visible={confirming} transparent animationType="slide" onRequestClose={() => setConfirming(false)}>
+      <Modal visible={confirming} transparent animationType="fade" onRequestClose={() => setConfirming(false)}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 14 }]}>
             <View style={styles.faceCircle}><Ionicons name="scan-outline" size={34} color={colors.paper} /></View>
             <Text style={styles.sheetTitle}>Confirm Payment</Text>
             <Text style={styles.sheetBody}>{money(Number(amount || 0), true)} to {state.vendors.find((v) => v.id === vendorId)?.name}</Text>
-            <Button tone="clay" onPress={authenticateAndPay}>Use Face ID</Button>
+            <Button disabled={loading || authenticating || !validPayment} tone="clay" onPress={authenticateAndPay}>{authenticating ? 'Confirming…' : 'Confirm test payment'}</Button>
             <Button tone="plain" onPress={() => setConfirming(false)}>Cancel</Button>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={!!trade} transparent animationType="slide" onRequestClose={() => setTrade(null)}>
+      <Modal visible={!!trade} transparent animationType="fade" onRequestClose={() => setTrade(null)}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 14 }]}>
             <View style={styles.faceCircle}><Ionicons name="scan-outline" size={34} color={colors.paper} /></View>
             <Text style={styles.sheetTitle}>{trade?.side === 'buy' ? 'Confirm Buy' : 'Confirm Sale'}</Text>
             <Text style={styles.sheetBody}>
@@ -225,7 +235,7 @@ export default function MoneyScreen() {
                 ? `Buy $50 of ${selectedStock?.display || 'stock'} at a delayed price`
                 : `Sell ${trade?.shares ?? 0} shares of ${selectedStock?.display || 'stock'}`}
             </Text>
-            <Button tone="clay" onPress={authenticateAndTrade}>Use Face ID</Button>
+            <Button disabled={loading || authenticating} tone="clay" onPress={authenticateAndTrade}>{authenticating ? 'Confirming…' : 'Confirm test trade'}</Button>
             <Button tone="plain" onPress={() => setTrade(null)}>Cancel</Button>
           </View>
         </View>
@@ -234,57 +244,57 @@ export default function MoneyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  balanceCard: { backgroundColor: '#FFFDF9' },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  balanceCard: { backgroundColor: colors.elevated },
   balanceTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  money: { color: colors.ink, fontSize: 58, fontFamily: 'InterTight_800ExtraBold_Italic', letterSpacing: 0 },
-  caption: { color: colors.muted, fontSize: 15, fontFamily: 'InterTight_600SemiBold' },
+  money: { color: colors.ink, fontSize: 58, fontFamily: 'Geist_300Light', letterSpacing: 0 },
+  caption: { color: colors.muted, fontSize: 15, fontFamily: 'Geist_400Regular' },
   grid: { flexDirection: 'row', gap: 12 },
   tile: { flex: 1, minHeight: 138 },
-  tileValue: { color: colors.ink, fontSize: 24, fontFamily: 'InterTight_800ExtraBold' },
-  small: { color: colors.muted, fontSize: 13, fontFamily: 'InterTight_600SemiBold' },
-  body: { color: colors.muted, fontSize: 15, lineHeight: 21, fontFamily: 'InterTight_400Regular' },
+  tileValue: { color: colors.ink, fontSize: 24, fontFamily: 'Geist_500Medium' },
+  small: { color: colors.muted, fontSize: 13, fontFamily: 'Geist_400Regular' },
+  body: { color: colors.muted, fontSize: 15, lineHeight: 21, fontFamily: 'Geist_400Regular' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' },
   flex: { flex: 1, minWidth: 0 },
   vendorWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  vendorChip: { borderRadius: 999, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.paper },
+  vendorChip: { borderRadius: 999, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12, paddingVertical: 12, backgroundColor: colors.paper },
   vendorActive: { backgroundColor: colors.ink, borderColor: colors.ink },
-  vendorText: { color: colors.ink, fontFamily: 'InterTight_700Bold' },
+  vendorText: { color: colors.ink, fontFamily: 'Geist_500Medium' },
   vendorTextActive: { color: colors.paper },
   formRow: { flexDirection: 'row', gap: 10 },
-  input: { minHeight: 50, borderRadius: 8, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12, color: colors.ink, fontFamily: 'InterTight_700Bold', backgroundColor: '#FFFDF9' },
+  input: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12, color: colors.ink, fontFamily: 'Geist_500Medium', backgroundColor: colors.elevated },
   amountInput: { width: 98 },
   noteInput: { flex: 1 },
   selectorBlock: { gap: 8 },
-  stockChip: { borderRadius: 8, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.paper, minWidth: 104 },
-  stockPrice: { color: colors.muted, fontFamily: 'InterTight_600SemiBold', fontSize: 12, marginTop: 2 },
+  stockChip: { borderRadius: 14, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12, paddingVertical: 12, backgroundColor: colors.paper, minWidth: 104 },
+  stockPrice: { color: colors.muted, fontFamily: 'Geist_400Regular', fontSize: 12, marginTop: 2 },
   stockPriceActive: { color: colors.paper },
   percentRow: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-  percentChip: { width: 54, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: '#FFFDF9' },
-  percentActive: { backgroundColor: colors.clay, borderColor: colors.clay },
-  percentText: { color: colors.ink, fontFamily: 'InterTight_800ExtraBold', fontSize: 15 },
-  percentTextActive: { color: colors.paper },
-  saveElection: { minWidth: 82, minHeight: 42 },
+  percentChip: { width: 54, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.elevated },
+  percentActive: { backgroundColor: colors.accentFill, borderColor: colors.accentFill },
+  percentText: { color: colors.ink, fontFamily: 'Geist_500Medium', fontSize: 15 },
+  percentTextActive: { color: colors.onAccent },
+  saveElection: { minWidth: 82, minHeight: 44 },
   tradeRow: { flexDirection: 'row', gap: 10 },
   tradeButton: { flex: 1 },
   investTotal: { alignItems: 'flex-end' },
   holdings: { gap: 8 },
   holdingRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: colors.line },
-  holdingName: { color: colors.ink, fontFamily: 'InterTight_700Bold', fontSize: 16 },
-  holdingValue: { color: colors.clay, fontFamily: 'InterTight_800ExtraBold', fontSize: 18 },
+  holdingName: { color: colors.ink, fontFamily: 'Geist_500Medium', fontSize: 16 },
+  holdingValue: { color: colors.clayDark, fontFamily: 'Geist_500Medium', fontSize: 18 },
   holdingRight: { alignItems: 'flex-end' },
-  gainText: { color: '#2E7D32', fontFamily: 'InterTight_700Bold', fontSize: 12 },
-  lossText: { color: colors.clay },
-  heldCard: { borderColor: '#F3C8B9', backgroundColor: '#FFF7ED' },
-  heldTitle: { color: colors.ink, fontFamily: 'InterTight_800ExtraBold', fontSize: 21 },
+  gainText: { color: colors.success, fontFamily: 'Geist_500Medium', fontSize: 12 },
+  lossText: { color: colors.clayDark },
+  heldCard: { borderColor: colors.tintLine, backgroundColor: colors.tint },
+  heldTitle: { color: colors.ink, fontFamily: 'Geist_500Medium', fontSize: 21 },
   activity: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.line },
   activityDot: { width: 9, height: 9, borderRadius: 9, backgroundColor: colors.clay },
   activityText: { flex: 1 },
-  activityTitle: { color: colors.ink, fontSize: 15, fontFamily: 'InterTight_700Bold' },
-  activityAmount: { color: colors.ink, fontSize: 15, fontFamily: 'InterTight_800ExtraBold' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(20,20,20,0.34)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.paper, borderTopLeftRadius: 8, borderTopRightRadius: 8, padding: 22, gap: 14 },
+  activityTitle: { color: colors.ink, fontSize: 15, fontFamily: 'Geist_500Medium' },
+  activityAmount: { color: colors.ink, fontSize: 15, fontFamily: 'Geist_500Medium' },
+  modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.paper, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 22, gap: 14 },
   faceCircle: { width: 70, height: 70, borderRadius: 70, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink, alignSelf: 'center' },
-  sheetTitle: { color: colors.ink, textAlign: 'center', fontSize: 25, fontFamily: 'InterTight_800ExtraBold' },
-  sheetBody: { color: colors.muted, textAlign: 'center', fontSize: 16, fontFamily: 'InterTight_600SemiBold' }
+  sheetTitle: { color: colors.ink, textAlign: 'center', fontSize: 25, fontFamily: 'Geist_500Medium' },
+  sheetBody: { color: colors.muted, textAlign: 'center', fontSize: 16, fontFamily: 'Geist_400Regular' }
 });

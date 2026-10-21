@@ -4,6 +4,7 @@ const mem: { state: any } = { state: null }
 const tempoCalls = { payday: 0 }
 
 vi.mock('./store.js', () => ({
+  storeKind: vi.fn(() => 'redis'),
   load: vi.fn(async () => mem.state),
   save: vi.fn(async (s: any) => { mem.state = JSON.parse(JSON.stringify(s)) }),
   withWriteLock: vi.fn(async (fn: () => Promise<unknown>) => fn()),
@@ -17,6 +18,9 @@ vi.mock('./tempo.js', () => ({
   EXPLORER: 'https://records.example/',
   EXPLORER_ACCOUNT: 'https://records.example/account/',
   NETWORK: 'testnet',
+  EARN_VAULT: '',
+  earnPrepare: vi.fn(async (_source: any, action: string, amount: number) => { const T = await import('./tempo.js'); return () => action === 'deposit' ? T.earnDeposit(_source, amount) : T.earnWithdraw(_source, amount) }),
+  earnSnapshot: vi.fn(async () => ({ balance: 0, withdrawable: 0 })),
   earnLive: vi.fn(() => false),
   earnPosition: vi.fn(async () => 0),
   earnDeposit: vi.fn(async () => `0x${'e1'.repeat(32)}`),
@@ -82,6 +86,27 @@ describe('API validation and guards', () => {
     const r = await app.request('/api/people/not-here/update', { method: 'POST', body: JSON.stringify({ title: 'x' }), headers: { 'content-type': 'application/json', cookie } })
     expect(r.status).toBe(404)
     expect((await r.json()).error).toMatch(/not found/i)
+  })
+
+  it('validates payday selection and pays only the chosen people', async () => {
+    const T: any = await import('./tempo.js')
+    const { app } = await import('./app.js')
+    const cookie = await demoCookie(app)
+    T.payday.mockClear()
+    for (const personIds of [[], ['sam'], ['sam', 'sam'], ['sam', 'missing'], ['sam', 'mateo']]) {
+      const response = await app.request('/api/payday', { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ personIds }) })
+      expect(response.status).toBe(400)
+    }
+    expect(T.payday).not.toHaveBeenCalled()
+    const before = await (await app.request('/api/state', { headers: { cookie } })).json()
+    const response = await app.request('/api/payday', { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ personIds: ['ava', 'priya'], requestId: 'selected-payday' }) })
+    expect(response.status).toBe(200)
+    const result = await response.json()
+    expect(result.count).toBe(2)
+    expect(result.run.lines.map((line: any) => line.personId).sort()).toEqual(['ava', 'priya'])
+    expect(T.payday.mock.calls[0][0]).toHaveLength(2)
+    const after = await (await app.request('/api/state', { headers: { cookie } })).json()
+    expect(after.nextPayday).toBe(before.nextPayday)
   })
 
   it('guards payday with request idempotency', async () => {
@@ -301,6 +326,7 @@ describe('API validation and guards', () => {
     const { app } = await import('./app.js')
     const finance = await demoCookie(app)
     await post(app, '/api/setup', finance)
+    await post(app, '/api/earn/design/policy', finance, { enabled: true, cashReserve: 0, acknowledgeRisk: true })
     const put = await (await post(app, '/api/pots/design/earn', finance, { action: 'deposit', amount: 100 })).json()
     expect(put).toMatchObject({ ok: true, mode: 'simulated', balance: 100 })
     expect((await post(app, '/api/pots/design/earn', finance, { action: 'withdraw', amount: 150 })).status).toBe(400)

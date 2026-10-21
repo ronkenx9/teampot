@@ -8,22 +8,25 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { del, list, put } from '@vercel/blob'
 import { Redis } from '@upstash/redis'
+import { deploymentConfig } from './deployment.js'
+const { mainnet, namespace } = deploymentConfig()
+function requireSharedStore() { if (mainnet && !redis) throw Object.assign(new Error('Mainnet storage unavailable; request stopped.'), { status: 503 }) }
 
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN
 let redis: Redis | null = REDIS_URL && REDIS_TOKEN ? new Redis({ url: REDIS_URL, token: REDIS_TOKEN }) : null
-const KEY = 'teampot:state', VKEY = 'teampot:version'
+const KEY = `${namespace}:state`, VKEY = `${namespace}:version`
 let lastCheck = 0
-const disableRedis = (e: unknown) => { redis = null; console.error(JSON.stringify({ level: 'warn', msg: 'redis disabled, using memory + file', err: String((e as any)?.message ?? e).slice(0, 160) })) }
+const disableRedis = (e: unknown) => { redis = null; requireSharedStore(); console.error(JSON.stringify({ level: 'warn', msg: 'redis disabled, using memory + file', err: String((e as any)?.message ?? e).slice(0, 160) })) }
 // Atomic compare-and-set: write only if the stored version is still the one this request started from.
 const CAS = `local v = tonumber(redis.call('GET', KEYS[2]) or '0')
 if ARGV[3] ~= '' and v ~= tonumber(ARGV[3]) then return 0 end
 redis.call('SET', KEYS[1], ARGV[1]); redis.call('SET', KEYS[2], ARGV[2]); return 1`
 export const storeKind = () => (redis ? 'redis' : process.env.BLOB_READ_WRITE_TOKEN && !blobOff ? 'blob' : 'memory')
 
-const PREFIX = 'teampot/state-'
-const filePath = () => process.env.TEAMPOT_STATE_FILE || (process.env.VERCEL ? '/tmp/teampot-state.json' : 'data/state.json')
-let blobOff = process.env.TEAMPOT_STORE === 'memory'
+const PREFIX = `${namespace}/state-`
+const filePath = () => process.env.TEAMPOT_STATE_FILE || (process.env.VERCEL ? `/tmp/${namespace}-state.json` : namespace === 'teampot' ? 'data/state.json' : `data/${namespace}/state.json`)
+let blobOff = mainnet || process.env.TEAMPOT_STORE === 'memory'
 const useBlob = () => !!process.env.BLOB_READ_WRITE_TOKEN && !blobOff
 const disableBlob = (e: unknown) => { blobOff = true; console.error(JSON.stringify({ level: 'warn', msg: 'blob disabled, using memory + file', err: String((e as any)?.message ?? e).slice(0, 160) })) }
 
@@ -40,6 +43,7 @@ async function readBlob<T>(): Promise<T | null> {
 }
 
 export async function load<T>(opts: { fresh?: boolean } = {}): Promise<T | null> {
+  requireSharedStore()
   if (redis) {
     try {
       // Reads may reuse a copy checked in the last 2 s; writes (fresh) always check the shared version first.
@@ -75,6 +79,7 @@ async function flushBlob() {
 }
 
 export async function save(state: any, expectedVersion?: number) {
+  requireSharedStore()
   if (redis) {
     try {
       const ok = await redis.eval(CAS, [KEY, VKEY], [JSON.stringify(state), String(state.version ?? 0), expectedVersion === undefined ? '' : String(expectedVersion)])
@@ -109,9 +114,10 @@ export function resetMemory() { mem = null }
  * talks to Tempo and saves, so two instances can never both act on the same version (no lost payments).
  * Without Redis, one instance is the only writer and the in-process queue already serializes.
  */
-const LOCK = 'teampot:write-lock'
+const LOCK = `${namespace}:write-lock`
 const RELEASE = `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end`
 export async function withWriteLock<T>(fn: () => Promise<T>, { ttlMs = 180_000, waitMs = 60_000 } = {}): Promise<T> {
+  requireSharedStore()
   if (!redis) return fn()
   const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`
   const started = Date.now()
@@ -131,8 +137,8 @@ export async function withWriteLock<T>(fn: () => Promise<T>, { ttlMs = 180_000, 
 
 /* ---- Waitlist: kept apart from the demo state, so demo resets never touch it ---- */
 export type WaitlistEntry = { email: string; name?: string; company?: string; role: string; size?: string; note?: string; at: number; source?: string }
-const WKEY = 'teampot:waitlist'
-const waitFile = () => (process.env.VERCEL ? '/tmp/teampot-waitlist.json' : 'data/waitlist.json')
+const WKEY = `${namespace}:waitlist`
+const waitFile = () => (process.env.VERCEL ? `/tmp/${namespace}-waitlist.json` : namespace === 'teampot' ? 'data/waitlist.json' : `data/${namespace}/waitlist.json`)
 let waitMem: Record<string, WaitlistEntry> | null = null
 function readWaitFile() {
   if (waitMem) return waitMem
@@ -141,6 +147,7 @@ function readWaitFile() {
 }
 /** Adds an entry; returns false when the email was already on the list. */
 export async function waitlistAdd(e: WaitlistEntry): Promise<boolean> {
+  requireSharedStore()
   if (redis) {
     try { return Number(await redis.hsetnx(WKEY, e.email, JSON.stringify(e))) === 1 } catch (err) { disableRedis(err) }
   }
@@ -151,6 +158,7 @@ export async function waitlistAdd(e: WaitlistEntry): Promise<boolean> {
   return true
 }
 export async function waitlistAll(): Promise<WaitlistEntry[]> {
+  requireSharedStore()
   if (redis) {
     try {
       const h = (await redis.hgetall<Record<string, unknown>>(WKEY)) ?? {}
@@ -163,10 +171,11 @@ export async function waitlistAll(): Promise<WaitlistEntry[]> {
 /* ============================== Site stats ============================== */
 // First-party, cookie-free page-view counts: views per day, unique visitors per day (HyperLogLog over a salted
 // daily hash, so no visitor can be tracked across days), top pages and referrers. Kept 90 days.
-const SK = 'teampot:stats'
+const SK = `${namespace}:stats`
 const statMem = { views: {} as Record<string, number>, uv: {} as Record<string, Set<string>>, paths: {} as Record<string, number>, refs: {} as Record<string, number> }
 const TTL = 90 * 86400
 export async function statsHit(day: string, visitor: string, path: string, ref: string) {
+  requireSharedStore()
   if (redis) {
     try {
       const p = redis.pipeline()
@@ -185,6 +194,7 @@ export async function statsHit(day: string, visitor: string, path: string, ref: 
 }
 export async function statsRead(days: string[]) {
   const top = (h: Record<string, unknown> | null) => Object.entries(h ?? {}).map(([k, v]) => [k, Number(v)] as const).sort((a, b) => b[1] - a[1]).slice(0, 12)
+  requireSharedStore()
   if (redis) {
     try {
       const p = redis.pipeline()

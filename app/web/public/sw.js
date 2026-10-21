@@ -1,4 +1,4 @@
-const CACHE = 'teampot-shell-v3'
+const CACHE = 'teampot-shell-v4'
 const SHELL = ['/', '/app', '/offline.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (event) => {
@@ -15,7 +15,7 @@ self.addEventListener('fetch', (event) => {
   const req = event.request
   if (req.method !== 'GET') return
   const url = new URL(req.url)
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_vercel/')) return
+  if (url.pathname.startsWith('/join/') || url.pathname.includes('/invite/') || url.pathname.startsWith('/api/') || url.pathname.startsWith('/_vercel/')) return
   // Hashed build files never change: serve them from the cache instantly.
   if (url.origin === location.origin && url.pathname.startsWith('/assets/')) {
     event.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => {

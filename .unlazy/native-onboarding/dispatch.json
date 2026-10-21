@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "waves": {
+    "ready-1": {
+      "leaves": [
+        "leaf-profile",
+        "leaf-theme"
+      ],
+      "state": "complete",
+      "openedAt": "2026-10-20T20:51:29.699Z",
+      "started": {
+        "leaf-profile": {
+          "handle": "/root/onboarding_profile",
+          "at": "2026-10-20T20:52:14.320Z"
+        },
+        "leaf-theme": {
+          "handle": "/root/onboarding_theme",
+          "at": "2026-10-20T20:52:14.388Z"
+        }
+      },
+      "returned": {
+        "leaf-profile": {
+          "at": "2026-10-20T20:55:24.936Z"
+        },
+        "leaf-theme": {
+          "at": "2026-10-20T20:55:25.005Z"
+        }
+      },
+      "sealedAt": "2026-10-20T20:52:14.455Z",
+      "completedAt": "2026-10-20T20:55:25.005Z"
+    }
+  }
+}

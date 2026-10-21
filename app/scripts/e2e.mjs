@@ -170,6 +170,7 @@ assert(out.tapNo.approved === false && out.tapNo.held, 'off-card tap was not dec
 
 // Idle budget earn (simulated on testnet).
 await post('/auth/demo', { personId: 'jordan' })
+await post('/earn/eng/policy', { enabled: true, cashReserve: 500, acknowledgeRisk: true })
 out.earn = await post('/pots/eng/earn', { action: 'deposit', amount: 500 })
 assert(out.earn.ok, 'earn deposit failed')
 

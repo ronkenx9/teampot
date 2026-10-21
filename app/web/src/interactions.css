@@ -1,0 +1,103 @@
+/* App viewport owns its edges; sheets contain their own scroll gesture. */
+html.teampot-route,html.teampot-route body{overscroll-behavior:none;background:#ECEEF1}
+html.teampot-route{min-height:100%;overflow-x:clip}
+html.teampot-route body{min-height:100dvh}
+html.teampot-route:has(.sheet),html.teampot-route body:has(.sheet){overflow:hidden}
+.app-shell,.app-shell .role-layout{min-height:100dvh}
+.app-shell .role-page{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+.app-shell .bottom-tabs{bottom:max(10px,env(safe-area-inset-bottom,0px))}
+.app-shell .sheet{overscroll-behavior:none;padding-bottom:0}
+.app-shell .sheet-card{overscroll-behavior:contain;max-height:calc(100dvh - 16px);overflow-y:auto;padding-bottom:max(24px,env(safe-area-inset-bottom,0px))}
+.app-shell .task-card{max-height:calc(100dvh - 16px)}
+@media(min-width:900px){.app-shell .role-page{padding-bottom:24px}}
+.help-button{display:grid;place-items:center;width:44px;height:44px;flex:none;border:0;border-radius:50%;background:#F0F1F3;color:#252629;cursor:pointer;transition:background .15s,transform .15s}
+.help-button:hover{background:#E0E4E7}.help-button:active{transform:scale(.94)}
+.help-button:focus-visible,.payroll-options label:has(input:focus-visible){outline:2px solid #B8401C;outline-offset:3px}
+.app-shell .action-hint,.sheet .action-hint{margin:8px 0 0;color:#52565B;font-size:13px;line-height:1.5;text-align:left}
+.payday-selection-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 8px;font-size:13px;color:#52565B}
+.payroll-options li{padding:0!important;transition:background .18s;border-radius:12px}
+.payroll-options label{display:flex;flex-direction:row;align-items:center;gap:12px;min-height:64px;padding:12px 8px;width:100%;color:#17191C;cursor:pointer;font-weight:500}
+.payroll-options input{width:18px;height:18px;flex:none;accent-color:#151719;cursor:pointer;padding:0}
+.payroll-options label .grow{min-width:0;flex:1}.payroll-options label b{display:block}.payroll-options label small{display:block;color:#52565B;font-weight:400}
+.payroll-options .num{margin-left:auto;white-space:nowrap;font-size:14px}
+.payroll-options .is-selected{background:#EEF3F5}.payroll-options label:has(input:disabled){cursor:wait}
+.payday-summary{margin-top:16px;padding-top:16px;border-top:1px solid #E2E5E8}
+.recipient-stack{display:flex;align-items:center;min-height:42px;margin-bottom:10px;padding-left:6px}
+.recipient-stack>span{display:grid;place-items:center;margin-left:-6px;border:3px solid #fff;border-radius:50%;animation:recipient-join .24s cubic-bezier(.16,1,.3,1) both}
+.recipient-stack .recipient-extra{width:38px;height:38px;background:#ECEEF1;font-size:12px}
+@keyframes recipient-join{from{opacity:.4;transform:translateX(10px) scale(.8)}to{opacity:1;transform:none}}
+/* One treasury becomes several recipients; the stack fans out on intent. */
+.payday-art{width:260px;height:96px;position:relative;isolation:isolate}
+.payday-source{position:absolute;left:12px;top:28px;width:50px;height:50px;background:#0B0B0C;color:#fff;border-radius:16px;display:grid;place-items:center}
+.payday-trail{position:absolute;top:52px;left:62px;width:140px;height:1px;background:rgba(11,11,12,.24);transform-origin:left;transition:transform .4s cubic-bezier(.16,1,.3,1)}
+.payday-token{position:absolute;top:30px;left:100px;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:#F7F9FA;color:#222;font-size:12px;border:3px solid #D9EAF3;box-shadow:0 6px 12px #21344218;transition:transform .45s cubic-bezier(.16,1,.3,1)}
+.token-1{transform:translateX(30px);background:#E4DFF5}.token-2{transform:translateX(60px);background:#DCEAD4}
+.payday-token i{position:absolute;right:-2px;bottom:-2px;display:grid;place-items:center;background:#182C22;color:#fff;width:17px;height:17px;border-radius:50%;opacity:0;transform:scale(.5);transition:opacity .2s,transform .2s}
+.payday-token i svg{width:11px;height:11px}
+.next:is(:hover,:focus-within) .token-0{transform:translate(0,-17px) rotate(-10deg)}
+.next:is(:hover,:focus-within) .token-1{transform:translate(37px,9px)}
+.next:is(:hover,:focus-within) .token-2{transform:translate(74px,-15px) rotate(10deg)}
+.next:is(:hover,:focus-within) .payday-token i{opacity:1;transform:scale(1)}
+.next:is(:hover,:focus-within) .payday-trail{transform:scaleX(1.2)}
+.art-cards .stack-layer{transform-box:fill-box;transform-origin:center;transition:transform .4s cubic-bezier(.16,1,.3,1)}
+.next:is(:hover,:focus-within) .art-cards .layer-0{transform:translate(-8px,2px) rotate(-10deg)}
+.next:is(:hover,:focus-within) .art-cards .layer-1{transform:translate(0,-4px) rotate(-4deg)}
+.next:is(:hover,:focus-within) .art-cards .layer-2{transform:translate(6px,-8px) rotate(4deg)}
+@media(hover:none){.payday-token{animation:token-arrive .55s cubic-bezier(.16,1,.3,1) both}.token-1{animation-delay:.06s}.token-2{animation-delay:.12s}}
+@keyframes token-arrive{from{opacity:.3;translate:-20px 0}to{opacity:1;translate:0 0}}
+@media(max-width:380px){.payroll-options label{gap:8px}.payroll-options .avatar{display:none}}
+@media(prefers-reduced-motion:reduce){
+ .app-shell *, .app-shell *::before, .app-shell *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+ .next:is(:hover,:focus-within) .stack-layer{transform:none}
+}
+
+/* The legacy mobile .app rule added a second 110px footer beneath the role page. */
+.app.app-shell{padding:0}
+.app-shell .payroll-options input{min-height:18px;padding:0}
+.app-shell .payday-panel .date-row{padding-top:14px}
+
+@media(min-width:900px){.app-shell .bottom-tabs{display:none}}
+
+/* The help header never shares a scrolling plane with its content. */
+.app-shell .sheet-card.howto-card{display:flex;flex-direction:column;width:min(680px,100%);padding:0;gap:0;overflow:hidden;max-height:calc(100dvh - 24px)}
+.howto-card>.sheet-head{position:relative;top:auto;flex:none;display:flex;justify-content:space-between;gap:20px;padding:20px 24px 16px;margin:0;background:#fff;border-bottom:1px solid #e7e9eb;z-index:1}
+.howto-card>.sheet-head>span{display:none}
+.howto-card>.sheet-head h2{text-align:left;font-size:21px;line-height:1.2;min-width:0}
+.howto-card>.sheet-head .plain{flex:none;min-height:44px;padding:0 12px;border-radius:999px;background:#f0f2f4;font-size:14px}
+.howto-card .howto{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:24px 24px max(28px,env(safe-area-inset-bottom));gap:24px;scrollbar-gutter:stable}
+.howto-card .howto:focus-visible{outline:2px solid #b8401c;outline-offset:-3px}
+.howto-map{display:grid;grid-template-columns:1fr 20px 1fr 20px 1fr;gap:4px;align-items:center;background:#d3e4ee;border-radius:20px;padding:24px 14px;color:#162b39}
+.howto-map>div{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;min-width:0}
+.howto-map-icon{width:64px;height:64px;display:grid;place-items:center;background:#fff;border-radius:18px;box-shadow:0 8px 16px #223f4b14;transform:rotate(-5deg)}
+.howto-map>div:nth-of-type(2) .howto-map-icon{background:#172a36;color:#fff;transform:rotate(4deg)}
+.howto-map>div:last-child .howto-map-icon{background:#edf5dc;transform:rotate(-5deg)}
+.howto-map-icon svg{width:34px;height:34px}.howto-map b{font-weight:500;font-size:14px}.howto-map small{font-size:11px;line-height:1.35;color:#3a5261}.howto-connector{font-size:22px;margin-top:-44px;text-align:center}
+.howto-card .lede{font-size:15px;line-height:1.6;color:#424951}
+.howto-path{list-style:none;padding:0;margin:0;display:grid;gap:0}
+.howto-path li{position:relative;display:grid;grid-template-columns:44px minmax(0,1fr);gap:16px;padding:14px 12px;border-radius:16px}
+.howto-path li:not(:last-child):after{content:"";position:absolute;left:33px;top:57px;bottom:-12px;border-left:1px solid #d9dfe3}
+.howto-role-icon{width:44px;height:44px;border-radius:14px;background:#f0f2f4;display:grid;place-items:center;color:#45515d;z-index:1}.howto-role-icon svg{width:24px;height:24px}
+.howto-path b{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:16px;font-weight:500;line-height:1.4}.howto-path p{margin:6px 0 0;font-size:14px;line-height:1.55;color:#525b64}.howto-path em{font-size:10px;background:#c8411e;color:white;padding:3px 7px;border-radius:99px;white-space:nowrap}
+.howto-path .you{background:#fff2ec}.howto-path .you .howto-role-icon{background:#fbd6c7;color:#853019}
+.howto-rules{gap:14px}.howto-rules>div{padding:20px;border-radius:18px;background:#f0f2f4}.howto-rules>div:first-child{background:#152b38;color:#fff}.howto-rules svg{width:30px;height:30px;margin-bottom:12px}.sheet-card .howto-rules h3{font-size:16px;font-weight:500;color:inherit;margin:0 0 12px}.howto-rules ul{list-style:none;padding:0;margin:0;display:grid;gap:10px}.howto-rules li{position:relative;padding-left:17px;font-size:13px;line-height:1.5;color:inherit}.howto-rules li:before{content:"";position:absolute;left:0;top:7px;width:6px;height:6px;border-radius:50%;background:#96bdcc}.howto-rules>div:last-child li:before{background:#e8552d}.howto-note{font-size:12px;line-height:1.6;color:#606872;margin:0}.howto-card .howto>.btn{font-size:13px;white-space:normal;min-height:44px;text-align:center}
+@media(max-width:480px){.howto-card>.sheet-head{padding:14px 16px;gap:10px}.howto-card>.sheet-head h2{font-size:18px}.howto-card .howto{padding:18px 16px 28px;gap:20px}.howto-map{padding:20px 8px;grid-template-columns:1fr 14px 1fr 14px 1fr}.howto-map-icon{width:50px;height:50px;border-radius:14px}.howto-map-icon svg{width:28px;height:28px}.howto-map b{font-size:12px}.howto-map small{font-size:10px}.howto-map .howto-connector{font-size:18px}.howto-path li{padding:12px 6px;gap:12px}.howto-path li:not(:last-child):after{left:27px}.howto-rules{grid-template-columns:1fr}}
+.howto-card .howto-rules>div:first-child li{color:#f2f6f8}
+/* One dropdown treatment across payments, people, investments and departments. */
+.app-shell select,.sheet select{appearance:none;-webkit-appearance:none;min-height:52px;padding:12px 50px 12px 16px;border:1px solid #dce1e5;border-radius:14px;background-color:#f6f7f8;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='m6 8 4 4 4-4' stroke='%2344515d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 15px center;color:#17212b;font-size:16px;font-weight:500;line-height:1.4;text-overflow:ellipsis;cursor:pointer;transition:background-color .15s,border-color .15s,box-shadow .15s}
+.app-shell select:hover:not(:disabled),.sheet select:hover:not(:disabled){background-color:#edf2f5;border-color:#9cabb6}
+.app-shell select:focus-visible,.sheet select:focus-visible{outline:2px solid #42677e;outline-offset:2px;border-color:#42677e;background-color:#fff;box-shadow:none}
+.app-shell select:disabled,.sheet select:disabled{opacity:.55;cursor:not-allowed;background-color:#eef0f2}
+.app-shell select[aria-invalid=true],.sheet select[aria-invalid=true]{border-color:#b8401c}
+@supports (appearance:base-select){
+ .app-shell select,.sheet select{appearance:base-select;display:flex;align-items:center;background-image:none;padding-right:12px;gap:16px}
+ .app-shell select::picker-icon,.sheet select::picker-icon{content:"";width:28px;height:28px;flex:none;margin-left:auto;border-radius:9px;background:#e7ecef url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='m6 8 4 4 4-4' stroke='%2344515d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center no-repeat;transition:rotate .18s}
+ .app-shell select:open::picker-icon,.sheet select:open::picker-icon{rotate:180deg}
+ .app-shell select::picker(select),.sheet select::picker(select){appearance:base-select;margin-top:8px;padding:6px;border:1px solid #e0e5e8;border-radius:16px;background:#fff;color:#17212b;box-shadow:0 12px 32px #142d4126;max-height:min(340px,50dvh);overflow:auto;overscroll-behavior:contain}
+ .app-shell select option,.sheet select option{display:flex;align-items:center;gap:12px;min-height:46px;padding:10px 12px;border-radius:10px;font-size:15px;line-height:1.4;white-space:normal;cursor:pointer}
+ .app-shell select option:hover,.app-shell select option:focus,.sheet select option:hover,.sheet select option:focus{background:#edf3f7;outline:none}
+ .app-shell select option:checked,.sheet select option:checked{background:#dcebf3;color:#193b50;font-weight:600}
+ .app-shell select option::checkmark,.sheet select option::checkmark{order:1;margin-left:auto;color:#24526c}
+ .app-shell select option:disabled,.sheet select option:disabled{opacity:.5;cursor:not-allowed}
+}
+@media(prefers-reduced-motion:reduce){.app-shell select,.sheet select,.app-shell select::picker-icon,.sheet select::picker-icon{transition:none}}
+@media(forced-colors:active){.app-shell select,.sheet select{appearance:auto;background-image:none}.app-shell select::picker-icon,.sheet select::picker-icon{display:none}}

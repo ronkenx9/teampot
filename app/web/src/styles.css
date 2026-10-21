@@ -494,3 +494,12 @@ html,body{background:var(--ground);color:#000;font:500 15px/1.4 "Inter Tight",sy
 .request-amt{font-size:20px;font-weight:400;letter-spacing:-.03em;flex:none}
 .request-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .request .btn.ghost{background:#fff}
+
+/* Treasury policy controls reuse the department surfaces and form language. */
+.policy-box{border:1px solid var(--line,#dedbd5);border-radius:18px;padding:20px;display:grid;gap:12px;min-width:0}
+.policy-box p{margin:0}.policy-check{display:flex!important;flex-direction:row;align-items:flex-start;gap:10px;font-size:13px;line-height:1.5}
+.policy-check input{width:18px!important;min-width:18px;height:18px!important;min-height:18px;padding:0;flex:none;margin-top:2px;accent-color:#141414}
+.earn-details{display:grid;gap:16px}.earn-breakdown{margin:0;display:grid;gap:8px;font-size:13px}
+.earn-breakdown>div{display:flex;justify-content:space-between;gap:16px}.earn-breakdown dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.surplus-earn .inline-form{flex-wrap:wrap}.surplus-earn .money-in{flex:1 0 160px;min-width:140px;max-width:100%}.policy-box .level-row{min-width:0}
+@media(max-width:480px){.policy-box{padding:16px}.surplus-earn .inline-form>.btn{flex:1 1 120px}}

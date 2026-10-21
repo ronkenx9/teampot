@@ -1,8 +1,11 @@
+import { workspaceApp } from './workspaces.js'
 import { Hono } from 'hono'
 import { z, ZodError } from 'zod'
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { PublicKey, Signature, WebAuthnP256 } from 'ox'
 import * as T from './tempo.js'
+import { surplus, defaultPolicy, RISK_NOTICE } from './earn.js'
+import { payrollPrivacy, assertPayrollRoute } from './privacy.js'
 import * as Store from './store.js'
 import * as Issuing from './issuing.js'
 import * as Ramp from './ramp.js'
@@ -100,7 +103,7 @@ function seedState(): State {
   return {
     version: 0,
     epoch,
-    company: { name: 'Northwind Studio', address: T.companyAccount.address, financeApprovalThreshold: 1000 },
+    company: { name: 'Northwind Studio', address: T.companyAccount.address, financeApprovalThreshold: 1000, paymentToken: T.TOKEN, network: T.NETWORK },
     people, vendors, pots, perks,
     activity: [], held: [], topups: [], beneficiaries: [], invoices: [], paydayRuns: [], quarterCloses: [], kudosCredits: [], kudosAwards: [],
     stocks: defaultStocks(), payElections: [{ personId: 'sam', stockId: 'aapl', percent: 20 }], stockTrades: [], earnEntries: [], banks: [], bankTransfers: [],
@@ -467,7 +470,7 @@ function scopedPaydayRuns(scope: ViewerScope) {
   return S.paydayRuns.flatMap((run) => {
     const line = run.lines.find((l) => l.personId === v.id)
     if (!line) return []
-    return [{ ...run, total: line.gross, count: 1, lines: [line] }]
+    return [{ ...run, tx: undefined, total: line.gross, count: 1, lines: [line] }]
   })
 }
 
@@ -564,10 +567,11 @@ async function view(_viewerId: string | null | undefined, actor: Actor) {
       }
     }),
   }
-  const earnByPot = Object.fromEntries(await Promise.all(pots.map(async (pt) => [pt.id, T.earnLive() ? { mode: 'real', balance: await T.earnPosition(deptAddress(pt.id)).catch(() => 0) } : { mode: 'simulated', balance: pt.earn?.balance ?? 0 }] as const)))
+  const earnByPot = Object.fromEntries(await Promise.all(pots.map(async (pt) => [pt.id, await earnView(pt.id)] as const)))
   return {
     controls,
-    earn: { live: T.earnLive(), network: T.NETWORK, byPot: earnByPot },
+    privacy: payrollPrivacy(S.company.payrollPrivacy),
+    earn: { live: T.earnLive(), network: T.NETWORK, byPot: earnByPot, treasury: scope.isAdmin ? await earnView('company') : null, risk: RISK_NOTICE },
     issuing: { mode: Issuing.issuerMode() },
     bank: {
       mode: Ramp.rampMode(),
@@ -611,18 +615,22 @@ app.onError((e: any, c) => {
   return c.json({ error: e.message || 'Something went sideways', status: e.status ?? 500 }, e.status ?? 500)
 })
 
+app.route('/api/accounts', workspaceApp)
+
 let queue: Promise<unknown> = Promise.resolve()
 // Waitlist and site stats never touch the app state, so they skip the state load and write lock.
 const STATELESS = new Set(['/api/hit', '/api/stats', '/api/waitlist', '/api/waitlist.csv'])
 app.use('/api/*', (c, next) => {
-  if (STATELESS.has(c.req.path)) return next()
+  if (STATELESS.has(c.req.path) || c.req.path.startsWith('/api/accounts/')) return next()
   const write = c.req.method === 'POST'
   const handle = async () => {
     S = normalizeState(await Store.load<State>({ fresh: write }), seedState)
+    // A new payment asset/network requires a separate ledger; never reinterpret stored money.
+    if ((S.company.paymentToken ?? '0x20c0000000000000000000000000000000000000').toLowerCase() !== T.TOKEN.toLowerCase() || (S.company.network ?? 'testnet') !== T.NETWORK) return c.json({ error: 'This state store belongs to another payment asset or network. Use an isolated deployment.' }, 409)
     const baseVersion = S.version
     cleanEphemeral()
     await next()
-    if (write) { invalidateCache(); S.version = baseVersion + 1; await Store.save(S, baseVersion) }
+    if (write) { invalidateCache(); const version = Math.max(baseVersion, S.version); S.version = version + 1; await Store.save(S, version) }
   }
   // Writes take the cross-instance lock so a payment is never made on stale state.
   const run = queue.then(() => (write ? Store.withWriteLock(handle) : handle()))
@@ -781,7 +789,7 @@ app.get('/api/state', async (c) => {
 app.get('/api/payday/preview', (c) => {
   requireFinance(actorFrom(c))
   const staff = payrollStaff()
-  return c.json({ date: S.nextPayday, total: staff.reduce((s, x) => s + (x.salary ?? 0), 0), lines: staff.map((x) => ({ personId: x.id, name: x.name, title: x.title, gross: x.salary })) })
+  return c.json({ privacy: payrollPrivacy(S.company.payrollPrivacy), date: S.nextPayday, total: staff.reduce((s, x) => s + (x.salary ?? 0), 0), lines: staff.map((x) => ({ personId: x.id, name: x.name, title: x.title, gross: x.salary })) })
 })
 
 app.post('/api/setup', async (c) => {
@@ -834,7 +842,7 @@ app.post('/api/setup', async (c) => {
   }
   await setupStocks()
   // The stock demo company starts with last month's payday already paid, so homes open with real money.
-  if (!setup.departments?.length && !S.paydayRuns.length) {
+  if (!setup.departments?.length && !S.paydayRuns.length && S.company.payrollPrivacy !== 'confidential') {
     const staff = payrollStaff()
     const d = new Date(); d.setUTCMonth(d.getUTCMonth() - 1)
     const date = d.toISOString().slice(0, 10)
@@ -912,9 +920,16 @@ app.post('/api/invites/:token/accept', async (c) => {
 
 app.post('/api/payday', async (c) => {
   requireFinance(actorFrom(c))
-  const body = await parseBody(c, z.object({ requestId }))
+  assertPayrollRoute(S.company.payrollPrivacy)
+  const body = await parseBody(c, z.object({ requestId, personIds: z.array(z.string().min(1)).min(2).max(500).optional() }))
   if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
-  const staff = payrollStaff()
+  const eligible = payrollStaff()
+  // Older native clients submit the full roster. Web clients always send an explicit selection.
+  const ids = body.personIds ?? eligible.map((x) => x.id)
+  if (new Set(ids).size !== ids.length) throw badRequest('Choose each person only once.')
+  if (ids.length < 2) throw badRequest('Select at least 2 people for payday.')
+  if (ids.some((id) => !eligible.some((x) => x.id === id))) throw badRequest('Someone selected is no longer on payroll. Review your selection.')
+  const staff = eligible.filter((x) => ids.includes(x.id))
   const date = S.nextPayday || new Date().toISOString().slice(0, 10)
   const r = await T.payday(staff.map((x) => ({ to: x.address, amount: x.salary!, note: `payday ${date}` })))
   const investResults = []
@@ -929,7 +944,7 @@ app.post('/api/payday', async (c) => {
   const total = staff.reduce((s, x) => s + x.salary!, 0)
   const run = { id: uid(), at: Date.now(), date, tx: r.tx, total, count: staff.length, ms: r.ms, lines: staff.map((x) => ({ personId: x.id, gross: x.salary!, memo: `payday ${date}` })) }
   S.paydayRuns.unshift(run)
-  S.nextPayday = nextMonthlyDate(new Date(`${date}T00:00:00Z`))
+  if (staff.length === eligible.length) S.nextPayday = nextMonthlyDate(new Date(`${date}T00:00:00Z`))
   log({ kind: 'payday', title: `Payday's in the pot`, detail: `${staff.length} people paid in ${(r.ms / 1000).toFixed(1)}s`, amount: total, tx: r.tx, memo: `payday:${date}` })
   const out = { ...r, total, count: staff.length, run, investResults }
   if (body.requestId) S.processed[body.requestId] = out
@@ -1624,35 +1639,103 @@ app.post('/api/bank/cashout', async (c) => {
   return c.json(out)
 })
 
-/* ============================ Idle budgets earn ============================ */
-// With TEMPO_EARN_VAULT set (e.g. on mainnet) money really moves into the Earn vault; otherwise it is simulated.
-app.post('/api/pots/:id/earn', async (c) => {
-  const a = actorFrom(c)
-  const pt = pot(c.req.param('id'))
-  requireFinanceOrHead(a, pt.id)
-  const body = await parseBody(c, z.object({ action: z.enum(['deposit', 'withdraw']), amount: number, requestId }))
-  if (body.requestId && S.processed[body.requestId]) return c.json(S.processed[body.requestId])
-  const amount = roundMoney(body.amount)
-  const live = T.earnLive()
-  const current = pt.earn ?? { mode: live ? 'real' as const : 'simulated' as const, balance: 0, updatedAt: now() }
-  const deptBalance = await T.balanceOf(deptAddress(pt.id)).catch(() => 0)
-  let tx: string | undefined
-  if (body.action === 'deposit') {
-    if (amount + 0.01 > deptBalance - (live ? 0 : current.balance)) return c.json({ error: `${pt.team} has ${deptBalance.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} free to put to work` }, 400)
-    if (live) tx = await T.earnDeposit(a.person.role === 'lead' ? headSigner(pt) ?? deptRoot(pt.id) : deptRoot(pt.id), amount)
-    current.balance = roundMoney(current.balance + amount)
-  } else {
-    const have = live ? await T.earnPosition(deptAddress(pt.id)) : current.balance
-    if (amount > have + 1e-6) return c.json({ error: `${pt.team} has ${have.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} earning` }, 400)
-    if (live) tx = await T.earnWithdraw(a.person.role === 'lead' ? headSigner(pt) ?? deptRoot(pt.id) : deptRoot(pt.id), amount)
-    current.balance = roundMoney(Math.max(0, current.balance - amount))
-  }
-  pt.earn = { ...current, mode: live ? 'real' : 'simulated', updatedAt: now(), tx }
-  log({ kind: 'earn', title: body.action === 'deposit' ? `${pt.team} put idle budget to work` : `${pt.team} brought budget back`, detail: live ? 'Tempo Earn' : 'Simulated until a Tempo Earn vault is connected', amount, tx, potId: pt.id, memo: `${pt.id}:earn` })
-  const out = { ok: true, mode: pt.earn.mode, balance: pt.earn.balance, tx, receipt: tx ? T.EXPLORER + tx : undefined }
-  if (body.requestId) S.processed[body.requestId] = out
-  return c.json(out)
+/* ======================= Confidential payroll policy ======================= */
+app.post('/api/settings/payroll-privacy', async (c) => {
+  requireFinance(actorFrom(c))
+  const body = await parseBody(c, z.object({ mode: z.enum(['public', 'confidential']), acknowledgePublic: z.boolean().optional() }))
+  if (body.mode === 'public' && S.company.payrollPrivacy === 'confidential' && !body.acknowledgePublic) throw badRequest('Confirm that payroll details will be public before changing this setting')
+  S.company.payrollPrivacy = body.mode
+  log({ kind: 'admin', title: 'Payroll privacy preference updated', detail: body.mode === 'confidential' ? 'Confidential required; payroll paused until a verified Zone is available' : 'Public payments enabled', memo: 'payroll:privacy' })
+  return c.json(payrollPrivacy(body.mode))
 })
+
+/* ============================ Surplus earn ============================ */
+function earnOwner(scope: string) { return scope === 'company' ? S.company : pot(scope) }
+function earnAddress(scope: string) { return scope === 'company' ? S.company.address : deptAddress(scope) }
+async function earnView(scope: string) {
+  const owner = earnOwner(scope)
+  const live = T.earnLive()
+  let cash: number | null = null
+  let balance: number | null = null
+  let withdrawable: number | null = null
+  let error: string | undefined
+  try {
+    if (owner.earn?.mode === 'real' && (!live || !owner.earn.vault || owner.earn.vault.toLowerCase() !== T.EARN_VAULT.toLowerCase())) throw new Error('Reconnect original vault')
+    cash = await T.balanceOf(earnAddress(scope))
+    if (live) {
+      const snapshot = await T.earnSnapshot(earnAddress(scope))
+      balance = snapshot.balance
+      withdrawable = snapshot.withdrawable
+    } else {
+      balance = owner.earn?.mode === 'simulated' ? owner.earn.balance : 0
+      withdrawable = balance
+    }
+  } catch { error = 'Vault or balance data unavailable. Deposits are paused; no balance is assumed.' }
+  if (Object.values(S.processed).some((entry: any) => entry?.pending && entry.scope === scope)) error = 'A vault request needs reconciliation. New vault transactions are paused.'
+  const assessment = surplus(S, scope, cash ?? NaN, !live ? balance ?? 0 : 0)
+  return { ...assessment, cash, mode: live ? 'real' as const : 'simulated' as const, balance, withdrawable, error, vault: live ? T.EARN_VAULT : null, available: error ? 0 : assessment.available }
+}
+app.post('/api/earn/:scope/policy', async (c) => {
+  const a = actorFrom(c)
+  requireFinance(a)
+  const owner = earnOwner(c.req.param('scope'))
+  const body = await parseBody(c, z.object({ enabled: z.boolean(), cashReserve: z.number().finite().nonnegative().max(1e12), acknowledgeRisk: z.boolean() }))
+  if (body.enabled && !body.acknowledgeRisk) throw badRequest('Review and acknowledge the vault risks before enabling deposits')
+  owner.earnPolicy = { enabled: body.enabled, cashReserve: roundMoney(body.cashReserve), approvedBy: a.person.id, updatedAt: now() }
+  log({ kind: 'admin', title: 'Surplus earn policy saved', detail: `${body.enabled ? 'Deposits enabled' : 'Deposits paused'} · extra cash reserve ${owner.earnPolicy.cashReserve}`, potId: c.req.param('scope') === 'company' ? undefined : c.req.param('scope'), memo: 'earn:policy' })
+  return c.json(owner.earnPolicy)
+})
+async function moveSurplus(c: any, scope: string) {
+  const a = actorFrom(c)
+  const owner = earnOwner(scope)
+  if (scope === 'company') requireFinance(a)
+  else requireFinanceOrHead(a, scope)
+  const body = await parseBody(c, z.object({ action: z.enum(['deposit', 'withdraw']), amount: z.number().finite().positive().max(1e12), requestId }))
+  const amount = roundMoney(body.amount)
+  if (amount <= 0 || amount !== body.amount) throw badRequest('Enter a positive amount with at most two decimal places')
+  // Bind replay protection to this route, actor and payload; shared request ids cannot bypass policy.
+  const key = body.requestId ? `surplus:${a.person.id}:${scope}:${body.requestId}` : undefined
+  const fingerprint = `${body.action}:${amount}`
+  if (key && S.processed[key]) {
+    const prior = S.processed[key] as any
+    if (prior.pending) throw Object.assign(new Error('This vault request needs reconciliation before it can be retried. No second transaction was sent.'), { status: 409 })
+    if (prior.fingerprint !== fingerprint) throw badRequest('That request id was already used for a different amount or action')
+    return c.json(prior.result)
+  }
+  const live = T.earnLive()
+  if (live && Store.storeKind() !== 'redis') throw badRequest('Live Earn requires healthy shared Redis storage')
+  if (live && T.NETWORK === 'mainnet' && a.demo) throw forbidden('Sign in with your own credentials before using live Earn')
+  if (Object.values(S.processed).some((entry: any) => entry?.pending && entry.scope === scope)) throw Object.assign(new Error('A previous vault request for this account needs reconciliation. New vault transactions are paused.'), { status: 409 })
+  if (!live && T.NETWORK === 'mainnet') throw badRequest('Connect and verify a vault before using Earn on mainnet')
+  if (owner.earn?.mode === 'real' && !live) throw badRequest('Reconnect the original vault to manage this position')
+  if (owner.earn?.mode === 'real' && (!owner.earn.vault || owner.earn.vault.toLowerCase() !== T.EARN_VAULT.toLowerCase())) throw badRequest('Reconnect the original vault to manage this position')
+  const current = await earnView(scope)
+  if (current.error || current.balance === null || current.withdrawable === null) throw badRequest(current.error || 'Vault data unavailable')
+  if (body.action === 'deposit') {
+    if (!(owner.earnPolicy ?? defaultPolicy()).enabled) throw badRequest('Finance must approve the reserve policy before deposits')
+    if (amount > current.available) throw badRequest(`Only ${current.available.toFixed(2)} is surplus after protected cash and upcoming obligations`)
+  } else if (amount > current.withdrawable) throw badRequest('Not enough available vault liquidity for this withdrawal')
+  const source = scope === 'company' ? T.companyAccount : deptRoot(scope)
+  // No position mutation before confirmation. A failed withdrawal remains invested and never becomes spendable cash.
+  const send = live ? await T.earnPrepare(source, body.action, amount) : undefined
+  if (live) {
+    if (!key) throw badRequest('A request id is required for live vault transactions')
+    S.processed[key] = { fingerprint, pending: true, scope, action: body.action, amount, at: now() }
+    const version = S.version
+    S.version = version + 1
+    await Store.save(S, version) // Persist intent before a transaction can leave the process.
+    if (Store.storeKind() !== 'redis') throw badRequest('Shared storage became unavailable. No vault transaction was sent.')
+  }
+  const tx = send ? await send() : undefined
+  const balance = roundMoney(Math.max(0, current.balance + (body.action === 'deposit' ? amount : -amount)))
+  owner.earn = { mode: live ? 'real' : 'simulated', balance, updatedAt: now(), tx, vault: live ? T.EARN_VAULT : undefined }
+  log({ kind: 'earn', title: body.action === 'deposit' ? 'Surplus deposited' : 'Earn withdrawal confirmed', detail: live ? 'Vault transaction confirmed' : 'Simulation only — no funds moved or returns accrued', amount, tx, potId: scope === 'company' ? undefined : scope, memo: 'earn:surplus' })
+  const result = { ok: true, mode: owner.earn.mode, balance, tx, receipt: tx ? T.EXPLORER + tx : undefined }
+  if (key) S.processed[key] = { fingerprint, result }
+  return c.json(result)
+}
+app.post('/api/earn/company/move', (c) => moveSurplus(c, 'company'))
+app.post('/api/pots/:id/earn', (c) => moveSurplus(c, c.req.param('id')))
 
 /* ======================= Visa card (card issuer bridge) ======================= */
 // One card, two rails, one rule set. On Tempo the card is the access key. At a shop the issuer asks us; we check

@@ -1,0 +1,11 @@
+import { chromium } from 'playwright'
+const b = await chromium.launch()
+const p = await (await b.newContext({ viewport:{width:1440,height:900} })).newPage()
+const errs=[]; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type()==='error' && errs.push(m.text()))
+await p.goto('https://www.teampot.xyz/tour', { waitUntil: 'networkidle' })
+await p.waitForTimeout(3500); await p.screenshot({ path: '/tmp/tp-shots/v5/tour-1.png' })
+await p.keyboard.press('ArrowRight'); await p.waitForTimeout(2200); await p.screenshot({ path: '/tmp/tp-shots/v5/tour-2.png' })
+await p.keyboard.press('ArrowRight'); await p.waitForTimeout(800); await p.keyboard.press('ArrowRight'); await p.waitForTimeout(3500); await p.screenshot({ path: '/tmp/tp-shots/v5/tour-4.png' })
+await p.keyboard.press('ArrowRight'); await p.waitForTimeout(3500); await p.screenshot({ path: '/tmp/tp-shots/v5/tour-5.png' })
+console.log('errors', errs)
+await b.close()

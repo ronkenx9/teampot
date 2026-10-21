@@ -12,7 +12,7 @@ Your pay, your team's budget and your perks in one app, on <a href="https://temp
 
 <p align="center">
   <a href="https://www.teampot.xyz"><b>Website</b></a> ·
-  <a href="https://www.teampot.xyz/app"><b>Live demo</b></a> ·
+  <a href="https://www.teampot.xyz/demo"><b>Live demo</b></a> ·
   <a href="https://www.teampot.xyz/tour"><b>Guided tour</b></a> ·
   <a href="ARCHITECTURE.md">Architecture</a> ·
   <a href="app/VERIFIED.md">Verified on Tempo</a>
@@ -25,6 +25,12 @@ Your pay, your team's budget and your perks in one app, on <a href="https://temp
 </p>
 
 > Runs on the Tempo **Moderato testnet** with test money. In the demo you can switch between Finance (Jordan), a department head (Ava), an employee (Sam) and a contractor (Mateo).
+
+## Real accounts and team setup
+
+Open [your workspace](https://teampot.vercel.app/app) to create a company or join an invitation with a passkey. Creators become owners; invitations assign Finance, department lead, employee or contractor access. Job titles are separate from permissions. Only assigned workspaces and roles appear in the account switcher, with server-enforced access boundaries.
+
+The [shared demo](https://teampot.vercel.app/demo) keeps Jordan, Ava, Sam, Mateo and testnet money separate from real accounts. New companies are empty and support team setup; **company payment accounts are not connected yet**. See [ONBOARDING.md](ONBOARDING.md) for the role matrix, invitation rules, storage configuration, verification and current limitations.
 
 ## Why
 

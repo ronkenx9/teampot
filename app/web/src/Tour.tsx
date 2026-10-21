@@ -94,7 +94,7 @@ export default function Tour() {
       <div className="tour-stage">
         <div className="tp-phone-box" style={{ width: 418 * scale, height: 872 * scale }}><div className="tp-phone" style={{ transform: `scale(${scale})` }}>
           <div className="tp-phone-status"><span>9:41</span><span className="island" /><span className="sig">●●● ◗</span></div>
-          {ready && <iframe ref={frame} title="Teampot app" src="/app?tour=1" onLoad={() => { setTimeout(() => { lastViewer.current = ch.viewer; drive(ch) }, 900) }} className={blur ? 'blurred' : ''} />}
+          {ready && <iframe ref={frame} title="Teampot app" src="/demo?tour=1" onLoad={() => { setTimeout(() => { lastViewer.current = ch.viewer; drive(ch) }, 900) }} className={blur ? 'blurred' : ''} />}
           <span className="home-bar" />
         </div></div>
       </div>

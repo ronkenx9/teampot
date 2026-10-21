@@ -1,0 +1,10 @@
+{
+  "scope": "company-pilot",
+  "leaf": "leaf-1.2",
+  "globs": [
+    "app/web/src/Workspace.tsx",
+    "app/web/src/Pilot.tsx",
+    "app/web/src/pilot.css"
+  ],
+  "pid": 35012
+}

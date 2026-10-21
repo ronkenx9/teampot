@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "waves": {
+    "ready-1": {
+      "leaves": [
+        "leaf-api",
+        "leaf-release"
+      ],
+      "state": "complete",
+      "openedAt": "2026-10-20T20:19:33.210Z",
+      "started": {
+        "leaf-api": {
+          "handle": "/root/beta_api",
+          "at": "2026-10-20T20:19:54.753Z"
+        },
+        "leaf-release": {
+          "handle": "/root/beta_release",
+          "at": "2026-10-20T20:19:54.819Z"
+        }
+      },
+      "returned": {
+        "leaf-release": {
+          "at": "2026-10-20T20:24:56.402Z"
+        },
+        "leaf-api": {
+          "at": "2026-10-20T20:25:49.113Z"
+        }
+      },
+      "sealedAt": "2026-10-20T20:19:54.896Z",
+      "completedAt": "2026-10-20T20:25:49.113Z"
+    }
+  }
+}

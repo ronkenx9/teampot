@@ -21,3 +21,7 @@ submission/video/film/assets/bgm-recall*.wav
 submission/video/demo/build/
 submission/video/demo/clips/
 submission/video/demo/vo/*.wav
+
+# logo animation renders (frames, mp4s) and sfx stay local; the scripts that make them are tracked
+brand/logo-anim/out/
+brand/logo-anim/sfx/

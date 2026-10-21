@@ -1,0 +1,163 @@
+{
+  "network": "testnet",
+  "chainId": 42431,
+  "at": "2026-10-21T19:12:29.110Z",
+  "companies": [
+    {
+      "id": "2e3657e3-9f3c-428c-8e1c-366e5bc247c0",
+      "treasury": "0x51216E58883647e3eeF1eDA100843264f4bf58DA",
+      "department": "0x52E21859dB680212892B02F0c05CEa4BED31996F",
+      "isolationChecked": true,
+      "retryChecked": true,
+      "revocationChecked": true,
+      "heldChecked": true,
+      "receipts": [
+        {
+          "id": "99998ede-bbde-4c50-ad0a-a85ee1a71f49",
+          "kind": "undelegate",
+          "departmentId": "278bd9f9-a002-43fa-b52c-a582501b29f0",
+          "membershipId": "2cd53626-1625-496c-bac6-3eb0c8af6bc5",
+          "tx": "0x0b4733a1124923c3d1cc5366afc5a8a70e1c141ad798e472f36a434a00734480",
+          "at": 1792609988976
+        },
+        {
+          "id": "bfb30fa6-d54e-406e-8513-192a04ed2cc6",
+          "kind": "revoke",
+          "departmentId": "278bd9f9-a002-43fa-b52c-a582501b29f0",
+          "membershipId": "2c8745d9-842f-4f5e-b506-5dbe6b3f8925",
+          "tx": "0xa6372fa6bef2a7319de84534935abb4e5e5cc69c7809e7338b169973f4d5b009",
+          "at": 1792609979765
+        },
+        {
+          "id": "82deb766-33c2-4a7d-8ce4-76238d828e80",
+          "kind": "approve",
+          "departmentId": "278bd9f9-a002-43fa-b52c-a582501b29f0",
+          "membershipId": "2c8745d9-842f-4f5e-b506-5dbe6b3f8925",
+          "amount": 2,
+          "tx": "0x27a7e9588e5a6e4cca20ba29e3cf5547f785db243012f18b85008cf147b27bdc",
+          "at": 1792609975891,
+          "to": "0x94a14e65e0dbC37D5E0a41439cDd1dAcE3333a67"
+        },
+        {
+          "id": "7993ddf3-1cbd-4e6b-9b8a-8cdcfea6db7c",
+          "kind": "spend",
+          "departmentId": "278bd9f9-a002-43fa-b52c-a582501b29f0",
+          "membershipId": "2c8745d9-842f-4f5e-b506-5dbe6b3f8925",
+          "amount": 3,
+          "tx": "0x18be95fe4988ca8023c31df8410df5cbe2640082a6742297a8d2713909f81929",
+          "at": 1792609971213,
+          "to": "0xC24dcc053A4dC518026e4881dE5d4F7C5b15C41D"
+        },
+        {
+          "id": "5c69872e-2b64-44aa-a9b8-f3a41b27d112",
+          "kind": "issue",
+          "departmentId": "278bd9f9-a002-43fa-b52c-a582501b29f0",
+          "membershipId": "2c8745d9-842f-4f5e-b506-5dbe6b3f8925",
+          "tx": "0x0971ac03481d341678f2ebec5b6f6f77d8bb4561e9155f7e5ece4f5ebb383a6f",
+          "at": 1792609966244
+        },
+        {
+          "id": "fa963638-7031-498c-b0ca-e5d8f4eda73f",
+          "kind": "delegate",
+          "departmentId": "278bd9f9-a002-43fa-b52c-a582501b29f0",
+          "membershipId": "2cd53626-1625-496c-bac6-3eb0c8af6bc5",
+          "tx": "0x9efb7f2c6f20b84d888da08fead9ae186003318741ed3f469ebb72324d658161",
+          "at": 1792609961854
+        },
+        {
+          "id": "68a04da7-4d6b-400d-bd3c-2f272202a568",
+          "kind": "fund",
+          "departmentId": "278bd9f9-a002-43fa-b52c-a582501b29f0",
+          "amount": 500,
+          "tx": "0x23ecaa335af820edc05591cc247b773f198a5682f7be8072b3b4eb520ce7b99f",
+          "at": 1792609957679
+        },
+        {
+          "id": "1204e00c-0082-4118-b708-657975b93865",
+          "kind": "provision",
+          "amount": 10000,
+          "tx": "0x0d302646db6ba8deebb49ff6712d3e9d4b1e6656fe8ca625da26527f39f39737",
+          "at": 1792609953825
+        }
+      ]
+    },
+    {
+      "id": "1ec3f3fb-4e39-4aa6-817f-07b506f6a047",
+      "treasury": "0x15AC11Bf0fD28E8dCA4Ed8C98280d1C1F7996608",
+      "department": "0xaf8CD435ee3db6Ac8E4bD591683C65a0bd5c7411",
+      "isolationChecked": true,
+      "retryChecked": true,
+      "revocationChecked": true,
+      "heldChecked": true,
+      "receipts": [
+        {
+          "id": "b571c0d0-943f-4d3d-8802-7f282a631e14",
+          "kind": "undelegate",
+          "departmentId": "9a5905e8-befd-47d9-afee-22e9c48f6cbf",
+          "membershipId": "14448d62-89f3-4680-acf3-6759ea345870",
+          "tx": "0xebacaa4ed5d69a8b900ac7525a297e1786acc7fd63ec4ea429889bc9bfa2ff0e",
+          "at": 1792610028548
+        },
+        {
+          "id": "b32cb8ac-7b7f-4f35-97f7-71a92e4d1789",
+          "kind": "revoke",
+          "departmentId": "9a5905e8-befd-47d9-afee-22e9c48f6cbf",
+          "membershipId": "cdfffa3f-0836-4af2-8e88-85b0a837c0e0",
+          "tx": "0x81e9ba3507129d980ee46e684ad157f6480643bfd7fba70b0b9bdab546f0b1c8",
+          "at": 1792610018565
+        },
+        {
+          "id": "f46a527b-3840-4144-826a-198fc83f56e0",
+          "kind": "approve",
+          "departmentId": "9a5905e8-befd-47d9-afee-22e9c48f6cbf",
+          "membershipId": "cdfffa3f-0836-4af2-8e88-85b0a837c0e0",
+          "amount": 2,
+          "tx": "0xc97370b419ab67477c3cb95ca0ca1eacc1dc8e085829b2cce0b38e3747984a03",
+          "at": 1792610014428,
+          "to": "0x84800D825801961F599457491DEd21743cCcF483"
+        },
+        {
+          "id": "8a314b51-acde-442a-b662-fab3c7276c6c",
+          "kind": "spend",
+          "departmentId": "9a5905e8-befd-47d9-afee-22e9c48f6cbf",
+          "membershipId": "cdfffa3f-0836-4af2-8e88-85b0a837c0e0",
+          "amount": 3,
+          "tx": "0xcc54d62bd67d52270f94e9aaf1ba9cd3f09d4a59cfeb0b66ec21a118e9658b5a",
+          "at": 1792610010132,
+          "to": "0xfcc2C86D2eBaa5e756F282D40623C57d2443dc31"
+        },
+        {
+          "id": "b842ac65-a240-4bc3-99c3-2fd46fc8ae98",
+          "kind": "issue",
+          "departmentId": "9a5905e8-befd-47d9-afee-22e9c48f6cbf",
+          "membershipId": "cdfffa3f-0836-4af2-8e88-85b0a837c0e0",
+          "tx": "0xc863f804ddf095f8cafde0146429222fba3074585cf1680758b96890d66b5b1c",
+          "at": 1792610006208
+        },
+        {
+          "id": "6d53d726-e76b-43a5-a7ef-90333c9aeee1",
+          "kind": "delegate",
+          "departmentId": "9a5905e8-befd-47d9-afee-22e9c48f6cbf",
+          "membershipId": "14448d62-89f3-4680-acf3-6759ea345870",
+          "tx": "0x3dc4825c2ce84e45a8c38dcb497e1909ff8cb2073107d635ecb57d5dca773432",
+          "at": 1792610002238
+        },
+        {
+          "id": "98558c37-b340-4462-968e-9d623f89b845",
+          "kind": "fund",
+          "departmentId": "9a5905e8-befd-47d9-afee-22e9c48f6cbf",
+          "amount": 500,
+          "tx": "0xaf3e442e55f0ba3e9a458382b9668cb8720d3e9f53f5c407535c410cc7c04ab3",
+          "at": 1792609998555
+        },
+        {
+          "id": "31b6dab1-ac79-43c5-a824-ccf4321bead9",
+          "kind": "provision",
+          "amount": 10000,
+          "tx": "0x3e41b891cc9761130d24cf9ebde2c781e3884a539b18335f7026c9ef9f0d8af6",
+          "at": 1792609994451
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+2026-10-20T20:51:29.705Z dispatch ready-1 opened: leaf-profile, leaf-theme
+2026-10-20T20:52:14.327Z dispatch ready-1 started leaf-profile as /root/onboarding_profile
+2026-10-20T20:52:14.394Z dispatch ready-1 started leaf-theme as /root/onboarding_theme
+2026-10-20T20:52:14.461Z dispatch ready-1 sealed
+2026-10-20T20:55:24.943Z dispatch ready-1 returned leaf-profile
+2026-10-20T20:55:25.011Z dispatch ready-1 returned leaf-theme

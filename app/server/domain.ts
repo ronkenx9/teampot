@@ -1,3 +1,5 @@
+import type { EarnPolicy, EarnPosition } from './earn.js'
+import type { PayrollPrivacy } from './privacy.js'
 export type Role = 'admin' | 'lead' | 'employee' | 'contractor'
 export type StockId = 'aapl' | 'nvda' | 'spy'
 export type Person = {
@@ -77,7 +79,8 @@ export type Pot = {
   headKeyTx?: string
   headSince?: number
   /** Idle budget put to work in Tempo Earn (real when a vault is configured, simulated otherwise). */
-  earn?: { mode: 'simulated' | 'real'; balance: number; updatedAt: number; tx?: string }
+  earn?: EarnPosition
+  earnPolicy?: EarnPolicy
 }
 export type Perk = { id: string; personId: string; name: string; cap: number; periodLabel: string; periodSec: number; vendorIds: string[]; color: string; keyTx?: string; keyIssuer?: string }
 export type TopUp = { id: string; at: number; potId: string; amount: number; note: string; requestedBy: string; status: 'requested' | 'funded' | 'declined'; tx?: string; decidedBy?: string }
@@ -107,7 +110,7 @@ export type Invite = {
 export type State = {
   version: number
   epoch: string
-  company: { name: string; address: string; financeApprovalThreshold: number }
+  company: { name: string; address: string; financeApprovalThreshold: number; paymentToken?: string; network?: 'mainnet' | 'testnet'; payrollPrivacy?: PayrollPrivacy; earnPolicy?: EarnPolicy; earn?: EarnPosition }
   people: Person[]
   vendors: Vendor[]
   pots: Pot[]

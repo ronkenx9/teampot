@@ -1,6 +1,7 @@
 // Thin Tempo layer for Teampot. Finance uses the company root; each department has its own
 // demo P256 root that funds and authorizes that department's cards.
 import 'dotenv/config'
+import { vaultAdapter, vaultConfig } from './earn.js'
 import { http, parseUnits, formatUnits, pad, stringToHex, parseEventLogs, erc20Abi, keccak256, concat, toHex } from 'viem'
 import { Address, PublicKey } from 'ox'
 import { Tick, TokenId } from 'ox/tempo'
@@ -9,7 +10,7 @@ import { waitForTransactionReceipt } from 'viem/actions'
 import { Account, Actions, Addresses, createClient } from 'viem/tempo'
 import { tempo as tempoMainnet, tempoModerato } from 'viem/tempo/chains'
 
-export const TOKEN = '0x20c0000000000000000000000000000000000000' as const // pathUSD, 6 dp
+export const TOKEN = (process.env.TEMPO_PAYMENT_TOKEN || '0x20c0000000000000000000000000000000000000') as `0x${string}` // six decimals; never switch an existing ledger's asset
 /** TEMPO_NETWORK=mainnet switches to Tempo mainnet (real money). Default: Moderato testnet. */
 export const NETWORK: 'mainnet' | 'testnet' = process.env.TEMPO_NETWORK === 'mainnet' ? 'mainnet' : 'testnet'
 const EXPLORER_BASE = process.env.TEMPO_EXPLORER || (NETWORK === 'mainnet' ? 'https://explore.tempo.xyz' : 'https://explore.testnet.tempo.xyz')
@@ -255,28 +256,16 @@ export async function revokeKeyVia(signer: any, parent: any, k: KeyRef) {
   return (r.receipt ?? r).transactionHash as string
 }
 
-/* ---- Tempo Earn: idle money in an ERC-4626 vault. Real only when TEMPO_EARN_VAULT is set. ---- */
-export const EARN_VAULT = (process.env.TEMPO_EARN_VAULT || '') as `0x${string}` | ''
+/* ---- Asset-checked, bounded vault operations. Configuration alone does not prove readiness. ---- */
+export const EARN_VAULT = process.env.TEMPO_EARN_VAULT || ''
 export const earnLive = () => !!EARN_VAULT
-
-/** Deposit `amountUsd` from `source` into the Earn vault. */
-export async function earnDeposit(source: any, amountUsd: number) {
-  if (!EARN_VAULT) throw new Error('No Earn vault configured')
-  // ERC-4626 deposits are priced by the vault's share rate; require at least one share back.
-  const r: any = await Actions.earn.depositSync(mk(source), { vault: EARN_VAULT, assetAmount: usd(amountUsd), shareAmountMin: 1n } as any)
-  return (r.receipt ?? r).transactionHash as string
+const adapter = (source: any = companyAccount) => {
+  const config = vaultConfig(TOKEN, chain.id)
+  if (!config) throw new Error('No Earn vault configured')
+  return vaultAdapter(config, mk(source))
 }
-
-/** Withdraw exactly `amountUsd` of assets from the Earn vault back to `source`. */
-export async function earnWithdraw(source: any, amountUsd: number) {
-  if (!EARN_VAULT) throw new Error('No Earn vault configured')
-  const r: any = await Actions.earn.withdrawExactSync(mk(source), { vault: EARN_VAULT, assetAmount: usd(amountUsd), shareAmountMax: 2n ** 255n } as any)
-  return (r.receipt ?? r).transactionHash as string
-}
-
-/** Current value of an account's Earn position, in dollars. */
-export async function earnPosition(account: string) {
-  if (!EARN_VAULT) return 0
-  const r: any = await Actions.earn.getPosition(company, { vault: EARN_VAULT, account } as any)
-  return fmt(r.value)
-}
+export const earnPrepare = (source: any, action: 'deposit' | 'withdraw', amount: number) => adapter(source).prepare(action, amount)
+export const earnDeposit = (source: any, amount: number) => adapter(source).move('deposit', amount)
+export const earnWithdraw = (source: any, amount: number) => adapter(source).move('withdraw', amount)
+export const earnSnapshot = (account: string) => adapter().position(account)
+export const earnPosition = async (account: string) => (await earnSnapshot(account)).balance

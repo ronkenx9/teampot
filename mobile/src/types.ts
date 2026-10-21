@@ -47,7 +47,8 @@ export type EarnEntry = { personId: string; balance: number; mode: 'simulated' |
 
 export type State = {
   auth?: { personId: string; role: Role; demo: boolean };
-  company: { name: string; balance: number; financeApprovalThreshold: number };
+  company: { name: string; balance: number; financeApprovalThreshold: number; network?: 'testnet' | 'mainnet' };
+  earn?: { network: 'testnet' | 'mainnet'; live?: boolean };
   nextPayday: string;
   people: Person[];
   pots: Pot[];

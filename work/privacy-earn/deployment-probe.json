@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-13T22:59:08.995Z",
+  "chainId": 4217,
+  "vault": "0x0D136e26B4D9e4836fc5cb202baeb49Cb6f5df48",
+  "asset": "0x20c0000000000000000000006a37DA5C996874BE",
+  "symbol": "OUSD",
+  "decimals": 6,
+  "deadShares": "1000000000000000000",
+  "bundles": "0xe8aA1d8f1Cb111B7f52957D662Ee310D6d2Ee9B9",
+  "approvalCount": 1,
+  "sdkBuild": true,
+  "roundTrip": false,
+  "note": "Read-only probe. No funds moved. OUSD differs from the existing pathUSD payment asset."
+}

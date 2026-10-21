@@ -1,0 +1,7 @@
+2026-10-20T20:19:33.219Z dispatch ready-1 opened: leaf-api, leaf-release
+2026-10-20T20:19:54.758Z dispatch ready-1 started leaf-api as /root/beta_api
+2026-10-20T20:19:54.825Z dispatch ready-1 started leaf-release as /root/beta_release
+2026-10-20T20:19:54.901Z dispatch ready-1 sealed
+2026-10-20T20:24:56.409Z dispatch ready-1 returned leaf-release
+2026-10-20T20:25:49.119Z dispatch ready-1 returned leaf-api
+Final verification:7 gates met; 5 runnable reverified. Source preparation complete; native binary/device QA/signing and dependency triage remain release handoffs.

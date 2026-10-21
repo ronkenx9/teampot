@@ -12,3 +12,6 @@ screenshots/*.png
 
 expo-env.d.ts
 # @end expo-cli
+# Local beta exports and native build outputs
+dist-beta/
+dist-ios/

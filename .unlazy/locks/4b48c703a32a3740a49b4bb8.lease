@@ -1,0 +1,10 @@
+{
+  "scope": "company-pilot",
+  "leaf": "leaf-1.1",
+  "globs": [
+    "app/server/pilot.ts",
+    "app/server/pilot-types.ts",
+    "app/server/pilot.test.ts"
+  ],
+  "pid": 34988
+}

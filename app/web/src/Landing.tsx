@@ -1,3 +1,4 @@
+import InteractiveMark from './InteractiveMark'
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import './landing.css'
@@ -22,16 +23,17 @@ export default function Landing() {
             <li><a href={ARCH}>Architecture</a></li>
             <li><a href={GITHUB}>GitHub</a></li>
           </ul>
-          <a className="lp-btn dark sm" href="/app">Open demo</a>
+          <a className="lp-btn dark sm" href="/app">Open app</a>
         </nav>
       </header>
 
       <main>
         <section className="lp-hero">
+          <InteractiveMark variant="hero" />
           <h1>Work money that's<br />actually yours</h1>
           <p>Your pay, your team's budget and your perks land in one app on Tempo. Spend it, hold it or invest it, while every team runs its own money.</p>
           <div className="lp-actions">
-            <a className="lp-btn dark" href="/app">Try the live demo</a>
+            <a className="lp-btn dark" href="/app">Create your workspace</a>
             <a className="lp-btn light" href="/tour">Take the tour</a>
           </div>
           <a className="lp-wl-link" href="/waitlist">Get notified when we launch <span aria-hidden>→</span></a>
@@ -94,7 +96,7 @@ export default function Landing() {
               <p className="lp-eyebrow">Demo</p>
               <h3>Try every role</h3>
               <p>Be Finance, a department head, an employee or a contractor. Every action links to its public record.</p>
-              <a className="lp-btn dark" href="/app">Try the live demo</a>
+              <a className="lp-btn dark" href="/demo">Try the live demo</a>
             </article>
             <article>
               <p className="lp-eyebrow">Code</p>
@@ -109,7 +111,7 @@ export default function Landing() {
       <footer className="lp-footer">
         <PotMark size={22} light />
         <div className="lp-foot-cols">
-          <div><h4>Product</h4><a href="/app">Live demo</a><a href="#product">Features</a><a href="#keys">How it works</a></div>
+          <div><h4>Product</h4><a href="/demo">Live demo</a><a href="#product">Features</a><a href="#keys">How it works</a></div>
           <div><h4>Proof</h4><a href={ARCH}>Architecture</a><a href={VERIFIED}>Verified on Tempo</a><a href={GITHUB}>GitHub</a></div>
           <div><h4>Tempo</h4><a href="https://tempo.xyz">tempo.xyz</a><a href={EXPLORER}>Explorer</a><a href="https://docs.tempo.xyz">Docs</a></div>
         </div>
@@ -156,7 +158,7 @@ function LiveStage() {
       <figure>
         <button className="lp-side left" onClick={() => pick(left.id)} aria-label={`Switch to ${left.name}, ${left.role}`}><img src={left.shot} width="780" height="1688" alt="" loading="lazy" /></button>
         <div className="lp-live-wrap"><div className={`lp-live ${switching ? 'switching' : ''}`}>
-          {ready ? <iframe ref={frame} title="Teampot live demo" src="/app?embed=1" loading="lazy" /> : <img src="/shots/m-sam-home.webp" width="780" height="1688" alt="Sam's home in Teampot" />}
+          {ready ? <iframe ref={frame} title="Teampot live demo" src="/demo?embed=1" loading="lazy" /> : <img src="/shots/m-sam-home.webp" width="780" height="1688" alt="Sam's home in Teampot" />}
         </div></div>
         <button className="lp-side right" onClick={() => pick(right.id)} aria-label={`Switch to ${right.name}, ${right.role}`}><img src={right.shot} width="780" height="1688" alt="" loading="lazy" /></button>
       </figure>

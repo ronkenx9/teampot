@@ -1,0 +1,11 @@
+.interactive-mark{position:relative;width:min(82vw,340px);flex-shrink:0;color:inherit;margin:0 auto}
+.mark-manipulator{position:relative;width:100%;aspect-ratio:1;touch-action:pan-y;cursor:grab;border-radius:24px;outline-offset:4px}
+.mark-manipulator:active{cursor:grabbing}
+.mark-manipulator:focus-visible{outline:2px solid #e8552d}
+.mark-manipulator canvas,.mark-fallback{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:contain}
+.mark-hint{display:block;text-align:center;font-size:11px;line-height:18px;color:#a7abb2;margin-top:-14px;position:relative;pointer-events:none}
+.mark-keyboard-hint{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.interactive-mark.mark-hero{width:260px;margin:0 auto 30px;color:#111}
+.interactive-mark.mark-hero .mark-hint{color:#60656e}
+.lp-hero:has(.interactive-mark){padding-top:104px}
+@media(max-width:600px){.interactive-mark.mark-hero{width:220px;margin-bottom:28px}.lp-hero:has(.interactive-mark){padding-top:88px}.interactive-mark.mark-welcome{width:min(76vw,310px)}}

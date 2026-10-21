@@ -1,0 +1,271 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@200;300&family=Geist+Mono:wght@400;500&display=block" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#fff}
+#tag{position:absolute;left:64px;top:56px;font:500 22px/1 "Geist Mono",monospace;letter-spacing:.16em;text-transform:uppercase;color:#9A9FA6;display:flex;gap:14px;align-items:center}
+#tag i{width:10px;height:10px;border-radius:50%;background:#E8552D}
+svg{position:absolute;inset:0}
+</style></head><body>
+<div id="tag"><i></i><span id="tagt"></span></div>
+<svg id="s" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs><clipPath id="wordClip" clipPathUnits="userSpaceOnUse"><rect x="600" y="-600" width="4000" height="1600"/></clipPath><clipPath id="topHalf"><polygon points="-100,-200 900,-200 900,250 -100,320"/></clipPath><clipPath id="botHalf"><polygon points="-100,320 900,250 900,1000 -100,1000"/></clipPath><clipPath id="bowlClip"><path id="bowlClipPath"/></clipPath></defs>
+  <g id="lockup">
+    <g id="markShift"><g id="mark" transform="translate(0 45) scale(0.75) translate(-55 -172)">
+      <g id="behind"></g>
+      <g id="bowlG"><path id="bowl" fill="#141414"/><g id="fillG" clip-path="url(#bowlClip)"><rect id="fill" x="0" y="615" width="800" height="0" fill="#E8552D"/></g></g>
+      <g id="eyes"></g>
+      <g id="lidG"><path id="lid" fill="#E8552D"/></g>
+      <g id="front"></g>
+    </g></g>
+    <g id="wordWrap"><g id="word" transform="translate(589 322)"></g></g>
+  </g>
+</svg>
+<script>
+const NS='http://www.w3.org/2000/svg'
+const $=id=>document.getElementById(id)
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x)),lerp=(a,b,u)=>a+(b-a)*u
+const ease={out:u=>1-Math.pow(1-u,3),inOut:u=>u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2,outExpo:u=>u>=1?1:1-Math.pow(2,-10*u),in:u=>u*u*u}
+const seg=(t,a,b,e=ease.out)=>e(clamp((t-a)/(b-a)))
+// damped spring step response: 0 -> 1 with overshoot
+function spr(u,z=.38,w=16){if(u<=0)return 0;const wd=w*Math.sqrt(1-z*z);return 1-Math.exp(-z*w*u)*(Math.cos(wd*u)+z*w/wd*Math.sin(wd*u))}
+// decaying wobble: an impulse that rings out
+function ring(u,amp,w=22,z=.18){if(u<=0)return 0;return amp*Math.exp(-z*w*u)*Math.sin(w*u)}
+// a dropped body with gravity and bounces; returns height above the floor (>=0)
+function drop(u,h,g=5200,e=.38){if(u<=0)return h;let t1=Math.sqrt(2*h/g);if(u<t1)return h-.5*g*u*u;u-=t1;let v=g*t1*e;for(let k=0;k<6;k++){const d=2*v/g;if(u<d)return v*u-.5*g*u*u;u-=d;v*=e}return 0}
+const el=(tag,attrs,parent)=>{const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+
+let P=null,L=[],LB=[],SHIFT=0
+const LOCK={x:0,y:0,s:1}                   // final lockup placement, fitted from the real bounds at load
+const BOWL_C=[400,615], LID_PIVOT=[100,226], GAP_Y=268
+function setLockup(dx=0,dy=0,s=1){$('lockup').setAttribute('transform',`translate(${LOCK.x+dx} ${LOCK.y+dy}) scale(${LOCK.s*s})`)}
+// bowl: squash/stretch about its base, plus offset
+function bowl({x=0,y=0,sx=1,sy=1,r=0}={}){const [cx,cy]=BOWL_C;$('bowlG').setAttribute('transform',`translate(${x} ${y}) rotate(${r} ${cx} ${cy}) translate(${cx} ${cy}) scale(${sx} ${sy}) translate(${-cx} ${-cy})`)}
+// lid: swing about its left end, plus offset
+function lid({x=0,y=0,r=0,s=1,sx=1,sy=1,o=1,c=null}={}){const [px,py]=c||LID_PIVOT;$('lidG').setAttribute('transform',`translate(${x} ${y}) rotate(${r} ${px} ${py}) translate(${px} ${py}) scale(${s*sx} ${s*sy}) translate(${-px} ${-py})`);$('lidG').setAttribute('opacity',o)}
+function mark({x=0,y=0,s=1,r=0,o=1}={}){$('mark').setAttribute('transform',`translate(${x} ${y}) translate(0 45) scale(${.75*s}) translate(-55 -172) rotate(${r} 400 615)`);$('mark').setAttribute('opacity',o)}
+function letter(i,{x=0,y=0,s=1,r=0,o=1,sx=1,sy=1}={}){const b=LB[i];const cx=b.x+b.width/2,cy=b.y+b.height;L[i].setAttribute('transform',`translate(${x} ${y}) rotate(${r} ${cx} ${cy-b.height/2}) translate(${cx} ${cy}) scale(${s*sx} ${s*sy}) translate(${-cx} ${-cy})`);L[i].setAttribute('opacity',o)}
+function reset(){$('bowl').setAttribute('opacity',1);$('lid').setAttribute('fill','#E8552D');$('wordWrap').removeAttribute('clip-path');setLockup();mark();bowl();lid();L.forEach((_,i)=>letter(i));$('behind').innerHTML='';$('front').innerHTML='';$('eyes').innerHTML='';$('fill').setAttribute('height',0);$('fill').setAttribute('y',615)}
+const wordAt=(t,start,{stag=.07,dy=90}={})=>L.forEach((_,i)=>{const u=t-start-i*stag;const k=spr(u,.42,18);letter(i,{y:(1-k)*dy,o:clamp(u*8),sy:lerp(1.25,1,clamp(k)),sx:lerp(.8,1,clamp(k))})})
+
+/* ======================= options ======================= */
+const OPT={
+// A — Payday: the lid swings open, coins fall in with gravity, the bowl takes the weight, lid snaps shut, letters pop up
+a:{w:2.3,name:'A · Payday',dur:5.2,f(t){
+  // bowl falls into place with squash on impact
+  const h=drop(t,420,6200,.25);const imp=t-Math.sqrt(2*420/6200)
+  const sq=ring(imp,.12,26,.22)
+  bowl({y:-h,sx:1+sq,sy:1-sq})
+  // lid: hidden until the bowl lands, then swings in from above to open
+  const open=spr(t-.55,.45,14)-spr(t-2.05,.32,20)
+  const lin=spr(t-.35,.5,14)
+  lid({y:-(1-lin)*380,r:-34*open,o:clamp((t-.35)*6)})
+  // three coins drop in, each one dips the bowl
+  const g=$('behind');g.innerHTML=''
+  let dip=0
+  ;[.95,1.25,1.55].forEach((t0,k)=>{const u=t-t0;if(u<0)return
+    const y=-420+.5*5200*u*u, x=330+k*70
+    if(y<470){const c=el('g',{},g);el('ellipse',{cx:x,cy:y,rx:46,ry:46,fill:'#E8552D'},c);el('ellipse',{cx:x,cy:y,rx:30,ry:30,fill:'none',stroke:'#fff',"stroke-width":5,opacity:.55},c)}
+    const land=Math.sqrt(2*(470+420)/5200);dip+=ring(u-land,14,24,.3)})
+  bowl({y:-h+Math.max(0,dip),sx:1+sq+Math.max(0,dip)*.002,sy:1-sq-Math.max(0,dip)*.002})
+  wordAt(t,2.45)
+}},
+// B — Boiling: lid rattles, steam builds, lid pops, spins, lands; wordmark slides out from behind
+b:{w:2.85,name:'B · Boiling over',dur:5.4,f(t){
+  const s=spr(t-.05,.5,14);mark({s:s,o:clamp(t*6)})
+  const heat=seg(t,.5,1.9,u=>u*u)
+  const rattle=t<1.9?heat*(Math.sin(t*78)*4+Math.sin(t*51)*2):0
+  const hop=t<1.9?Math.max(0,Math.sin(t*39))*heat*14:0
+  // pop: launched up at 1.9, spins, falls back and bounces on the rest pose
+  let ly=-hop,lr=rattle
+  if(t>=1.9){const u=t-1.9;const h=drop(u-.0,0,5000,.3);const v0=1500,g=5000;let y=v0*u-.5*g*u*u;if(y<0){const u2=u-2*v0/g;y=drop(u2,0,5000,.3);y=Math.max(0,ring(u2,30,20,.25))}
+    ly=-y;lr=u<2*v0/g?-360*seg(u,0,2*v0/g,ease.inOut):ring(u-2*v0/g,6,24,.3)}
+  lid({y:ly,r:lr})
+  // bowl shudders with the boil, and dips when the lid lands
+  const landU=t-1.9-2*1500/5000
+  bowl({x:t<1.9?heat*Math.sin(t*60)*2:0,y:Math.max(0,ring(landU,10,24,.3)),sy:1-Math.max(0,ring(landU,.05,24,.3))})
+  // steam puffs rise from the gap
+  const g=$('front');g.innerHTML=''
+  for(let k=0;k<9;k++){const t0=.6+k*.17;const u=t-t0;if(u<0||u>1.4)continue
+    const x=380+Math.sin(k*2.1)*150+u*40*Math.sin(k),y=GAP_Y-40-u*420,r=30+u*70
+    el('circle',{cx:x,cy:y,r,fill:'#D9DCE0',opacity:(1-u/1.4)*.85*(t<2.4?1:clamp(1-(t-2.4)*2))},g)}
+  // wordmark slides out from behind the mark
+  $('wordWrap').setAttribute('clip-path','url(#wordClip)')
+  const w=spr(t-3.0,.6,12)
+  L.forEach((_,i)=>letter(i,{x:-(1-w)*(260+i*40),o:clamp((t-3.0)*5)}))
+}},
+// C — Team pot: teammates hop into the empty bowl, it fills, the lid drops shut, the wordmark arrives
+c:{w:8.25,name:'C · Team pot',dur:10.2,f(t){
+  const R=330,CY=430,CX=400,LIDC=[404,252]
+  const g=$('front');g.innerHTML='';const back=$('behind');back.innerHTML=''
+  // the cut line, in the ball's own frame: y = 320 - .07(x+100); the seam on the ball is this exact line
+  const cy=x=>320-.07*(x+100)
+  const hits=(()=>{const m=-.07,c0=320-.07*100;const A=1+m*m,B=2*m*(c0-CY)-2*CX,C=CX*CX+(c0-CY)*(c0-CY)-R*R;const d=Math.sqrt(B*B-4*A*C);return [(-B-d)/(2*A),(-B+d)/(2*A)]})()
+  const N=[.07,1].map(v=>v/Math.hypot(.07,1))       // cut normal, pointing down
+  const STOP=1.15,CUT=1.5,SPLIT=1.58
+
+  // 1 ── roll in: rolling without slip, a little squash on the stop and a rock back
+  if(t<CUT+.02){
+    const DIST=2*Math.PI*R*2, roll=seg(t,0,STOP,u=>1-Math.pow(1-u,2.4))
+    const rock=ring(t-STOP,.11,13,.3)                   // rocks forward then settles
+    const bx=-DIST*(1-roll), ang=-(DIST*(1-roll))/R*180/Math.PI+rock*40
+    const sq=Math.max(0,ring(t-STOP,.07,20,.35))+(t>STOP+.15?.025*Math.sin((t-STOP)*9)*seg(t,STOP+.15,CUT,u=>1-u):0)
+    const ball=el('g',{transform:`translate(${bx} 0) rotate(${ang} ${CX} ${CY}) translate(${CX} ${CY+R}) scale(${1+sq} ${1-sq}) translate(${-CX} ${-(CY+R)})`},g)
+    el('circle',{cx:CX,cy:CY,r:R,fill:'#141414'},ball)
+    el('line',{x1:hits[0]+14,y1:cy(hits[0]+14),x2:hits[1]-14,y2:cy(hits[1]-14),stroke:'#fff','stroke-width':6,'stroke-linecap':'round',opacity:.5},ball)
+  }
+  // 2 ── the slice: blade traces the seam edge to edge, a tapered trail, a white flash along the cut, juice
+  const su=t-CUT
+  if(su>=0&&su<.5){
+    const x0=hits[0]-160,x1=hits[1]+160,head=lerp(x0,x1,seg(su,0,.075,u=>u)),tailK=seg(su,.02,.3,ease.inOut)
+    const tail=lerp(x0,head,Math.max(tailK,clamp((head-x0-760)/(x1-x0))))
+    const pts=[];const W=34*(1-seg(su,.12,.5))
+    for(let i=0;i<=12;i++){const x=lerp(tail,head,i/12),w=W*Math.pow(i/12,1.4);pts.push([x,cy(x)-w*N[1],x+w*N[0]])}
+    const poly=pts.map(([x,y])=>`${x},${y}`).join(' ')+' '+pts.slice().reverse().map(([x,y,_],i,arr)=>{const p=pts[pts.length-1-i];const w=W*Math.pow((pts.length-1-i)/12,1.4);return `${p[0]},${cy(p[0])+w*N[1]}`}).join(' ')
+    el('polygon',{points:poly,fill:'#E8552D',opacity:1-seg(su,.12,.45)},g)
+    el('line',{x1:tail,y1:cy(tail),x2:head,y2:cy(head),stroke:'#fff','stroke-width':4*(1-seg(su,.08,.3)),'stroke-linecap':'round'},g)
+  }
+  if(su>=0){
+    // juice: each drop is born where the blade passes and flies off the cut
+    for(let k=0;k<20;k++){const bx=lerp(hits[0],hits[1],(k+.5)/20),born=.075*((bx-(hits[0]-160))/((hits[1]+160)-(hits[0]-160)));const u=su-born;if(u<0||u>1.2)continue
+      const up=k%3!==0,v=700+((k*53)%9)*120,a=(up?-1:1)*(Math.PI/2)+(((k*37)%11)/11-.5)*1.4
+      const x=bx+Math.cos(a)*v*u,y=cy(bx)+Math.sin(a)*v*u+.5*4600*u*u
+      const sz=6+((k*13)%5)*4,st=1+Math.min(1.6,v*u*.002)
+      el('ellipse',{cx:x,cy:y,rx:sz,ry:sz*(u<.25?st:1),fill:'#E8552D',opacity:clamp(1.15-u)},g)}
+    // halves hang for a beat, then part along the cut
+    const pu=t-SPLIT
+    const morph=seg(t,SPLIT+.32,SPLIT+.48,ease.inOut)
+    if(morph<1){const dn=pu<0?0:Math.max(0,ring(pu,30,16,.3))+Math.min(18,pu*120)
+      const bh=el('g',{transform:`translate(${N[0]*dn} ${N[1]*dn})`,opacity:1-morph},back)
+      el('circle',{cx:CX,cy:CY,r:R,fill:'#141414','clip-path':'url(#botHalf)'},bh)}
+    $('bowl').setAttribute('opacity',morph)
+    // top half: a slight shear along the cut, then flung up and right, spinning, gone
+    if(pu<.9){const sh=pu<0?su*60:4.5+pu*0,fu=Math.max(0,pu)
+      const tx=sh*.99+520*fu+260*fu*fu,ty=-sh*.07-3200*fu-900*fu*fu
+      const th=el('g',{transform:`translate(${tx} ${ty}) rotate(${-480*fu-60*fu*fu} ${CX} 270)`},g)
+      el('circle',{cx:CX,cy:CY,r:R,fill:'#141414','clip-path':'url(#topHalf)'},th)}
+  } else $('bowl').setAttribute('opacity',0)
+
+  // 3 ── the team hops in: stretch in the air, squash on landing, the pot dips and fills
+  const people=[[-560,'#141414'],[1360,'#E8552D'],[-460,'#E8552D'],[1260,'#141414'],[-640,'#141414']]
+  let filled=0,dip=0
+  people.forEach(([sx,col],k)=>{const t0=2.05+k*.3,D=.58,u=(t-t0)/D;if(u<0)return
+    const tx=300+k*50,ty=380
+    if(u<1){const ant=u<.12?Math.sin(u/.12*Math.PI)*.25:0          // a crouch before the jump
+      const x=lerp(sx,tx,u),y=lerp(560,ty,u)-Math.sin(Math.PI*u)*560
+      const vy=Math.cos(Math.PI*u),st=Math.abs(vy)*.35
+      const p=el('g',{transform:`translate(${x} ${y}) scale(1.7) rotate(${(sx<0?1:-1)*Math.atan2(-vy,1)*25}) scale(${1-st*.5+ant} ${1+st-ant})`},back)
+      el('circle',{cx:0,cy:-70,r:34,fill:col},p);el('rect',{x:-38,y:-30,width:76,height:70,rx:34,fill:col},p)}
+    else{filled++;dip+=ring(t-t0-D,12,26,.32)}})
+
+  // 4 ── black lid (the cut half) drops shut; 5 ── pressure-cooker build; burst
+  const LID_IN=3.75,P0=4.05,CROUCH=5.3,BURST=5.6
+  const fall=Math.sqrt(2*900/7000),LAND=LID_IN+fall
+  const p=seg(t,P0,CROUCH,u=>u*u)                       // pressure
+  const cr=seg(t,CROUCH,BURST,u=>u*u)*(t<BURST?1:0)     // the crouch, released at the burst
+  const bu=t-BURST
+  // fill: rises with each teammate, drains on the burst
+  const level=filled/5*(bu<0?1:1-seg(bu,0,.1))
+  const top=lerp(615,365,level);$('fill').setAttribute('y',top);$('fill').setAttribute('height',615-top)
+  // steam from both ends of the gap: wisps first, then jets
+  if(t>P0&&t<BURST+.25){for(let k=0;k<26;k++){const t0=P0+k*.06;const u=t-t0;const life=.55-.25*p;if(u<0||u>life)continue
+      const side=k%2?1:-1,str=.45+p*1.6,x=400+side*(270+u*520*str),y=270-u*300*str-.5*-400*u*u
+      el('circle',{cx:x,cy:y,r:22+u*170*(.4+p),fill:'#C8CCD2',opacity:(1-u/life)*.8*(t<BURST?1:clamp(1-(t-BURST)*4))},g)}}
+  // the burst: contents erupt
+  if(bu>=0&&bu<1.6){for(let k=0;k<30;k++){const a=-Math.PI/2+(((k*41)%30)/30-.5)*1.7,v=1700+((k*67)%9)*200
+      const x=CX+(((k*31)%9)-4)*36+Math.cos(a)*v*bu,y=380+Math.sin(a)*v*bu+.5*3600*bu*bu
+      el('circle',{cx:x,cy:y,r:10+((k*17)%5)*6,fill:k%4===0?'#141414':'#E8552D',opacity:clamp(1.5-bu)},g)}}
+
+  // bowl motion: dips from landings, breathes under pressure, crouches, stretches on the burst,
+  // looks up, leans back, dashes to catch, then slides home
+  const CATCH_X=620,LEAN=6.45,DASH=6.62,CATCH=7.02,HOME=7.5
+  const bx=t<LEAN?0:t<DASH?-40*seg(t,LEAN,DASH,ease.inOut):t<CATCH?lerp(-40,CATCH_X,seg(t,DASH,CATCH-.06,ease.inOut)):t<HOME?CATCH_X:CATCH_X*(1-spr(t-HOME,.5,9))
+  const hop=t>DASH&&t<CATCH?-Math.sin(Math.PI*clamp((t-DASH)/(CATCH-DASH)))*46:0
+  const dashSt=t>DASH&&t<CATCH?Math.sin(Math.PI*clamp((t-DASH)/(CATCH-DASH)))*.12:0
+  const breathe=p*(.035+.035*Math.sin(t*(16+14*p)))
+  const lidLand=t-LAND
+  const recoil=bu>=0?ring(bu,.16,20,.22):0
+  const catchSq=Math.max(0,ring(t-CATCH,.1,22,.3))
+  const look=t>BURST+.25&&t<DASH?seg(t,BURST+.25,BURST+.5)*(1-seg(t,LEAN,DASH)):0
+  const sx=1+breathe+cr*.13+Math.max(0,dip)*.003+recoil*.7+catchSq+dashSt-(bu>=0&&bu<.12?.1:0)
+  const sy=1-breathe*.6-cr*.17-Math.max(0,dip)*.003-recoil-catchSq-dashSt*.6+(bu>=0&&bu<.12?.18:0)+look*.05
+  const jit=p*Math.sin(t*95)*3+cr*Math.sin(t*140)*4
+  bowl({x:bx+jit,y:hop+Math.max(0,dip)+(lidLand>0&&lidLand<.4?Math.max(0,ring(lidLand,10,24,.3)):0),sx,sy,r:-look*7+(t>HOME?ring(t-HOME,4,10,.3):0)})
+
+  // lid: follows the bowl with a lag (overlapping action)
+  const lagX=t<LEAN?0:t<DASH?-40*seg(t-.07,LEAN,DASH,ease.inOut):t<CATCH?bx:t<HOME?CATCH_X:CATCH_X*(1-spr(t-HOME-.09,.42,9))
+  if(t<LID_IN){lid({o:0})}
+  else if(t<BURST){
+    const h=drop(t-LID_IN,900,7000,.22),imp=lidLand
+    $('lid').setAttribute('fill','#141414')
+    const hopL=p*Math.abs(Math.sin(t*(18+34*p)))*26, rat=p*Math.sin(t*72)*5
+    lid({x:jit,y:58-h-hopL+cr*14,r:2+rat,sx:1+Math.max(0,ring(imp,.07,26,.3))+cr*.08,sy:1-Math.max(0,ring(imp,.07,26,.3)),c:LIDC})
+  } else if(t<6.35){  // launched: stretched along its flight, completely out of frame
+    $('lid').setAttribute('fill','#141414')
+    lid({y:58-(bu*5200+.5*2000*bu*bu),r:-30*bu,sx:.8,sy:1.6,c:LIDC})
+  } else {            // back from above, now in colour, with a falling whistle; caught and bounces
+    $('lid').setAttribute('fill','#E8552D')
+    const h=drop(t-6.35,1750,7200,.33)
+    const spin=t<CATCH?(1-seg(t,6.35,CATCH))*-200:ring(t-CATCH,5,18,.3)
+    const fallSt=t<CATCH?.18*seg(t,6.35,CATCH):0
+    lid({x:t<CATCH?CATCH_X:lagX,y:hop*(t<CATCH?0:1)-h,r:spin,sx:1-fallSt*.5,sy:1+fallSt,c:LIDC})
+  }
+  // 6 ── wordmark
+  wordAt(t,8.4,{stag:.06,dy:70})
+}},
+// D — Peek: closed pot, lid cracks open, eyes look around and blink, then the wordmark bounces in
+d:{w:2.6,name:'D · Peek',dur:5.6,f(t){
+  bowl({})
+  const lift=spr(t-.5,.5,10)*.2+spr(t-2.4,.45,13)*.8
+  lid({y:(1-lift)*58-spr(t-.5,.5,10)*(1-spr(t-2.4,.45,13))*70,r:(1-lift)*2-spr(t-.5,.5,10)*(1-spr(t-2.4,.45,13))*8})
+  const g=$('eyes');g.innerHTML=''
+  const eo=clamp((t-.75)*4)*(1-seg(t,3.05,3.3))
+  if(eo>0){
+    const look=t<1.5?0:t<2.0?-1:t<2.4?1:1   // centre, left, right (towards the wordmark)
+    const lx=lerp(0,22,look)*seg(t,1.5,1.7)+(look>0?lerp(-22,22,seg(t,2.0,2.15)):0)
+    const blink=(t>1.25&&t<1.37)||(t>2.55&&t<2.67)?.12:1
+    ;[330,470].forEach(cx=>{const e=el('g',{opacity:eo},g);el('ellipse',{cx,cy:GAP_Y+40,rx:44,ry:44*blink,fill:'#fff'},e);if(blink>.5)el('circle',{cx:cx+lx,cy:GAP_Y+44,r:20,fill:'#141414'},e)})}
+  // letters bounce in once the pot looks right
+  L.forEach((_,i)=>{const u=t-2.75-i*.08;const k=spr(u,.32,20);const h=drop(u,160,5200,.42);letter(i,{y:-h*(u<1?1:0),o:clamp(u*10),sy:1+Math.max(0,ring(u-Math.sqrt(2*160/5200),.12,30,.4)),sx:1-Math.max(0,ring(u-Math.sqrt(2*160/5200),.08,30,.4))})})
+}},
+// E — Payout: the bowl tips and pours the letters out along arcs, then rights itself
+e:{w:0.45,name:'E · Payout',dur:5.6,f(t){
+  const tip=spr(t-.4,.55,10)-spr(t-2.6,.4,13)
+  bowl({r:-28*tip})
+  lid({y:-60*tip,r:-22*tip,x:-20*tip})
+  // letters pour from the bowl's right lip and fly to their places
+  const lipMark=[700,330]     // in mark space
+  const lip=[lipMark[0]*.75-55*.75+0, lipMark[1]*.75-172*.75+45]  // to lockup space
+  L.forEach((_,i)=>{const b=LB[i];const tx=665+b.x+b.width/2,ty=560+b.y+b.height
+    const t0=.95+i*.13,D=.55,u=(t-t0)/D
+    if(u<0){letter(i,{o:0});return}
+    if(u<1){const x=lerp(lip[0],tx,u),y=lerp(lip[1],ty,u)-Math.sin(Math.PI*u)*220
+      letter(i,{x:x-tx,y:y-ty,s:lerp(.35,1,ease.out(u)),r:(1-u)*-120,o:1})}
+    else{const k=ring(t-t0-D,.12,28,.35);letter(i,{sy:1-k,sx:1+k*.7})}})
+}},
+}
+
+const params=new URLSearchParams(location.search)
+if(params.get('clean'))document.getElementById('tag').style.display='none'
+let CUR=OPT[params.get('o')||'a']
+window.VDUR=CUR.dur
+window.pick=k=>{CUR=OPT[k];window.VDUR=CUR.dur}
+window.seek=t=>{reset();$('tagt').textContent=CUR.name
+  // the mark starts alone in the centre and glides left as the wordmark arrives
+  const k=spr(t-CUR.w,.62,9);$('markShift').setAttribute('transform',`translate(${(1-k)*SHIFT} 0)`)
+  CUR.f(t)}
+window.ready=(async()=>{
+  P=await fetch('paths.json').then(r=>r.json())
+  $('bowl').setAttribute('d',P.bowl);$('bowlClipPath').setAttribute('d',P.bowl);$('lid').setAttribute('d',P.lid)
+  await document.fonts.load('200 100px Geist')
+  // set the word once to measure each letter, then give every letter its own element
+  $('word').setAttribute('transform','translate(665 560)')
+  const probe=el('text',{x:0,y:0,'font-family':'Geist','font-weight':200,'font-size':600,'letter-spacing':-27},$('word'));probe.textContent='teampot'
+  const xs=[...'teampot'].map((_,i)=>probe.getStartPositionOfChar(i).x);probe.remove()
+  L=[...'teampot'].map((ch,i)=>{const e=el('text',{x:xs[i],y:0,'font-family':'Geist','font-weight':200,'font-size':600,fill:'#0A0A0B'},$('word'));e.textContent=ch;return e});LB=L.map(p=>p.getBBox())
+  $('lockup').removeAttribute('transform');const bb=$('lockup').getBBox();LOCK.s=1240/bb.width
+  LOCK.x=960-(bb.x+bb.width/2)*LOCK.s;LOCK.y=560-(bb.y+bb.height/2)*LOCK.s
+  const mb=$('mark').getBBox?$('markShift').getBBox():null;SHIFT=(bb.x+bb.width/2)-(mb.x+mb.width/2)
+  await document.fonts.ready;seek(0);return true})()
+</script></body></html>

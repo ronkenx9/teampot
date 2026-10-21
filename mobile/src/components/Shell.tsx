@@ -1,94 +1,37 @@
 import { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandLogo } from './BrandLogo';
-import { colors } from './ui';
+import { useTheme, useThemedStyles, type ThemeColors } from '@/theme';
 import { useTeampot } from '@/TeampotProvider';
-import { demoPeople } from '@/types';
 
 export function Shell({ title, children }: { title: string; children: ReactNode }) {
-  const { demoLogin, loading, personId, state, toast, clearToast } = useTeampot();
-  const actor = state?.people.find((p) => p.id === personId);
-  return (
-    <View style={styles.root}>
-      <View style={styles.top}>
-        <View style={styles.logoRow}>
-          <BrandLogo size={42} />
-          <View>
-            <Text style={styles.company}>{state?.company.name || 'Teampot'}</Text>
-            <Text style={styles.actor}>{actor?.name || 'Demo'} · {actor?.title || title}</Text>
-          </View>
-        </View>
-        {loading ? <ActivityIndicator color={colors.clay} /> : null}
-      </View>
-
-      <View style={styles.picker} accessibilityLabel="Demo persona picker">
-        {demoPeople.map((p) => (
-          <Pressable
-            key={p.id}
-            onPress={() => demoLogin(p.id)}
-            style={({ pressed }) => [styles.persona, personId === p.id && styles.personaActive, pressed && styles.pressed]}
-          >
-            <Text style={[styles.personaText, personId === p.id && styles.personaTextActive]}>{p.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {toast ? (
-        <Pressable onPress={clearToast} style={[styles.toast, toast.tone === 'good' && styles.good, toast.tone === 'bad' && styles.bad]}>
-          <Text style={styles.toastTitle}>{toast.title}</Text>
-          {toast.detail ? <Text style={styles.toastDetail}>{toast.detail}</Text> : null}
-        </Pressable>
-      ) : null}
-
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>{title}</Text>
-        {children}
-      </ScrollView>
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { loading, state, toast, clearToast, refresh, error, betaProfile } = useTeampot();
+  const insets = useSafeAreaInsets();
+  return <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
+      <View style={styles.logoRow}><BrandLogo size={40} reversed={isDark} /><View style={styles.flex}><Text style={styles.company}>{state?.company.name || 'Teampot'}</Text><Text style={styles.actor}>{betaProfile?.name || 'Welcome'} · Test workspace</Text></View></View>
+      {loading ? <ActivityIndicator accessibilityLabel="Updating" color={colors.clayDark} /> : null}
     </View>
-  );
+    {toast ? <Pressable accessibilityRole="button" accessibilityLabel={`Dismiss: ${toast.title}`} accessibilityLiveRegion="polite" onPress={clearToast} style={[styles.toast, toast.tone === 'good' && styles.good, toast.tone === 'bad' && styles.bad]}><Text style={styles.toastTitle}>{toast.title}</Text>{toast.detail ? <Text style={styles.toastDetail}>{toast.detail}</Text> : null}<Text style={styles.dismiss}>Tap to dismiss</Text></Pressable> : null}
+    {error && !toast ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} tintColor={colors.clayDark} />}>
+      <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+      {children}
+    </ScrollView>
+  </KeyboardAvoidingView>;
 }
-
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.paper },
-  top: {
-    paddingTop: 58,
-    paddingHorizontal: 18,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 },
-  company: { color: colors.ink, fontSize: 17, fontFamily: 'InterTight_800ExtraBold' },
-  actor: { color: colors.muted, fontSize: 13, fontFamily: 'InterTight_600SemiBold' },
-  picker: { flexDirection: 'row', gap: 8, paddingHorizontal: 18, paddingBottom: 12 },
-  persona: {
-    minHeight: 34,
-    minWidth: 68,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: '#FFFDF9'
-  },
-  personaActive: { backgroundColor: colors.ink, borderColor: colors.ink },
-  personaText: { color: colors.ink, fontFamily: 'InterTight_700Bold', fontSize: 13 },
-  personaTextActive: { color: colors.paper },
-  pressed: { opacity: 0.72 },
-  toast: {
-    marginHorizontal: 18,
-    marginBottom: 8,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#FFF7ED',
-    borderWidth: 1,
-    borderColor: '#F3C8B9'
-  },
-  good: { backgroundColor: '#F3F8EF', borderColor: '#CFE3C6' },
-  bad: { backgroundColor: '#FFF1F1', borderColor: '#F2BABA' },
-  toastTitle: { color: colors.ink, fontFamily: 'InterTight_800ExtraBold', fontSize: 14 },
-  toastDetail: { color: colors.muted, fontFamily: 'InterTight_600SemiBold', marginTop: 2 },
-  content: { paddingHorizontal: 18, paddingBottom: 28, gap: 14 },
-  title: { color: colors.ink, fontSize: 30, fontFamily: 'InterTight_800ExtraBold', letterSpacing: 0 }
+  top: { paddingHorizontal: 22, paddingBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.line },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }, flex: { flex: 1 },
+  company: { color: colors.ink, fontSize: 17, fontFamily: 'Geist_500Medium' }, actor: { color: colors.muted, fontSize: 12, lineHeight: 18, fontFamily: 'Geist_400Regular' },
+  toast: { margin: 16, marginBottom: 0, padding: 14, borderRadius: 14, backgroundColor: colors.tint, borderWidth: 1, borderColor: colors.tintLine },
+  good: { backgroundColor: colors.successSurface, borderColor: colors.successLine }, bad: { backgroundColor: colors.errorSurface, borderColor: colors.errorLine },
+  toastTitle: { color: colors.ink, fontFamily: 'Geist_500Medium', fontSize: 15 }, toastDetail: { color: colors.muted, fontSize: 14, lineHeight: 20, fontFamily: 'Geist_400Regular', marginTop: 3 }, dismiss: { color: colors.muted, fontSize: 11, marginTop: 8 },
+  error: { color: colors.error, margin: 16, fontSize: 14 },
+  content: { padding: 22, paddingBottom: 28, gap: 16, width: '100%', maxWidth: 620, alignSelf: 'center' },
+  title: { color: colors.ink, fontSize: 32, fontFamily: 'Geist_300Light', letterSpacing: -0.7, marginBottom: 4 }
 });

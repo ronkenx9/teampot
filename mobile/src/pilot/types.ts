@@ -1,0 +1,22 @@
+export type Role = 'owner' | 'finance' | 'lead' | 'employee' | 'contractor';
+export type Membership = { id: string; userId: string; workspaceId: string; role: Role; departmentId?: string; title: string; active: boolean; name?: string; workspaceName?: string; departmentName?: string };
+export type Session = { user: { id: string; name: string } | null; memberships: Membership[]; activeMembershipId: string | null };
+export type Workspace = { workspace: { id: string; name: string }; membership: Membership; departments: { id: string; name: string }[]; people: Membership[]; invites: { id: string; name: string; role: Role; usedBy?: string; revoked?: boolean; expiresAt: number }[]; audit: { id: string; action: string; at: number }[]; paymentsReady: boolean };
+export type PilotCard = { id: string; departmentId: string; membershipId: string; name: string; keyAddress: string; cap: number; allowedVendorIds: string[]; active: boolean; tx?: string };
+export type Pilot = {
+  network: 'testnet'; chainId: number; token: string; workspaceId: string; ready: boolean;
+  treasury: { address: string; balance: number } | null;
+  departments: { id: string; name: string; address: string; balance: number; headMembershipId?: string }[];
+  vendors: { id: string; name: string; address: string }[];
+  cards: PilotCard[];
+  requests: { id: string; departmentId: string; membershipId: string; cardId: string; vendorId: string; amount: number; note: string; status: 'held' | 'paid' | 'declined'; reason?: string; tx?: string }[];
+  receipts: { id: string; kind: string; departmentId?: string; membershipId?: string; amount?: number; tx: string; at: number }[];
+  operations: { id: string; action: string; status: string; error?: string; tx?: string }[];
+};
+export type Snapshot = { session: Session; workspace: Workspace | null; pilot: Pilot | null };
+export type Pairing = { deviceId: string; pollingSecret: string; userCode: string; verificationUrl: string; expiresAt: number };
+export type ActionName = 'provision' | 'fund' | 'delegate' | 'undelegate' | 'issue' | 'spend' | 'approve' | 'decline' | 'revoke';
+export type ActionDraft = { action: ActionName; departmentId?: string; membershipId?: string; cardId?: string; heldId?: string; vendorId?: string; amount?: number; cap?: number; note?: string; allowedVendorIds?: string[] };
+export type ActionPayload = ActionDraft & { workspaceId: string; requestId: string };
+export type PendingAction = { userId: string; membershipId: string; payload: ActionPayload; createdAt: number };
+export type ActionResult = { status: 'confirmed' | 'held' | 'pending' | 'failed'; operationId: string; tx?: string; message?: string };

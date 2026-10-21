@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Teampot",
+    "name": "Teampot Beta",
     "slug": "teampot",
     "scheme": "teampot",
-    "version": "1.0.0",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -16,8 +16,9 @@
       "bundleIdentifier": "xyz.teampot.app",
       "supportsTablet": false,
       "infoPlist": {
-        "NSFaceIDUsageDescription": "Confirm Teampot payments with Face ID."
-      }
+        "NSFaceIDUsageDescription": "Confirm test payments in Teampot with Face ID."
+      },
+      "buildNumber": "1"
     },
     "android": {
       "package": "xyz.teampot.app",

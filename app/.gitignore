@@ -5,3 +5,7 @@ mine.log
 node_modules/
 .vercel
 .env*
+
+# Private development account directory
+data/real-accounts.json
+data/real-accounts.json.*.tmp

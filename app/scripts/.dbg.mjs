@@ -1,0 +1,10 @@
+import { chromium } from 'playwright'
+const b = await chromium.launch()
+const p = await (await b.newContext({ viewport:{width:390,height:844} })).newPage()
+await p.goto('http://localhost:8787/app', { waitUntil: 'networkidle' })
+await p.evaluate(async () => { localStorage.setItem('tp-viewer','mateo'); await fetch('/api/auth/demo',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({personId:'mateo'})}) })
+await p.reload({ waitUntil: 'networkidle' }); await p.locator('.role-layout').waitFor()
+await p.locator('.vbtn', { hasText: 'Send an invoice' }).click(); await p.waitForTimeout(800)
+await p.screenshot({ path: '/tmp/tempo-study/mateo.png' })
+console.log(await p.getByRole('dialog').innerHTML().then(h => h.slice(0, 1500)))
+await b.close()

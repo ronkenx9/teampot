@@ -1,0 +1,12 @@
+{
+  "scope": "company-pilot",
+  "leaf": "leaf-1.3",
+  "globs": [
+    "mobile/app/_layout.tsx",
+    "mobile/src/pilot/**",
+    "mobile/scripts/pilot-tests.ts",
+    "mobile/HANDOFF.md",
+    "mobile/README.md"
+  ],
+  "pid": 35036
+}

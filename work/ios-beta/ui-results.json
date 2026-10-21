@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-10-20T20:33:22.725Z",
+  "mode": "Browser-rendered React Native with mocked API. No real payments.",
+  "results": [
+    {
+      "width": 390,
+      "authCalls": 5,
+      "mutations": [
+        "/api/spend",
+        "/api/invoices",
+        "/api/held/held-test/approve"
+      ]
+    },
+    {
+      "width": 375,
+      "authCalls": 5,
+      "mutations": [
+        "/api/spend",
+        "/api/invoices",
+        "/api/held/held-test/approve"
+      ]
+    }
+  ],
+  "errors": []
+}
