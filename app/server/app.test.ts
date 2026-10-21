@@ -162,6 +162,23 @@ describe('API validation and guards', () => {
     expect(body.declineReason).toBe('Wrong file type')
   })
 
+  it('refuses to pay an invoice the department cannot cover, in dollars, without touching the chain', async () => {
+    const { app } = await import('./app.js')
+    const T = await import('./tempo.js')
+    const mateo = await demoCookie(app, 'mateo')
+    const created = await app.request('/api/invoices', { method: 'POST', body: JSON.stringify({ contractorId: 'mateo', amount: 1800, description: 'Launch film' }), headers: { 'content-type': 'application/json', cookie: mateo } })
+    const inv = await created.json()
+    const finance = await demoCookie(app)
+    vi.mocked(T.balanceOf).mockResolvedValueOnce(1189.98)
+    const payCalls = vi.mocked(T.payFrom).mock.calls.length + vi.mocked(T.spendWithKeyOn).mock.calls.length
+    const res = await app.request(`/api/invoices/${inv.id}/pay`, { method: 'POST', body: JSON.stringify({}), headers: { 'content-type': 'application/json', cookie: finance } })
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.code).toBe('insufficient_funds')
+    expect(body.error).toBe('Design has $1,189.98 and this invoice is $1,800.00. Add money to Design first.')
+    expect(vi.mocked(T.payFrom).mock.calls.length + vi.mocked(T.spendWithKeyOn).mock.calls.length).toBe(payCalls)
+  })
+
   it('authorizes API calls from the session role, not request body viewer fields', async () => {
     const { app } = await import('./app.js')
     const ava = await demoCookie(app, 'ava')
