@@ -6,9 +6,9 @@ Every pull request is tested against its own Vercel preview by the TestSprite Gi
 
 All of this must be done from the same TestSprite account that submits the hackathon entry.
 
-1. **Vercel first** (project settings):
-   - Build and Deployment → **Root Directory = `app`**. Git-triggered builds currently fail at the repo root (`Could not read package.json`), so no preview ever goes live.
-   - Deployment Protection: previews sit behind Vercel sign-in, which TestSprite's browser can't pass. Turn protection off for previews, or use Protection Bypass for Automation.
+1. **Vercel** (project settings, done 2026-10-21):
+   - Build and Deployment → **Root Directory = `app`**, so git-triggered preview builds find `app/package.json`.
+   - Deployment Protection → Vercel Authentication off for `*.vercel.app` URLs, so TestSprite's browser can load each PR preview.
 2. **Project + suite:** create a frontend project for `https://www.teampot.xyz` and generate the test suite in the portal. Suggested coverage is below.
 3. **Connect GitHub:** Workspace Settings → Connections → Integrations → GitHub → Connect → only `ronkenx9/teampot` → Install & Authorize.
 4. **PR trigger:** project → GitHub Action tab → Add Trigger → Pull request:
