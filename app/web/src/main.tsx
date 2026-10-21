@@ -26,6 +26,8 @@ if ('serviceWorker' in navigator) {
 // Analytics: Vercel Web Analytics (cookie-free) plus Teampot's own page-view counter behind /stats.
 // The private stats page itself is never counted; Do Not Track is respected.
 if (path !== '/stats' && !path.startsWith('/join/') && !path.includes('/invite/') && navigator.doNotTrack !== '1') {
-  inject()
+  // Vercel only serves /_vercel/insights/script.js once Web Analytics is switched on for the project, so the
+  // script is opt-in: turn it on in Vercel, then set VITE_VERCEL_WEB_ANALYTICS=1.
+  if (import.meta.env.VITE_VERCEL_WEB_ANALYTICS === '1') inject()
   try { navigator.sendBeacon?.('/api/hit', JSON.stringify({ p: path, r: document.referrer.includes('/join/') || document.referrer.includes('/invite/') ? '' : document.referrer })) } catch { /* best effort */ }
 }

@@ -1,0 +1,20 @@
+{
+  "api": {
+    "baseUrl": "https://www.teampot.xyz",
+    "checks": [
+      { "name": "landing page serves", "url": "/", "contains": "<div id=\"root\">", "maxMs": 5000 },
+      { "name": "app route serves the SPA", "url": "/app", "contains": "<div id=\"root\">" },
+      { "name": "tour route serves the SPA", "url": "/tour", "contains": "<div id=\"root\">" },
+      { "name": "missing asset is a 404, not HTML", "url": "/assets/does-not-exist.js", "status": 404 },
+      { "name": "API health", "url": "/api/health", "status": 200 }
+    ]
+  },
+  "web": {
+    "baseUrl": "https://www.teampot.xyz",
+    "flows": [
+      { "name": "landing loads clean", "steps": [{ "goto": "/" }, { "expectText": "Try the live demo" }, { "noHorizontalScroll": true }] },
+      { "name": "landing to tour", "steps": [{ "goto": "/" }, { "click": "Take the tour" }, { "expectUrl": "/tour" }, { "noHorizontalScroll": true }] },
+      { "name": "tour loads clean", "steps": [{ "goto": "/tour" }, { "wait": 4000 }, { "screenshot": "tour" }] }
+    ]
+  }
+}
