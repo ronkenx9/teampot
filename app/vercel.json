@@ -13,39 +13,7 @@
       "destination": "/api"
     },
     {
-      "source": "/app",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/app/:path*",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/demo",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/demo/:path*",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/invite/:path*",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/join/:path*",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/tour",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/waitlist",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/stats",
+      "source": "/((?!assets/|_vercel/).*)",
       "destination": "/index.html"
     }
   ],
