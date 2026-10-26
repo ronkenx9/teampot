@@ -26,6 +26,28 @@ Your pay, your team's budget and your perks in one app, on <a href="https://temp
 
 > Runs on the Tempo **Moderato testnet** with test money. In the demo you can switch between Finance (Jordan), a department head (Ava), an employee (Sam) and a contractor (Mateo).
 
+## Tested on every pull request (TestSprite)
+
+Every pull request is tested by the [TestSprite](https://www.testsprite.com) GitHub App. When a PR opens or updates, TestSprite runs Teampot's suite in a real browser against the app (live at **https://www.teampot.xyz**), posts a report on the PR and adds a TestSprite status check, so a broken flow shows up before it reaches users. Setup details are in [TESTSPRITE.md](TESTSPRITE.md).
+
+The suite (11 tests, generated in the TestSprite 3.0 portal) covers each role's real money flows, not just page loads:
+
+| Area | Test | What it checks |
+|---|---|---|
+| Public site | Open the demo from the landing experience | The website links through to the working demo |
+| Public site | Open the guided tour from the landing page | `/tour` loads and steps through |
+| Public site | Join the waitlist from the public site | The waitlist form accepts a sign-up |
+| Finance | Finance runs payday and receipts are shown for each line | A batch payday succeeds and every pay line has a receipt |
+| Finance | Finance approves a held spend and it is paid | An approved request is paid and counted against the pot |
+| Finance | Finance returns a held spend to the requester | A returned request goes back without paying |
+| Team lead | Lead spends within cap and payment succeeds | A spend inside the head key's cap pays immediately |
+| Team lead | Lead spend outside policy is held for approval | A spend over the cap or off the allowlist is held, never paid |
+| Contractor | Contractor invoice is approved and paid with receipt | Invoice → approve & pay → receipt |
+| Employee | Allocate funds into AAPL shares | An employee can invest part of their money |
+| Employee | Employee view renders on a phone-sized viewport | The employee app works at phone width |
+
+**What it caught:** the first run on [PR #2](https://github.com/ronkenx9/teampot/pull/2) failed 3 tests. One was a contractor invoice that couldn't be paid: the app showed a raw insufficient-balance chain error with unformatted numbers. [PR #4](https://github.com/ronkenx9/teampot/pull/4) changes that to explain the shortfall in dollars.
+
 ## Real accounts and team setup
 
 Open [your workspace](https://teampot.vercel.app/app) to create a company or join an invitation with a passkey. Creators become owners; invitations assign Finance, department lead, employee or contractor access. Job titles are separate from permissions. Only assigned workspaces and roles appear in the account switcher, with server-enforced access boundaries.
