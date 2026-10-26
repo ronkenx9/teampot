@@ -1387,6 +1387,14 @@ app.post('/api/invoices/:id/pay', async (c) => {
   if (inv.status === 'paid') return c.json(inv)
   if (inv.status === 'declined') return c.json({ error: 'This invoice was declined' }, 409)
   if (!isFinance(a) && inv.amount > S.company.financeApprovalThreshold) return c.json({ error: `Invoices over $${S.company.financeApprovalThreshold} need Finance` }, 403)
+  // Check the paying account first. A short balance would otherwise reach the chain and come back as a raw revert
+  // in base units ("1189975284 available, 1800000000 required").
+  const from = contractor.team ? pot(contractor.team).team : 'The treasury'
+  const available = await T.balanceOf(contractor.team ? deptAddress(contractor.team) : S.company.address).catch(() => null)
+  if (available !== null && available < inv.amount) {
+    const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+    return c.json({ error: `${from} has ${usd(available)} and this invoice is ${usd(inv.amount)}. Add money to ${contractor.team ? from : 'the treasury'} first.`, code: 'insufficient_funds', available, required: inv.amount }, 409)
+  }
   const t0 = Date.now()
   inv.tx = contractor.team ? await departmentPayer(pot(contractor.team), a).pay(contractor.address, inv.amount, inv.number) : await T.companyPay(contractor.address, inv.amount, inv.number)
   inv.paidMs = Date.now() - t0
