@@ -17,7 +17,7 @@
     "audit": "node scripts/audit-ui.mjs"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.4",
+    "@hono/node-server": "^2.1.6",
     "@morpho-org/morpho-sdk": "6.0.0",
     "@simplewebauthn/server": "^13.3.3",
     "@upstash/redis": "^1.39.0",
